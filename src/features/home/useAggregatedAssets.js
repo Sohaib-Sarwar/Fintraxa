@@ -110,14 +110,13 @@ export function useAggregatedAssets() {
       else h.units -= Number(t.units);
     });
 
-    let fundsAtCost = 0;
-    const mfValue = Object.values(mfHoldingMap)
-      .filter((h) => h.units > 0)
-      .reduce((sum, h) => {
-        const live = mfPriceMap[h.name];
-        if (!live) fundsAtCost += 1;
-        return sum + h.units * (live || h.nav);
-      }, 0);
+    // A holding with no live price falls back to its purchase price, which
+    // makes the total look precise while quietly reporting cost as value.
+    // Counting those lets the dashboard say so instead of implying otherwise.
+    const mfOpen = Object.values(mfHoldingMap).filter((h) => h.units > 0);
+    const fundsAtCost = mfOpen.filter((h) => !mfPriceMap[h.name]).length;
+    const mfValue = mfOpen.reduce(
+      (sum, h) => sum + h.units * (mfPriceMap[h.name] || h.nav), 0);
 
     /* ── Stocks market value ── */
     const stLive = stockPriceMap(liveStocks);
@@ -131,18 +130,10 @@ export function useAggregatedAssets() {
       else h.shares -= Number(t.quantity);
     });
 
-    // A holding with no live quote falls back to its purchase price, which
-    // makes the total look precise while quietly reporting cost as value.
-    // Count those so the dashboard can say so instead of implying otherwise.
-    let holdingsAtCost = 0;
-
-    const stocksValue = Object.entries(stHoldingMap)
-      .filter(([, h]) => h.shares > 0)
-      .reduce((sum, [sym, h]) => {
-        const live = stLive[sym]?.current;
-        if (!live) holdingsAtCost += 1;
-        return sum + h.shares * (live || h.avgPrice);
-      }, 0);
+    const stOpen = Object.entries(stHoldingMap).filter(([, h]) => h.shares > 0);
+    const holdingsAtCost = stOpen.filter(([sym]) => !stLive[sym]?.current).length;
+    const stocksValue = stOpen.reduce(
+      (sum, [sym, h]) => sum + h.shares * (stLive[sym]?.current || h.avgPrice), 0);
 
     /* ── Total assets ── */
     const totalAssets = financeBalance + mfValue + stocksValue;

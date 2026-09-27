@@ -111,7 +111,7 @@ export default function AuthPage() {
   const [showPw, setShowPw] = useState(false);
   const [showConfirmPw, setShowConfirmPw] = useState(false);
   const [pwFocused, setPwFocused] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -119,6 +119,7 @@ export default function AuthPage() {
   const [installDismissed, setInstallDismissed] = useState(false);
   const signIn = useAuthStore((s) => s.signIn);
   const signUp = useAuthStore((s) => s.signUp);
+  const resetPassword = useAuthStore((s) => s.resetPassword);
   const isMobile = useMediaQuery('(max-width:768px)');
 
   const isStandalone = typeof window !== 'undefined' && window.matchMedia('(display-mode: standalone)').matches;
@@ -194,6 +195,32 @@ export default function AuthPage() {
       setError(getFriendlyAuthError(err, isSignUp));
     }
     finally { setLoading(false); }
+  };
+
+  /* Password recovery.
+     This control existed as styled text with no onClick — it looked
+     interactive and did nothing, which in a finance app means a locked-out
+     user has no way back in. Supabase always replies the same way whether or
+     not the address is registered, so the confirmation below deliberately does
+     not reveal which. */
+  const handleForgotPassword = async () => {
+    const normalizedEmail = email.trim().toLowerCase();
+    setError('');
+    setSuccess('');
+    if (!normalizedEmail || !/\S+@\S+\.\S+/.test(normalizedEmail)) {
+      setFieldErrors({ email: 'Enter your email first, then tap Forgot Password' });
+      return;
+    }
+    setResetting(true);
+    try {
+      await resetPassword(normalizedEmail);
+      setSuccess('If that email has an account, a reset link is on its way.');
+    } catch (err) {
+      console.error('[Fintraxa Auth] reset', err?.message || err);
+      setError('Could not send the reset email. Please try again shortly.');
+    } finally {
+      setResetting(false);
+    }
   };
 
   const toggle = () => {
@@ -381,30 +408,25 @@ export default function AuthPage() {
             </Box>
 
             {!isSignUp && (
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 1.4, mb: 0.25 }}>
-                <FormControlLabel
-                  sx={{ m: 0 }}
-                  control={
-                    <Checkbox checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)}
-                      size="small" sx={{
-                        color: 'rgba(255,255,255,0.55)',
-                        '&.Mui-checked': { color: '#fff' },
-                        p: '3px',
-                        mr: '4px',
-                      }} />
-                  }
-                  label={
-                    <Typography sx={{ fontSize: '0.78rem', fontWeight: 600, color: '#fff' }}>Remember Me</Typography>
-                  }
-                />
-                <Typography sx={{
-                  fontSize: '0.78rem', fontWeight: 500,
-                  color: 'rgba(255,255,255,0.8)',
-                  cursor: 'pointer',
-                  '&:hover': { color: '#fff' },
-                }}>
-                  Forgot Password?
-                </Typography>
+              /* "Remember Me" used to sit here as a checkbox wired to a state
+                 variable nothing read — the session persists either way, so
+                 the control only ever misrepresented what it did. Removed
+                 rather than faked. */
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', mt: 1.4, mb: 0.25 }}>
+                <Button
+                  type="button"
+                  onClick={handleForgotPassword}
+                  disabled={resetting || loading}
+                  sx={{
+                    p: 0, minWidth: 0, textTransform: 'none',
+                    fontSize: '0.78rem', fontWeight: 500,
+                    color: 'rgba(255,255,255,0.8)',
+                    '&:hover': { color: '#fff', bgcolor: 'transparent' },
+                    '&.Mui-disabled': { color: 'rgba(255,255,255,0.4)' },
+                  }}
+                >
+                  {resetting ? 'Sending…' : 'Forgot Password?'}
+                </Button>
               </Box>
             )}
 

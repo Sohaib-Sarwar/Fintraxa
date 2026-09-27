@@ -151,7 +151,11 @@ function StockAnalyzer() {
 
   const cardSx = { borderRadius: 3, border: `1px solid ${theme.palette.divider}`, bgcolor: isDark ? 'rgba(255,255,255,0.02)' : '#fff' };
 
-  const SectionHeader = ({ title, sectionKey, icon }) => (
+  // A plain render function, not a component declared in the render body.
+  // Declared as a component it got a fresh identity every render, so React
+  // tore down and rebuilt the whole header subtree on each pass instead of
+  // reconciling it. Calling it directly keeps the JSX inline where it belongs.
+  const sectionHeader = ({ title, sectionKey, icon }) => (
     <Box onClick={() => toggle(sectionKey)} sx={{
       display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer',
       px: 2, py: 1.2, borderBottom: openSections[sectionKey] ? `1px solid ${theme.palette.divider}` : 'none',
@@ -253,7 +257,7 @@ function StockAnalyzer() {
 
           {/* ─ Valuation Models (collapsible) ─ */}
           <Card sx={{ ...cardSx, mb: 1.5, overflow: 'hidden' }}>
-            <SectionHeader title="Valuation Models" sectionKey="valuation" icon={<CalculateRounded sx={{ fontSize: 16 }} />} />
+            {sectionHeader({ title: "Valuation Models", sectionKey: "valuation", icon: <CalculateRounded sx={{ fontSize: 16 } })}} />
             <Collapse in={openSections.valuation}>
               <CardContent sx={{ p: 2, pt: 1.5, '&:last-child': { pb: 2 } }}>
                 <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 1 }}>
@@ -302,7 +306,7 @@ function StockAnalyzer() {
 
           {/* ─ Quality & Safety (collapsible) ─ */}
           <Card sx={{ ...cardSx, mb: 1.5, overflow: 'hidden' }}>
-            <SectionHeader title="Quality & Safety" sectionKey="quality" icon={<GppGoodRounded sx={{ fontSize: 16 }} />} />
+            {sectionHeader({ title: "Quality & Safety", sectionKey: "quality", icon: <GppGoodRounded sx={{ fontSize: 16 } })}} />
             <Collapse in={openSections.quality}>
               <CardContent sx={{ p: { xs: 1.5, sm: 2 }, pt: 1.5, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
                 <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)' }, gap: 0.75 }}>
@@ -346,7 +350,7 @@ function StockAnalyzer() {
 
           {/* ─ Technical Levels (collapsible) ─ */}
           <Card sx={{ ...cardSx, mb: 1.5, overflow: 'hidden' }}>
-            <SectionHeader title="Technical Levels" sectionKey="technical" icon={<TrendingUpRounded sx={{ fontSize: 16 }} />} />
+            {sectionHeader({ title: "Technical Levels", sectionKey: "technical", icon: <TrendingUpRounded sx={{ fontSize: 16 } })}} />
             <Collapse in={openSections.technical}>
               <CardContent sx={{ p: 2, pt: 1.5, '&:last-child': { pb: 2 } }}>
                 {/* Visual price ruler */}

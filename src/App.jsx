@@ -9,6 +9,7 @@ import AppLayout from './components/layout/AppLayout';
 import AuthPage from './features/auth/AuthPage';
 import InstallPrompt from './components/InstallPrompt';
 import InfiniteSpinner from './components/InfiniteSpinner';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Lazy load feature modules
 const IEDashboard = lazy(() => import('./features/income-expense/Dashboard'));
@@ -26,6 +27,14 @@ const StockResearch = lazy(() => import('./features/psx-stocks/Research'));
 const StockTools = lazy(() => import('./features/psx-stocks/Tools'));
 
 const Loader = () => <InfiniteSpinner size={80} minHeight="50vh" />;
+
+/** One boundary and one suspense fence per route, so a crash or a failed chunk
+ *  load takes down that screen and not the whole shell — the nav stays usable. */
+const page = (Element) => (
+  <ErrorBoundary>
+    {page(Element)}
+  </ErrorBoundary>
+);
 const FullLoader = () => <InfiniteSpinner size={96} minHeight="100dvh" showBrand />;
 
 function ProtectedRoute({ children }) {
@@ -62,25 +71,31 @@ export default function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <Routes>
-        <Route path="/auth" element={user ? <Navigate to="/home" replace /> : <AuthPage />} />
+        <Route
+          path="/auth"
+          element={user ? <Navigate to="/home" replace /> : <ErrorBoundary><AuthPage /></ErrorBoundary>}
+        />
         <Route path="/" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
-          <Route index element={<Suspense fallback={<Loader />}><IEDashboard /></Suspense>} />
-          <Route path="home" element={<Suspense fallback={<Loader />}><HomeDashboard /></Suspense>} />
+          <Route index element={page(IEDashboard)} />
+          <Route path="home" element={page(HomeDashboard)} />
           {/* Income/Expense (Finance) — keep "/" paths for backward compatibility */}
-          <Route path="add-transaction" element={<Suspense fallback={<Loader />}><AddTransaction /></Suspense>} />
-          <Route path="transactions" element={<Suspense fallback={<Loader />}><Transactions /></Suspense>} />
+          <Route path="add-transaction" element={page(AddTransaction)} />
+          <Route path="transactions" element={page(Transactions)} />
           {/* Mutual Funds */}
-          <Route path="funds" element={<Suspense fallback={<Loader />}><MFSection /></Suspense>} />
-          <Route path="funds/add" element={<Suspense fallback={<Loader />}><AddFund /></Suspense>} />
-          <Route path="funds/analytics" element={<Suspense fallback={<Loader />}><FundAnalytics /></Suspense>} />
+          <Route path="funds" element={page(MFSection)} />
+          <Route path="funds/add" element={page(AddFund)} />
+          <Route path="funds/analytics" element={page(FundAnalytics)} />
           {/* PSX Stocks */}
-          <Route path="stocks" element={<Suspense fallback={<Loader />}><PSXSection /></Suspense>} />
-          <Route path="stocks/shares" element={<Suspense fallback={<Loader />}><SharesPage /></Suspense>} />
-          <Route path="stocks/transactions" element={<Suspense fallback={<Loader />}><StockTransactions /></Suspense>} />
-          <Route path="stocks/analytics" element={<Suspense fallback={<Loader />}><StockAnalytics /></Suspense>} />
-          <Route path="stocks/research" element={<Suspense fallback={<Loader />}><StockResearch /></Suspense>} />
-          <Route path="stocks/tools" element={<Suspense fallback={<Loader />}><StockTools /></Suspense>} />
+          <Route path="stocks" element={page(PSXSection)} />
+          <Route path="stocks/shares" element={page(SharesPage)} />
+          <Route path="stocks/transactions" element={page(StockTransactions)} />
+          <Route path="stocks/analytics" element={page(StockAnalytics)} />
+          <Route path="stocks/research" element={page(StockResearch)} />
+          <Route path="stocks/tools" element={page(StockTools)} />
         </Route>
+        {/* Anything else — a stale bookmark, a typo, a link from an older
+            version — lands on the dashboard rather than a blank screen. */}
+        <Route path="*" element={<Navigate to={user ? '/home' : '/auth'} replace />} />
       </Routes>
 
       {/* Global Snackbar */}
