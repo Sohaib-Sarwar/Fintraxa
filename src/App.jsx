@@ -32,7 +32,7 @@ const Loader = () => <InfiniteSpinner size={80} minHeight="50vh" />;
  *  load takes down that screen and not the whole shell — the nav stays usable. */
 const page = (Element) => (
   <ErrorBoundary>
-    {page(Element)}
+    <Suspense fallback={<Loader />}><Element /></Suspense>
   </ErrorBoundary>
 );
 const FullLoader = () => <InfiniteSpinner size={96} minHeight="100dvh" showBrand />;

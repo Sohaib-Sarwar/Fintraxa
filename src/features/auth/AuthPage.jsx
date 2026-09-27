@@ -1,12 +1,10 @@
 import { useState, useEffect } from 'react';
 import {
   Box, TextField, Button, Typography, Alert, CircularProgress,
-  InputAdornment, IconButton, useMediaQuery, Checkbox, FormControlLabel,
-} from '@mui/material';
+  InputAdornment, IconButton, useMediaQuery, } from '@mui/material';
 import {
   PersonRounded as PersonIcon,
-  LockRounded as LockIcon,
-  Visibility, VisibilityOff,
+  LockRounded as Visibility, VisibilityOff,
   SpaceDashboardRounded as DashboardIcon,
   PieChartRounded as FundsIcon,
   CandlestickChartRounded as StocksIcon,
@@ -47,7 +45,7 @@ const getPasswordChecks = (pw) => ({
   hasUpper: /[A-Z]/.test(pw),
   hasLower: /[a-z]/.test(pw),
   hasNumber: /\d/.test(pw),
-  hasSpecial: /[!@#$%^&*(),.?":{}|<>_\-+=\[\]\\;'`~]/.test(pw),
+  hasSpecial: /[!@#$%^&*(),.?":{}|<>_\-+=[\]\\;'`~]/.test(pw),
 });
 
 const getPasswordStrength = (checks) => {

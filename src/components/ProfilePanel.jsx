@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import {
   Drawer, Box, Typography, IconButton, Avatar, Divider, Button,
-  Select, MenuItem, FormControl, InputLabel, TextField, Chip, Dialog,
+  Select, MenuItem, FormControl, InputLabel, TextField, Dialog,
   DialogTitle, DialogContent, DialogActions, CircularProgress,
   useTheme, Switch,
 } from '@mui/material';
@@ -19,7 +19,8 @@ import {
   LocalLaundryService, SelfImprovement, ChildCare, Handyman, Redeem,
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
+import { describeDbError } from '../lib/dbErrors';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/authStore';
 import { useAppStore, CURRENCIES } from '../store/appStore';
@@ -55,7 +56,7 @@ export default function ProfilePanel({ open, onClose }) {
   const [catType, setCatType] = useState('expense');
   const [catIcon, setCatIcon] = useState('Category');
 
-  const { data: categories = [], isLoading: catsLoading } = useQuery({
+  const { data: categories = [] } = useQuery({
     queryKey: ['categories', user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
@@ -124,12 +125,23 @@ export default function ProfilePanel({ open, onClose }) {
   const handleSave = async () => {
     if (!hasChanges) return;
     setSaving(true);
-    await setCurrency(pendingCurrency, user?.id);
-    // Fetch fresh exchange rates for the new currency
-    try { await useAppStore.getState().fetchExchangeRates(); } catch {}
-    setPendingCurrency(null);
-    setSaving(false);
-    useAppStore.getState().showSnackbar('Currency updated successfully!', 'success');
+    const { showSnackbar } = useAppStore.getState();
+    try {
+      await setCurrency(pendingCurrency, user?.id);
+      // Rates for the new display currency. A failure here is not a failed
+      // save — the preference is stored; only the conversion is unavailable.
+      await useAppStore.getState().fetchExchangeRates();
+      setPendingCurrency(null);
+      showSnackbar('Currency updated', 'success');
+    } catch (err) {
+      // This claimed success unconditionally, so a rejected write showed
+      // "Currency updated successfully!" and then silently reverted on the
+      // next device.
+      console.error('[Fintraxa] currency save failed', err);
+      showSnackbar(describeDbError(err), 'error');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const detailRows = [

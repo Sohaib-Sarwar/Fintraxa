@@ -1,9 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Box, Card, CardContent, Typography, Grid, Skeleton, Chip, useMediaQuery, useTheme } from '@mui/material';
 import {
-  AccountBalanceWalletRounded, ShowChartRounded,
-  TrendingUpRounded, TrendingDownRounded, Wallet,
-  SavingsRounded, PieChartRounded,
+  ShowChartRounded,
+  TrendingUpRounded, TrendingDownRounded, SavingsRounded, PieChartRounded,
 } from '@mui/icons-material';
 import { PieChart, Pie, Cell, Sector, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip } from 'recharts';
 import { useQuery } from '@tanstack/react-query';
@@ -97,27 +96,11 @@ export default function MFDashboard() {
 
   const { data: apiFundsData } = useQuery(mufapFundsQuery());
 
-  const { data: freeCashData } = useQuery({
-    queryKey: ['mf-free-cash', user?.id],
-    queryFn: async () => {
-      const { data: cats } = await supabase.from('categories').select('id').ilike('name', '%Investment - Mutual Funds%');
-      const catIds = (cats || []).map((c) => c.id);
-      let deposited = 0;
-      if (catIds.length > 0) {
-        const { data: txns } = await supabase.from('income_expense_transactions')
-          .select('amount').eq('user_id', user.id).eq('type', 'debit').in('category_id', catIds);
-        deposited = (txns || []).reduce((s, t) => s + Number(t.amount), 0);
-      }
-      const { data: mfTxns } = await supabase.from('mutual_fund_transactions')
-        .select('investment_amount, type').eq('user_id', user.id);
-      let bought = 0, sold = 0;
-      (mfTxns || []).forEach((t) => { if (t.type === 'buy') bought += Number(t.investment_amount); else sold += Number(t.investment_amount); });
-      return { deposited, bought, sold, freeCash: deposited - bought + sold };
-    },
-    enabled: !!user,
-  });
+  /* The free-cash query that used to sit here fetched three tables on every
+     mount — categories, income/expense transactions and fund transactions —
+     for a figure this dashboard never rendered. AddFund still computes it
+     under the same key, where it is actually shown. */
 
-  const freeCash = freeCashData?.freeCash ?? 0;
 
   const { funds, totals, priceMap, pieData } = useMemo(() => {
     const priceMap = fundPriceMap(apiFundsData);
@@ -223,7 +206,6 @@ export default function MFDashboard() {
   }, [transactions]);
 
   const lineColorInvested = isDark ? '#a3a3a3' : '#555';
-  const lineColorValue = isDark ? '#e5e5e5' : '#222';
   const gridColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
   const axisColor = isDark ? '#555' : '#aaa';
 

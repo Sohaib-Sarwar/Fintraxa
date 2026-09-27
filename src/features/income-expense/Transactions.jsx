@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import {
   Box, Card, CardContent, Typography, TextField, IconButton, Grid, Chip,
   Dialog, DialogTitle, DialogContent, DialogActions, Button, MenuItem,
@@ -199,7 +199,6 @@ export default function Transactions() {
     });
     return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
   }, [transactions]);
-  const categoryNames = categoryList.map((c) => c.name);
 
   const filtered = transactions.filter((t) => {
     const q = search.toLowerCase();
@@ -269,7 +268,10 @@ export default function Transactions() {
       link.href = canvas.toDataURL();
       link.click();
       showSnackbar('Receipt downloaded', 'success');
-    } catch (e) { showSnackbar('Download failed', 'error'); }
+    } catch (err) {
+      console.error('[Fintraxa] receipt download failed', err);
+      showSnackbar('Download failed', 'error');
+    }
   };
 
   const clearFilters = () => {

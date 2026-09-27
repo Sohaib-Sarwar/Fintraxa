@@ -15,7 +15,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/authStore';
-import { formatCurrency, formatPercent, formatDate } from '../../lib/formatters';
+import { formatCurrency, formatDate } from '../../lib/formatters';
 import { startOfMonth, endOfMonth, subMonths, addMonths, format } from 'date-fns';
 import CategoryIcon from '../../lib/categoryIcons';
 

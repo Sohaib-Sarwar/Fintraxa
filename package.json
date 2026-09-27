@@ -6,8 +6,11 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "preview": "vite preview",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "test": "node --test scripts/unit-test.mjs",
+    "test:contract": "node scripts/contract-test.mjs",
+    "verify": "npm run lint && npm run test && npm run build"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -34,6 +37,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
     "eslint": "^9.39.1",
+    "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",

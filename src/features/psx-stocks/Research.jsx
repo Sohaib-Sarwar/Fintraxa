@@ -1,13 +1,10 @@
 import { useState, useMemo } from 'react';
 import {
   Box, Typography, Card, CardContent, Chip, TextField, InputAdornment,
-  Collapse, IconButton, LinearProgress, Skeleton, useTheme, useMediaQuery, alpha,
-} from '@mui/material';
+  Collapse, IconButton, LinearProgress, useTheme, } from '@mui/material';
 import {
   SearchRounded, ExpandMoreRounded, ExpandLessRounded,
-  TrendingUpRounded, TrendingDownRounded, WarningAmberRounded,
-  CheckCircleRounded, StarRounded,
-} from '@mui/icons-material';
+  CheckCircleRounded, } from '@mui/icons-material';
 import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { psxStocksQuery, psxIndicesQuery, stockPriceMap } from '../../lib/marketQueries';
@@ -26,7 +23,6 @@ const SECTION_TABS = [
 export default function Research() {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
-  const isMobile = useMediaQuery('(max-width:768px)');
   const [activeTab, setActiveTab] = useState('overview');
   const [search, setSearch] = useState('');
   const [activeSector, setActiveSector] = useState(Object.keys(SECTORS)[0]);
@@ -105,7 +101,7 @@ export default function Research() {
 
           <AnimatePresence mode="wait">
             <motion.div key={activeTab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
-              {activeTab === 'overview' && <OverviewSection macro={MACRO} livePriceMap={livePriceMap} isDark={isDark} theme={theme} cardSx={cardSx} />}
+              {activeTab === 'overview' && <OverviewSection macro={MACRO} isDark={isDark} cardSx={cardSx} />}
               {activeTab === 'sectors' && (
                 <SectorSection activeSector={activeSector} setActiveSector={setActiveSector}
                   livePrice={livePrice} liveChange={liveChange} isDark={isDark} theme={theme}
@@ -113,9 +109,9 @@ export default function Research() {
               )}
               {activeTab === 'buckets' && (
                 <BucketSection activeBucket={activeBucket} setActiveBucket={setActiveBucket}
-                  livePrice={livePrice} isDark={isDark} theme={theme} cardSx={cardSx} chipSx={chipSx} />
+                  livePrice={livePrice} isDark={isDark} cardSx={cardSx} chipSx={chipSx} />
               )}
-              {activeTab === 'buyzone' && <BuyZoneSection livePrice={livePrice} liveChange={liveChange} isDark={isDark} theme={theme} cardSx={cardSx} />}
+              {activeTab === 'buyzone' && <BuyZoneSection livePrice={livePrice} liveChange={liveChange} isDark={isDark} cardSx={cardSx} />}
             </motion.div>
           </AnimatePresence>
         </>
@@ -125,7 +121,7 @@ export default function Research() {
 }
 
 /* ─── Overview Section ─── */
-function OverviewSection({ macro, livePriceMap, isDark, theme, cardSx }) {
+function OverviewSection({ macro, isDark, cardSx }) {
   const totalStocks = Object.values(SECTORS).reduce((s, sec) => s + sec.stocks.length, 0);
   const sectorCount = Object.keys(SECTORS).length;
   const buyZoneCount = AT_BUY_ZONE.length;
@@ -396,7 +392,7 @@ function StockRow({ stock, livePrice: lp, liveChange: lc, expanded, onToggle, is
 }
 
 /* ─── Bucket / Portfolio Section ─── */
-function BucketSection({ activeBucket, setActiveBucket, livePrice, isDark, theme, cardSx, chipSx }) {
+function BucketSection({ activeBucket, setActiveBucket, livePrice, isDark, cardSx, chipSx }) {
   const bucketKeys = Object.keys(BUCKETS);
   const bucket = BUCKETS[activeBucket];
 
@@ -406,7 +402,9 @@ function BucketSection({ activeBucket, setActiveBucket, livePrice, isDark, theme
       const live = livePrice(bs.id);
       return { ...bs, stock, livePrice: live };
     }).filter((b) => b.stock);
-  }, [activeBucket, bucket, livePrice]);
+    // `bucket` is already derived from activeBucket, so listing both re-ran
+    // this on every bucket change twice over.
+  }, [bucket, livePrice]);
 
   const totalWeight = enriched.reduce((s, e) => s + e.weight, 0);
   const wYield = enriched.reduce((s, e) => s + (e.stock.divYield || 0) * e.weight, 0) / totalWeight;
@@ -476,7 +474,7 @@ function BucketSection({ activeBucket, setActiveBucket, livePrice, isDark, theme
 }
 
 /* ─── Buy Zone Section ─── */
-function BuyZoneSection({ livePrice, liveChange, isDark, theme, cardSx }) {
+function BuyZoneSection({ livePrice, liveChange, isDark, cardSx }) {
   return (
     <Box>
       <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary', mb: 1.5, lineHeight: 1.5 }}>

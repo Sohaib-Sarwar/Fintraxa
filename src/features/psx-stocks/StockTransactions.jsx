@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef } from 'react';
 import {
   Box, Card, CardContent, Typography, TextField, IconButton, Grid, Chip,
   Dialog, DialogTitle, DialogContent, DialogActions, Button, MenuItem,
@@ -25,7 +25,7 @@ const BUY_COLOR = '#15803d';
 const SELL_COLOR = '#b91c1c';
 
 /* TransactionRow with swipe gestures — mirrors Finance Transactions */
-function TransactionRow({ txn, onEdit, onDelete, onView, isMobile, isDark }) {
+function TransactionRow({ txn, onEdit, onDelete, onView, isMobile }) {
   const [offset, setOffset] = useState(0);
   const [swiping, setSwiping] = useState(false);
 
@@ -182,10 +182,6 @@ export default function StockTransactions() {
   });
 
   /* ── Unique symbols for search helper ── */
-  const symbolList = useMemo(() => {
-    return [...new Set(transactions.map((t) => t.symbol?.toUpperCase()))].sort();
-  }, [transactions]);
-
   const filtered = transactions.filter((t) => {
     const q = search.toLowerCase();
     const matchText = !q || t.symbol?.toLowerCase().includes(q)
@@ -263,7 +259,10 @@ export default function StockTransactions() {
       link.href = canvas.toDataURL();
       link.click();
       showSnackbar('Receipt downloaded', 'success');
-    } catch (e) { showSnackbar('Download failed', 'error'); }
+    } catch (err) {
+      console.error('[Fintraxa] receipt download failed', err);
+      showSnackbar('Download failed', 'error');
+    }
   };
 
   const clearFilters = () => {

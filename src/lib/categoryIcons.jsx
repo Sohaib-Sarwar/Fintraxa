@@ -1,3 +1,4 @@
+import { createElement } from 'react';
 /**
  * Maps category icon name strings (from DB) to MUI Icon components.
  * The DB stores icon names like "Work", "ShowChart", "Restaurant", etc.
@@ -59,7 +60,7 @@ function isEmoji(str) {
 /**
  * Resolve icon: tries icon name first, falls back to category name lookup.
  */
-export function getCategoryIconComponent(iconName, categoryName) {
+function getCategoryIconComponent(iconName, categoryName) {
   // Try direct icon name match first
   if (iconName && !isEmoji(iconName)) {
     return ICON_MAP[iconName] || Category;
@@ -78,30 +79,9 @@ export function getCategoryIconComponent(iconName, categoryName) {
  * The categoryName prop is used as fallback when name is an emoji.
  */
 export default function CategoryIcon({ name, categoryName, sx = {}, ...props }) {
-  const IconComp = getCategoryIconComponent(name, categoryName);
-  return <IconComp sx={sx} {...props} />;
+  // createElement rather than binding the result to a capitalised local and
+  // rendering <IconComp />: getCategoryIconComponent is a lookup returning a
+  // module-level MUI icon, never a freshly built component, and writing it this
+  // way says so plainly instead of needing a lint suppression to explain it.
+  return createElement(getCategoryIconComponent(name, categoryName), { sx, ...props });
 }
-
-/* ── Default categories with MUI icon names (matching DB schema) ── */
-export const DEFAULT_CATEGORIES = [
-  { name: 'Salary', type: 'income', icon: 'Work' },
-  { name: 'Freelance', type: 'income', icon: 'Computer' },
-  { name: 'Business', type: 'income', icon: 'Business' },
-  { name: 'Investment Returns', type: 'income', icon: 'TrendingUp' },
-  { name: 'Gift', type: 'income', icon: 'CardGiftcard' },
-  { name: 'Other Income', type: 'income', icon: 'AttachMoney' },
-  { name: 'Food & Dining', type: 'expense', icon: 'Restaurant' },
-  { name: 'Transport', type: 'expense', icon: 'DirectionsCar' },
-  { name: 'Shopping', type: 'expense', icon: 'ShoppingBag' },
-  { name: 'Bills & Utilities', type: 'expense', icon: 'Receipt' },
-  { name: 'Health', type: 'expense', icon: 'LocalHospital' },
-  { name: 'Education', type: 'expense', icon: 'School' },
-  { name: 'Entertainment', type: 'expense', icon: 'SportsEsports' },
-  { name: 'Rent', type: 'expense', icon: 'Home' },
-  { name: 'Groceries', type: 'expense', icon: 'ShoppingCart' },
-  { name: 'Insurance', type: 'expense', icon: 'Shield' },
-  { name: 'Savings', type: 'expense', icon: 'Savings' },
-  { name: 'Other Expense', type: 'expense', icon: 'MoreHoriz' },
-  { name: 'Investment - Mutual Funds', type: 'expense', icon: 'AccountBalance' },
-  { name: 'Investment - Stocks', type: 'expense', icon: 'ShowChart' },
-];

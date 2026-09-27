@@ -27,7 +27,9 @@
 
 const DEFAULT_BASE = 'https://sohaib-sarwar.github.io/PSX-MUFAP-MicroService/api';
 
-const API_BASE = String(import.meta.env.VITE_API_BASE_URL || DEFAULT_BASE).replace(/\/+$/, '');
+// Optional-chained so the module also loads outside Vite — `import.meta.env` is
+// undefined under plain Node, and the unit tests import this file directly.
+const API_BASE = String(import.meta.env?.VITE_API_BASE_URL || DEFAULT_BASE).replace(/\/+$/, '');
 
 // health.json and ready.json sit beside the dashboard, one level above /api.
 const SITE_BASE = API_BASE.replace(/\/api$/, '');
