@@ -37,3 +37,5 @@ Thumbs.db
 *.local
 Stock Analyzer/
 .github/
+# Vercel
+.vercel/
