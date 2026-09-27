@@ -13,6 +13,7 @@ import { useSwipeable } from 'react-swipeable';
 import { motion, AnimatePresence } from 'framer-motion';
 import html2canvas from 'html2canvas';
 import { supabase } from '../../lib/supabase';
+import { dbErrorHandler, validatePositiveNumber } from '../../lib/dbErrors';
 import { useAuthStore } from '../../store/authStore';
 import { useAppStore } from '../../store/appStore';
 import { formatCurrency, formatDate, formatNumber } from '../../lib/formatters';
@@ -207,12 +208,30 @@ export default function StockTransactions() {
       queryClient.invalidateQueries({ queryKey: ['home-st-txns'] });
       showSnackbar('Deleted', 'success');
     },
+    onError: dbErrorHandler(showSnackbar, 'Could not delete'),
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, price, quantity, fee }) => {
+    mutationFn: async ({ id, price, quantity, fee, notes }) => {
+      // price and quantity both carry CHECK (> 0); clearing either field used
+      // to send null and fail silently behind an open dialog.
+      const invalid = validatePositiveNumber(price, 'Price')
+        || validatePositiveNumber(quantity, 'Quantity');
+      if (invalid) throw new Error(invalid);
+      const feeValue = fee === '' || fee == null ? 0 : Number(fee);
+      if (!Number.isFinite(feeValue) || feeValue < 0) {
+        throw new Error('Broker fee cannot be negative.');
+      }
       const { error } = await supabase.from('stock_transactions')
-        .update({ price: parseFloat(price), quantity: parseFloat(quantity), fee: parseFloat(fee) || 0 }).eq('id', id);
+        .update({
+          price: Number(price),
+          quantity: Number(quantity),
+          fee: feeValue,
+          // `notes` was collected by the dialog and then dropped here, so note
+          // edits were silently discarded on every save.
+          notes: notes?.trim() || null,
+        })
+        .eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -222,6 +241,7 @@ export default function StockTransactions() {
       setEditTxn(null);
       showSnackbar('Updated', 'success');
     },
+    onError: dbErrorHandler(showSnackbar, 'Could not save'),
   });
 
   const handleDelete = (id) =>
@@ -484,7 +504,7 @@ export default function StockTransactions() {
           </Button>
           <Button variant="contained"
             sx={{ flex: 1, fontSize: '0.8rem', borderRadius: 2.5, py: 1.1, fontWeight: 600, bgcolor: isDark ? '#fff' : '#111', color: isDark ? '#000' : '#fff', '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.85)' } }}
-            onClick={() => updateMutation.mutate({ id: editTxn.id, price: editPrice, quantity: editQty, fee: editFee })}>
+            onClick={() => updateMutation.mutate({ id: editTxn.id, price: editPrice, quantity: editQty, fee: editFee, notes: editNotes })}>
             Save Changes
           </Button>
         </DialogActions>

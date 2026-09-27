@@ -13,6 +13,7 @@ import { useSwipeable } from 'react-swipeable';
 import { motion, AnimatePresence } from 'framer-motion';
 import html2canvas from 'html2canvas';
 import { supabase } from '../../lib/supabase';
+import { dbErrorHandler, validatePositiveNumber } from '../../lib/dbErrors';
 import { useAuthStore } from '../../store/authStore';
 import { useAppStore } from '../../store/appStore';
 import { formatCurrency, formatDate } from '../../lib/formatters';
@@ -227,12 +228,18 @@ export default function Transactions() {
       queryClient.invalidateQueries({ queryKey: ['home-ie-txns-all'] });
       showSnackbar('Deleted', 'success');
     },
+    onError: dbErrorHandler(showSnackbar, 'Could not delete'),
   });
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, amount, notes }) => {
+      // Guard before the round-trip: `amount` has a CHECK (> 0), and an empty
+      // field parses to NaN, which PostgREST sends as null and the NOT NULL
+      // constraint then rejects. Both used to fail invisibly.
+      const invalid = validatePositiveNumber(amount, 'Amount');
+      if (invalid) throw new Error(invalid);
       const { error } = await supabase.from('income_expense_transactions')
-        .update({ amount: parseFloat(amount), notes: notes || null }).eq('id', id);
+        .update({ amount: Number(amount), notes: notes?.trim() || null }).eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -246,6 +253,7 @@ export default function Transactions() {
       setEditTxn(null);
       showSnackbar('Updated', 'success');
     },
+    onError: dbErrorHandler(showSnackbar, 'Could not save'),
   });
 
   const handleDelete = (id) =>

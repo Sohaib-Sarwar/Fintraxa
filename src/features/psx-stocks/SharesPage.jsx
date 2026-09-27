@@ -13,6 +13,7 @@ import {
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabase';
+import { dbErrorHandler } from '../../lib/dbErrors';
 import { invalidateCache } from '../../lib/api';
 import {
   psxStocksQuery, psxGainersQuery, psxLosersQuery, psxActiveQuery,
@@ -188,13 +189,15 @@ export default function SharesPage() {
     mutationFn: async (symbol) => {
       const sym = symbol.toUpperCase();
       const isFav = favorites.includes(sym);
-      if (isFav) {
-        await supabase.from('favorite_stocks').delete().eq('user_id', user.id).eq('symbol', sym);
-      } else {
-        await supabase.from('favorite_stocks').insert({ user_id: user.id, symbol: sym });
-      }
+      // Neither result was checked, so a failed toggle flipped the star, let
+      // the refetch quietly put it back, and told the user nothing.
+      const { error } = isFav
+        ? await supabase.from('favorite_stocks').delete().eq('user_id', user.id).eq('symbol', sym)
+        : await supabase.from('favorite_stocks').insert({ user_id: user.id, symbol: sym });
+      if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['favorite-stocks'] }),
+    onError: dbErrorHandler(showSnackbar, 'Could not update favourites'),
   });
 
   /* ── Buy / Sell mutation ── */
