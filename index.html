@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="description" content="Personal Finance & Investment Management" />
+    
+    <meta property="og:title" content="Fintraxa" />
+    <meta property="og:description" content="Personal Finance & Investment Management" />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="/fintraxalogo.png" />
+
+    <!-- Browser Tab Icon (Primary Favicon) -->
+    <link rel="icon" type="image/x-icon" href="/icons/favicon.ico" />
+
+    <!-- Additional Icons -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/fintraxalogo.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/fintraxalogo.png" />
+    <link rel="apple-touch-icon" href="/fintraxalogo.png" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+
+    <title>Fintraxa</title>
+  </head>
+  <body>
+    <div id="root">
+      <!-- Initial loader — theme-aware via localStorage, removed by React on mount -->
+      <div id="initial-loader">
+        <style>
+          @keyframes infinityDash {
+            0%   { stroke-dashoffset: 685; }
+            100% { stroke-dashoffset: -685; }
+          }
+          #initial-loader {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100dvh;
+            gap: 18px;
+            background: #fff;
+            transition: none;
+          }
+          #initial-loader.dark {
+            background: #000;
+          }
+          #initial-loader .spinner-svg path {
+            stroke: #000;
+            animation: infinityDash 2s linear infinite;
+          }
+          #initial-loader.dark .spinner-svg path {
+            stroke: #fff;
+          }
+          #initial-loader .brand {
+            font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-size: 0.72rem;
+            font-weight: 600;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: rgba(0,0,0,0.25);
+            margin-top: 2px;
+          }
+          #initial-loader.dark .brand {
+            color: rgba(255,255,255,0.2);
+          }
+        </style>
+        <svg class="spinner-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 150" width="96" height="48">
+          <path fill="none" stroke="#000" stroke-width="14" stroke-linecap="round"
+            stroke-dasharray="300 385" stroke-dashoffset="0"
+            d="M275 75c0 31-27 50-50 50-58 0-92-100-150-100-28 0-50 22-50 50s23 50 50 50c58 0 92-100 150-100 24 0 50 19 50 50Z"/>
+        </svg>
+        <div class="brand">Fintraxa</div>
+        <script>
+          // Sync initial loader theme with stored preference (avoids flash)
+          (function() {
+            var stored = null;
+            try { stored = localStorage.getItem('pt-theme'); } catch(e) {}
+            var isDark = stored === 'dark' || (!stored && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+            if (isDark) document.getElementById('initial-loader').classList.add('dark');
+          })();
+        </script>
+      </div>
+    </div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

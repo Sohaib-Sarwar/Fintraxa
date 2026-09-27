@@ -1,0 +1,14 @@
+node_modules
+dist
+.git
+.gitignore
+.cursor
+.vscode
+.env
+.env.*
+!.env.example
+*.md
+sql
+supabase
+api_doc.md
+supabase_schema.sql

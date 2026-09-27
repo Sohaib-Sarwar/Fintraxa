@@ -1,0 +1,2422 @@
+{
+  "_generated": "2026-03-31T15:52:17.095Z",
+  "_description": "Stock metadata - company names and logo mappings from sarmaaya.pk",
+  "_totalStocks": 483,
+  "stocks": {
+    "786": {
+      "companyName": "786 Investments Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/786.svg",
+      "localLogo": "/stock-logos/786.svg"
+    },
+    "AABS": {
+      "companyName": "Al-Abbas Sugar Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/al-abbas-sugar-mills.svg",
+      "localLogo": "/stock-logos/AABS.svg"
+    },
+    "AATM": {
+      "companyName": "Ali Asghar Textile Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/AATM.svg",
+      "localLogo": "/stock-logos/AATM.svg"
+    },
+    "ABL": {
+      "companyName": "Allied Bank Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/abl-islamic-cash-fund.svg",
+      "localLogo": "/stock-logos/ABL.svg"
+    },
+    "ABOT": {
+      "companyName": "Abbott Laboratories (Pakistan) Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/abbott.svg",
+      "localLogo": "/stock-logos/ABOT.svg"
+    },
+    "ACIETF": {
+      "companyName": "Alfalah Consumer Index (ETF)",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/ACIETF.svg",
+      "localLogo": "/stock-logos/ACIETF.svg"
+    },
+    "ACPL": {
+      "companyName": "Attock Cement Pakistan Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/attock-cement-pakistan.svg",
+      "localLogo": "/stock-logos/ACPL.svg"
+    },
+    "ADAMS": {
+      "companyName": "Adam Sugar Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/adam-sugar-mills.svg",
+      "localLogo": "/stock-logos/ADAMS.svg"
+    },
+    "ADMM": {
+      "companyName": "Artistic Denim Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/artistic-denim-mills.svg",
+      "localLogo": "/stock-logos/ADMM.svg"
+    },
+    "AGHA": {
+      "companyName": "Agha Steel Ind.Ltd",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/agha-steel-industries.svg",
+      "localLogo": "/stock-logos/AGHA.svg"
+    },
+    "AGIC": {
+      "companyName": "Askari General Insurance Company Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/AGIC.svg",
+      "localLogo": "/stock-logos/AGIC.svg"
+    },
+    "AGIL": {
+      "companyName": "Agriauto Industries Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/agriauto-industries.svg",
+      "localLogo": "/stock-logos/AGIL.svg"
+    },
+    "AGL": {
+      "companyName": "Agritech Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/agritech.svg",
+      "localLogo": "/stock-logos/AGL.svg"
+    },
+    "AGP": {
+      "companyName": "AGP Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/agp.svg",
+      "localLogo": "/stock-logos/AGP.svg"
+    },
+    "AGSML": {
+      "companyName": "Abdullah Shah Ghazi Sugar Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/AGSML.svg",
+      "localLogo": "/stock-logos/AGSML.svg"
+    },
+    "AGTL": {
+      "companyName": "Al-Ghazi Tractors Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/al-ghazi-tractors.svg",
+      "localLogo": "/stock-logos/AGTL.svg"
+    },
+    "AHCL": {
+      "companyName": "Arif Habib Corporation Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/arif-habib-oration.svg",
+      "localLogo": "/stock-logos/AHCL.svg"
+    },
+    "AHL": {
+      "companyName": "Arif Habib Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/arif-habib.svg",
+      "localLogo": "/stock-logos/AHL.svg"
+    },
+    "AHTM": {
+      "companyName": "Ahmad Hassan Textile Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/ahmed-hassan-textile-mills.svg",
+      "localLogo": "/stock-logos/AHTM.svg"
+    },
+    "AICL": {
+      "companyName": "Adamjee Insurance Company Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/adamjee-insurance-co.svg",
+      "localLogo": "/stock-logos/AICL.svg"
+    },
+    "AIRLINK": {
+      "companyName": "Air Link Communication Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/air-link-communication.svg",
+      "localLogo": "/stock-logos/AIRLINK.svg"
+    },
+    "AKBL": {
+      "companyName": "Askari Bank Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/askari-bank.svg",
+      "localLogo": "/stock-logos/AKBL.svg"
+    },
+    "AKDSL": {
+      "companyName": "AKD Securities Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/akd-securities.svg",
+      "localLogo": "/stock-logos/AKDSL.svg"
+    },
+    "AKGL": {
+      "companyName": "Al-Khair Gadoon Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/AKGL.svg",
+      "localLogo": "/stock-logos/AKGL.svg"
+    },
+    "ALAC": {
+      "companyName": "Askari Life Assurance Company Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/ALAC.svg",
+      "localLogo": "/stock-logos/ALAC.svg"
+    },
+    "ALIFE": {
+      "companyName": "Adamjee Life Assurance Company Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/ALIFE.svg",
+      "localLogo": "/stock-logos/ALIFE.svg"
+    },
+    "ALNRS": {
+      "companyName": "Al-Noor Sugar Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/shahmurad-sugar-mills.svg",
+      "localLogo": "/stock-logos/ALNRS.svg"
+    },
+    "ALTN": {
+      "companyName": "Altern Energy Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/altern-energy.svg",
+      "localLogo": "/stock-logos/ALTN.svg"
+    },
+    "AMBL": {
+      "companyName": "Apna Microfinance Bank Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/apna-microfinance-bank.svg",
+      "localLogo": "/stock-logos/AMBL.svg"
+    },
+    "AMTEX": {
+      "companyName": "Amtex Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/AMTEX.svg",
+      "localLogo": "/stock-logos/AMTEX.svg"
+    },
+    "ANL": {
+      "companyName": "Azgard Nine Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/azgard-nine.svg",
+      "localLogo": "/stock-logos/ANL.svg"
+    },
+    "ANLNV": {
+      "companyName": "Azgard Nine Non-Voting Ordinary Shares",
+      "logoUrl": null,
+      "localLogo": null
+    },
+    "ANSM": {
+      "companyName": "Ansari Sugar Mills Limited",
+      "logoUrl": null,
+      "localLogo": null
+    },
+    "ANTM": {
+      "companyName": "AN Textile Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/ANTM.svg",
+      "localLogo": "/stock-logos/ANTM.svg"
+    },
+    "APL": {
+      "companyName": "Attock Petroleum Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/attock-petroleum.svg",
+      "localLogo": "/stock-logos/APL.svg"
+    },
+    "ARCTM": {
+      "companyName": "Arctic Textile Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/ARCTM.svg",
+      "localLogo": "/stock-logos/ARCTM.svg"
+    },
+    "ARMG": {
+      "companyName": "ARM Green Industries Limited",
+      "logoUrl": null,
+      "localLogo": null
+    },
+    "ARPAK": {
+      "companyName": "Arpak International Investments Ltd.",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/ARPAK.svg",
+      "localLogo": "/stock-logos/ARPAK.svg"
+    },
+    "ARPL": {
+      "companyName": "Archroma Pakistan Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/archroma-pakistan.svg",
+      "localLogo": "/stock-logos/ARPL.svg"
+    },
+    "ARUJ": {
+      "companyName": "Aruj Industries Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/ARUJ.svg",
+      "localLogo": "/stock-logos/ARUJ.svg"
+    },
+    "ASC": {
+      "companyName": "Al Shaheer Corporation Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/ASC.svg",
+      "localLogo": "/stock-logos/ASC.svg"
+    },
+    "ASHT": {
+      "companyName": "Ashfaq Textile Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/ASHT.svg",
+      "localLogo": "/stock-logos/ASHT.svg"
+    },
+    "ASIC": {
+      "companyName": "Asia Insurance Company Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/ASIC.svg",
+      "localLogo": "/stock-logos/ASIC.svg"
+    },
+    "ASL": {
+      "companyName": "Aisha Steel Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/aisha-steel-mills.svg",
+      "localLogo": "/stock-logos/ASL.svg"
+    },
+    "ASLCPS": {
+      "companyName": "Aisha Steel Convt (Pref) Right",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/ASLCPS.svg",
+      "localLogo": "/stock-logos/ASLCPS.svg"
+    },
+    "ASTL": {
+      "companyName": "Amreli Steels Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/amreli-steels.svg",
+      "localLogo": "/stock-logos/ASTL.svg"
+    },
+    "ASTM": {
+      "companyName": "Asim Textile Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/ASTM.svg",
+      "localLogo": "/stock-logos/ASTM.svg"
+    },
+    "ATBA": {
+      "companyName": "Atlas Battery Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/atlas-honda.svg",
+      "localLogo": "/stock-logos/ATBA.svg"
+    },
+    "ATIL": {
+      "companyName": "Atlas Insurance Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/atlas-honda.svg",
+      "localLogo": "/stock-logos/ATIL.svg"
+    },
+    "ATLH": {
+      "companyName": "Atlas Honda Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/atlas-honda.svg",
+      "localLogo": "/stock-logos/ATLH.svg"
+    },
+    "ATRL": {
+      "companyName": "Attock Refinery Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/attock-refinery.svg",
+      "localLogo": "/stock-logos/ATRL.svg"
+    },
+    "AVN": {
+      "companyName": "Avanceon Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/avanceon.svg",
+      "localLogo": "/stock-logos/AVN.svg"
+    },
+    "BAFL": {
+      "companyName": "Bank Alfalah Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/alfalah-consumer-etf.svg",
+      "localLogo": "/stock-logos/BAFL.svg"
+    },
+    "BAHL": {
+      "companyName": "Bank AL Habib Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/bank-al-habib.svg",
+      "localLogo": "/stock-logos/BAHL.svg"
+    },
+    "BAPL": {
+      "companyName": "Bawany Air Products Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/BAPL.svg",
+      "localLogo": "/stock-logos/BAPL.svg"
+    },
+    "BATA": {
+      "companyName": "Bata Pakistan Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/bata.svg",
+      "localLogo": "/stock-logos/BATA.svg"
+    },
+    "BBFL": {
+      "companyName": "Big Bird Foods Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/BBFL.svg",
+      "localLogo": "/stock-logos/BBFL.svg"
+    },
+    "BCL": {
+      "companyName": "Bolan Castings Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/bolan-castings.svg",
+      "localLogo": "/stock-logos/BCL.svg"
+    },
+    "BECO": {
+      "companyName": "Beco Steel Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/BECO.svg",
+      "localLogo": "/stock-logos/BECO.svg"
+    },
+    "BELA": {
+      "companyName": "Bela Automotives Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/BELA.svg",
+      "localLogo": "/stock-logos/BELA.svg"
+    },
+    "BERG": {
+      "companyName": "Berger Paints Pakistan Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/berger-paints-pakistan.svg",
+      "localLogo": "/stock-logos/BERG.svg"
+    },
+    "BFAGRO": {
+      "companyName": "Barkat Frisian Agro Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/BFAGRO.svg",
+      "localLogo": "/stock-logos/BFAGRO.svg"
+    },
+    "BFBIO": {
+      "companyName": "BF Biosciences Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/BFBIO.svg",
+      "localLogo": "/stock-logos/BFBIO.svg"
+    },
+    "BFMOD": {
+      "companyName": "B.F. Modaraba",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/BFMOD.svg",
+      "localLogo": "/stock-logos/BFMOD.svg"
+    },
+    "BGL": {
+      "companyName": "Baluchistan Glass Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/balochistan-glass.svg",
+      "localLogo": "/stock-logos/BGL.svg"
+    },
+    "BIFO": {
+      "companyName": "Biafo Industries Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/biafo-industries.svg",
+      "localLogo": "/stock-logos/BIFO.svg"
+    },
+    "BIPL": {
+      "companyName": "BankIslami Pakistan Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/bankislami-pakistan.svg",
+      "localLogo": "/stock-logos/BIPL.svg"
+    },
+    "BLUEX": {
+      "companyName": "Blue-Ex Limited",
+      "logoUrl": null,
+      "localLogo": null
+    },
+    "BML": {
+      "companyName": "Bank Makramah Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/BML.svg",
+      "localLogo": "/stock-logos/BML.svg"
+    },
+    "BNL": {
+      "companyName": "Bunnys Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/bunnys.svg",
+      "localLogo": "/stock-logos/BNL.svg"
+    },
+    "BNWM": {
+      "companyName": "Bannu Woollen Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/bannu-woollen-mills.svg",
+      "localLogo": "/stock-logos/BNWM.svg"
+    },
+    "BOK": {
+      "companyName": "The Bank of Khyber",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/bank-of-khyber.svg",
+      "localLogo": "/stock-logos/BOK.svg"
+    },
+    "BOP": {
+      "companyName": "The Bank of Punjab",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/bank-of-punjab.svg",
+      "localLogo": "/stock-logos/BOP.svg"
+    },
+    "BPL": {
+      "companyName": "Burshane LPG (Pakistan) Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/BPL.svg",
+      "localLogo": "/stock-logos/BPL.svg"
+    },
+    "BRRG": {
+      "companyName": "B.R.R Guardian Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/BRRG.svg",
+      "localLogo": "/stock-logos/BRRG.svg"
+    },
+    "BTL": {
+      "companyName": "Blessed Textiles Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/faisal-spinning-mills.svg",
+      "localLogo": "/stock-logos/BTL.svg"
+    },
+    "BUXL": {
+      "companyName": "Buxly Paints Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/buxly-paints.svg",
+      "localLogo": "/stock-logos/BUXL.svg"
+    },
+    "BWCL": {
+      "companyName": "Bestway Cement Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/bestway-cement-co.svg",
+      "localLogo": "/stock-logos/BWCL.svg"
+    },
+    "BWHL": {
+      "companyName": "Baluchistan Wheels Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/baluchistan-wheels.svg",
+      "localLogo": "/stock-logos/BWHL.svg"
+    },
+    "CCM": {
+      "companyName": "Crescent Cotton Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/crescent-cotton-mills.svg",
+      "localLogo": "/stock-logos/CCM.svg"
+    },
+    "CENI": {
+      "companyName": "Century Insurance Company Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/century-insurance-co.svg",
+      "localLogo": "/stock-logos/CENI.svg"
+    },
+    "CEPB": {
+      "companyName": "Century Paper & Board Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/century-paper-and-board-mills.svg",
+      "localLogo": "/stock-logos/CEPB.svg"
+    },
+    "CFL": {
+      "companyName": "Crescent Fibres Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/crescent-fibres.svg",
+      "localLogo": "/stock-logos/CFL.svg"
+    },
+    "CHAS": {
+      "companyName": "Chashma Sugar Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/chashma-sugar-mills.svg",
+      "localLogo": "/stock-logos/CHAS.svg"
+    },
+    "CHBL": {
+      "companyName": "Chenab Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/CHBL.svg",
+      "localLogo": "/stock-logos/CHBL.svg"
+    },
+    "CHCC": {
+      "companyName": "Cherat Cement Company Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/cherat-cement-co.svg",
+      "localLogo": "/stock-logos/CHCC.svg"
+    },
+    "CJPL": {
+      "companyName": "Crescent Jute Products Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/CJPL.svg",
+      "localLogo": "/stock-logos/CJPL.svg"
+    },
+    "CLCPS": {
+      "companyName": "Chenab Limited (Pref)",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/CLCPS.svg",
+      "localLogo": "/stock-logos/CLCPS.svg"
+    },
+    "CLOV": {
+      "companyName": "Clover Pakistan Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/clover-pakistan.svg",
+      "localLogo": "/stock-logos/CLOV.svg"
+    },
+    "CLVL": {
+      "companyName": "Cordoba Logistics & Ventures Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/cordoba-logistics-and-ventures.svg",
+      "localLogo": "/stock-logos/CLVL.svg"
+    },
+    "CNERGY": {
+      "companyName": "Cnergyico PK  Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/CNERGY.svg",
+      "localLogo": "/stock-logos/CNERGY.svg"
+    },
+    "COLG": {
+      "companyName": "Colgate-Palmolive (Pakistan) Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/colgate-palmolive.svg",
+      "localLogo": "/stock-logos/COLG.svg"
+    },
+    "CPHL": {
+      "companyName": "Citi Pharma Ltd.",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/CPHL.svg",
+      "localLogo": "/stock-logos/CPHL.svg"
+    },
+    "CPPL": {
+      "companyName": "Cherat Packaging Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/cherat-packaging.svg",
+      "localLogo": "/stock-logos/CPPL.svg"
+    },
+    "CRTM": {
+      "companyName": "The Crescent Textile Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/the-crescent-textile-mills.svg",
+      "localLogo": "/stock-logos/CRTM.svg"
+    },
+    "CSAP": {
+      "companyName": "Crescent Steel & Allied Products Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/crescent-steel-and-allied-products.svg",
+      "localLogo": "/stock-logos/CSAP.svg"
+    },
+    "CSIL": {
+      "companyName": "Crescent Star Insurance Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/CSIL.svg",
+      "localLogo": "/stock-logos/CSIL.svg"
+    },
+    "CTM": {
+      "companyName": "Colony Textile Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/colony-textile-mills.svg",
+      "localLogo": "/stock-logos/CTM.svg"
+    },
+    "DAAG": {
+      "companyName": "Data Agro Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/DAAG.svg",
+      "localLogo": "/stock-logos/DAAG.svg"
+    },
+    "DADX": {
+      "companyName": "Dadex Eternit Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/dadex-eternit.svg",
+      "localLogo": "/stock-logos/DADX.svg"
+    },
+    "DBCI": {
+      "companyName": "Dadabhoy Cement Industries Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/DBCI.svg",
+      "localLogo": "/stock-logos/DBCI.svg"
+    },
+    "DCL": {
+      "companyName": "Dewan Cement Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/dewan-cement.svg",
+      "localLogo": "/stock-logos/DCL.svg"
+    },
+    "DCR": {
+      "companyName": "Dolmen City REIT",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/DCR.svg",
+      "localLogo": "/stock-logos/DCR.svg"
+    },
+    "DEL": {
+      "companyName": "Dawood Equities Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/DEL.svg",
+      "localLogo": "/stock-logos/DEL.svg"
+    },
+    "DFML": {
+      "companyName": "Dewan Farooque Motors Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/dewan-farooque-motors.svg",
+      "localLogo": "/stock-logos/DFML.svg"
+    },
+    "DFSM": {
+      "companyName": "Dewan Farooque Spinning Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/DFSM.svg",
+      "localLogo": "/stock-logos/DFSM.svg"
+    },
+    "DGKC": {
+      "companyName": "D.G. Khan Cement Company Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/dg-khan-cement-company.svg",
+      "localLogo": "/stock-logos/DGKC.svg"
+    },
+    "DIIL": {
+      "companyName": "Diamond Industries Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/DIIL.svg",
+      "localLogo": "/stock-logos/DIIL.svg"
+    },
+    "DINT": {
+      "companyName": "Din Textile Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/din-textile-mills.svg",
+      "localLogo": "/stock-logos/DINT.svg"
+    },
+    "DLL": {
+      "companyName": "Dawood Lawrencepur Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/dawood-lawrencepur.svg",
+      "localLogo": "/stock-logos/DLL.svg"
+    },
+    "DMC": {
+      "companyName": "D.M. Corporation Limited.",
+      "logoUrl": null,
+      "localLogo": null
+    },
+    "DNCC": {
+      "companyName": "Dandot Cement Company Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/DNCC.svg",
+      "localLogo": "/stock-logos/DNCC.svg"
+    },
+    "DOL": {
+      "companyName": "Descon Oxychem Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/descon-oxychem.svg",
+      "localLogo": "/stock-logos/DOL.svg"
+    },
+    "DSIL": {
+      "companyName": "D.S. Industries Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/DSIL.svg",
+      "localLogo": "/stock-logos/DSIL.svg"
+    },
+    "DSL": {
+      "companyName": "Dost Steels Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/DSL.svg",
+      "localLogo": "/stock-logos/DSL.svg"
+    },
+    "DWAE": {
+      "companyName": "Dewan Automotive Engineering Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/DWAE.svg",
+      "localLogo": "/stock-logos/DWAE.svg"
+    },
+    "DWSM": {
+      "companyName": "Dewan Sugar Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/DWSM.svg",
+      "localLogo": "/stock-logos/DWSM.svg"
+    },
+    "DWTM": {
+      "companyName": "Dewan Textile Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/DWTM.svg",
+      "localLogo": "/stock-logos/DWTM.svg"
+    },
+    "DYNO": {
+      "companyName": "Dynea Pakistan Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/dynea-pakistan-co.svg",
+      "localLogo": "/stock-logos/DYNO.svg"
+    },
+    "ECOP": {
+      "companyName": "Ecopack Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/ecopack.svg",
+      "localLogo": "/stock-logos/ECOP.svg"
+    },
+    "EFERT": {
+      "companyName": "Engro Fertilizers Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/engro-powergen-qadirpur.svg",
+      "localLogo": "/stock-logos/EFERT.svg"
+    },
+    "EFUG": {
+      "companyName": "EFU General Insurance Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/efu-general-insurance.svg",
+      "localLogo": "/stock-logos/EFUG.svg"
+    },
+    "EFUL": {
+      "companyName": "EFU Life Assurance Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/efu-life-assurance.svg",
+      "localLogo": "/stock-logos/EFUL.svg"
+    },
+    "ELCM": {
+      "companyName": "Elahi Cotton Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/elahi-cotton-mills.svg",
+      "localLogo": "/stock-logos/ELCM.svg"
+    },
+    "ELSM": {
+      "companyName": "Ellcot Spinning Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/ellcot-spinning-mills.svg",
+      "localLogo": "/stock-logos/ELSM.svg"
+    },
+    "EMCO": {
+      "companyName": "Emco Industries Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/EMCO.svg",
+      "localLogo": "/stock-logos/EMCO.svg"
+    },
+    "ENGRO": {
+      "companyName": "Engro Corporation Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/engro-polymer-and-chemicals.svg",
+      "localLogo": "/stock-logos/ENGRO.svg"
+    },
+    "ENGROH": {
+      "companyName": "Engro Holdings Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/ENGROH.svg",
+      "localLogo": "/stock-logos/ENGROH.svg"
+    },
+    "EPCL": {
+      "companyName": "Engro Polymer & Chemicals Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/engro-polymer-and-chemicals.svg",
+      "localLogo": "/stock-logos/EPCL.svg"
+    },
+    "EPCLPS": {
+      "companyName": "Engro Poly(Pref)",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/EPCLPS.svg",
+      "localLogo": "/stock-logos/EPCLPS.svg"
+    },
+    "EPQL": {
+      "companyName": "Engro Powergen Qadirpur Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/engro-powergen-qadirpur.svg",
+      "localLogo": "/stock-logos/EPQL.svg"
+    },
+    "ESBL": {
+      "companyName": "Escorts Investment Bank Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/ESBL.svg",
+      "localLogo": "/stock-logos/ESBL.svg"
+    },
+    "EXIDE": {
+      "companyName": "Exide Pakistan Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/exide-pakistan.svg",
+      "localLogo": "/stock-logos/EXIDE.svg"
+    },
+    "FABL": {
+      "companyName": "Faysal Bank Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/faysal-bank.svg",
+      "localLogo": "/stock-logos/FABL.svg"
+    },
+    "FANM": {
+      "companyName": "First Al-Noor Modaraba",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/FANM.svg",
+      "localLogo": "/stock-logos/FANM.svg"
+    },
+    "FASM": {
+      "companyName": "Faisal Spinning Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/faisal-spinning-mills.svg",
+      "localLogo": "/stock-logos/FASM.svg"
+    },
+    "FATIMA": {
+      "companyName": "Fatima Fertilizer Company Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/fatima-fertilizer-company.svg",
+      "localLogo": "/stock-logos/FATIMA.svg"
+    },
+    "FCCL": {
+      "companyName": "Fauji Cement Company Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/fauji-cement-co.svg",
+      "localLogo": "/stock-logos/FCCL.svg"
+    },
+    "FCEL": {
+      "companyName": "First Capital Equities Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/FCEL.svg",
+      "localLogo": "/stock-logos/FCEL.svg"
+    },
+    "FCEPL": {
+      "companyName": "Frieslandcampina Engro Pakistan Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/frieslandcampina-engro-pakistan.svg",
+      "localLogo": "/stock-logos/FCEPL.svg"
+    },
+    "FCIBL": {
+      "companyName": "First Credit and Investment Bank Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/FCIBL.svg",
+      "localLogo": "/stock-logos/FCIBL.svg"
+    },
+    "FCL": {
+      "companyName": "Fast Cables Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/FCL.svg",
+      "localLogo": "/stock-logos/FCL.svg"
+    },
+    "FCSC": {
+      "companyName": "First Capital Securities Corporation",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/pace-pakistan.svg",
+      "localLogo": "/stock-logos/FCSC.svg"
+    },
+    "FDPL": {
+      "companyName": "First Dawood Properties Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/FDPL.svg",
+      "localLogo": "/stock-logos/FDPL.svg"
+    },
+    "FECM": {
+      "companyName": "First Elite Capital Modaraba",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/FECM.svg",
+      "localLogo": "/stock-logos/FECM.svg"
+    },
+    "FECTC": {
+      "companyName": "Fecto Cement Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/fecto-cement.svg",
+      "localLogo": "/stock-logos/FECTC.svg"
+    },
+    "FEM": {
+      "companyName": "First Equity Modaraba",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/FEM.svg",
+      "localLogo": "/stock-logos/FEM.svg"
+    },
+    "FEROZ": {
+      "companyName": "Ferozsons Laboratories Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/ferozsons-laboratories.svg",
+      "localLogo": "/stock-logos/FEROZ.svg"
+    },
+    "FFBL": {
+      "companyName": "Fauji Fertilizer Bin Qasim Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/fauji-fertilizer-bin-qasim.svg",
+      "localLogo": "/stock-logos/FFBL.svg"
+    },
+    "FFC": {
+      "companyName": "Fauji Fertilizer Company Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/fauji-fertilizer-co.svg",
+      "localLogo": "/stock-logos/FFC.svg"
+    },
+    "FFL": {
+      "companyName": "Fauji Foods Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/fauji-foods.svg",
+      "localLogo": "/stock-logos/FFL.svg"
+    },
+    "FFLM": {
+      "companyName": "First Fidelity Leasing Modaraba",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/FFLM.svg",
+      "localLogo": "/stock-logos/FFLM.svg"
+    },
+    "FHAM": {
+      "companyName": "First Habib Modaraba",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/first-habib-modaraba.svg",
+      "localLogo": "/stock-logos/FHAM.svg"
+    },
+    "FIBLM": {
+      "companyName": "First IBL Modaraba",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/first-ibl-modaraba.svg",
+      "localLogo": "/stock-logos/FIBLM.svg"
+    },
+    "FIL": {
+      "companyName": "Fateh Industries Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/FIL.svg",
+      "localLogo": "/stock-logos/FIL.svg"
+    },
+    "FLYNG": {
+      "companyName": "Flying Cement Company Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/flying-cement-co.svg",
+      "localLogo": "/stock-logos/FLYNG.svg"
+    },
+    "FML": {
+      "companyName": "Feroze1888 Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/feroze1888-mills.svg",
+      "localLogo": "/stock-logos/FML.svg"
+    },
+    "FNEL": {
+      "companyName": "First National Equities Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/first-national-equities.svg",
+      "localLogo": "/stock-logos/FNEL.svg"
+    },
+    "FPJM": {
+      "companyName": "First Punjab Modaraba",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/first-punjab-modaraba-services-pvt.svg",
+      "localLogo": "/stock-logos/FPJM.svg"
+    },
+    "FPRM": {
+      "companyName": "First Paramount Modaraba",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/FPRM.svg",
+      "localLogo": "/stock-logos/FPRM.svg"
+    },
+    "FRCL": {
+      "companyName": "Frontier Ceramics Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/FRCL.svg",
+      "localLogo": "/stock-logos/FRCL.svg"
+    },
+    "FRSM": {
+      "companyName": "Faran Sugar Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/faran-sugar-mills.svg",
+      "localLogo": "/stock-logos/FRSM.svg"
+    },
+    "FSWL": {
+      "companyName": "Fateh Sports Wear Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/FSWL.svg",
+      "localLogo": "/stock-logos/FSWL.svg"
+    },
+    "FTMM": {
+      "companyName": "First Treet Manufacturing Modaraba",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/FTMM.svg",
+      "localLogo": "/stock-logos/FTMM.svg"
+    },
+    "FTSM": {
+      "companyName": "First Tri-Star Modaraba",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/FTSM.svg",
+      "localLogo": "/stock-logos/FTSM.svg"
+    },
+    "FZCM": {
+      "companyName": "Fazal Cloth Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/fazal-cloth-mills.svg",
+      "localLogo": "/stock-logos/FZCM.svg"
+    },
+    "GADT": {
+      "companyName": "Gadoon Textile Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/gadoon-textile-mills.svg",
+      "localLogo": "/stock-logos/GADT.svg"
+    },
+    "GAL": {
+      "companyName": "Ghandhara Automobiles Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/GAL.svg",
+      "localLogo": "/stock-logos/GAL.svg"
+    },
+    "GAMON": {
+      "companyName": "Gammon Pakistan Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/gammon-pakistan.svg",
+      "localLogo": "/stock-logos/GAMON.svg"
+    },
+    "GATI": {
+      "companyName": "Gatron (Industries) Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/gatron-industries.svg",
+      "localLogo": "/stock-logos/GATI.svg"
+    },
+    "GATM": {
+      "companyName": "Gul Ahmed Textile Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/gul-ahmed-textile-mills.svg",
+      "localLogo": "/stock-logos/GATM.svg"
+    },
+    "GCIL": {
+      "companyName": "Ghani Chemical Industries Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/GCIL.svg",
+      "localLogo": "/stock-logos/GCIL.svg"
+    },
+    "GCWL": {
+      "companyName": "Ghani Chemworld Limited",
+      "logoUrl": null,
+      "localLogo": null
+    },
+    "GDL": {
+      "companyName": "Ghani Dairies Limited",
+      "logoUrl": null,
+      "localLogo": null
+    },
+    "GEMMEL": {
+      "companyName": "Mughal Energy Limited(GEM)",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/GEMMEL.svg",
+      "localLogo": "/stock-logos/GEMMEL.svg"
+    },
+    "GEMPACRA": {
+      "companyName": "The Pakistan Credit Rating Agency Ltd",
+      "logoUrl": null,
+      "localLogo": null
+    },
+    "GFIL": {
+      "companyName": "Ghazi Fabrics International Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/GFIL.svg",
+      "localLogo": "/stock-logos/GFIL.svg"
+    },
+    "GGGL": {
+      "companyName": "Ghani Global Glass Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/ghani-global-glass.svg",
+      "localLogo": "/stock-logos/GGGL.svg"
+    },
+    "GGL": {
+      "companyName": "Ghani Global Holdings Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/ghani-global-glass.svg",
+      "localLogo": "/stock-logos/GGL.svg"
+    },
+    "GHGL": {
+      "companyName": "Ghani Glass Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/ghani-glass.svg",
+      "localLogo": "/stock-logos/GHGL.svg"
+    },
+    "GHNI": {
+      "companyName": "Ghandhara Industries Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/ghandhara-nissan.svg",
+      "localLogo": "/stock-logos/GHNI.svg"
+    },
+    "GLAXO": {
+      "companyName": "GlaxoSmithKline Pakistan Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/glaxosmithkline-pakistan.svg",
+      "localLogo": "/stock-logos/GLAXO.svg"
+    },
+    "GLPL": {
+      "companyName": "Gillette Pakistan Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/gillette-india.svg",
+      "localLogo": "/stock-logos/GLPL.svg"
+    },
+    "GOC": {
+      "companyName": "GOC (Pak) Limited.",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/goc-pak.svg",
+      "localLogo": "/stock-logos/GOC.svg"
+    },
+    "GRR": {
+      "companyName": "Globe Residency REIT",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/GRR.svg",
+      "localLogo": "/stock-logos/GRR.svg"
+    },
+    "GRYL": {
+      "companyName": "Grays Leasing Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/GRYL.svg",
+      "localLogo": "/stock-logos/GRYL.svg"
+    },
+    "GSPM": {
+      "companyName": "Gulshan Spinning Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/GSPM.svg",
+      "localLogo": "/stock-logos/GSPM.svg"
+    },
+    "GTYR": {
+      "companyName": "Ghandhara Tyre & Rubber Company Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/ghandhara-tyre-and-rubber-co.svg",
+      "localLogo": "/stock-logos/GTYR.svg"
+    },
+    "GVGL": {
+      "companyName": "Ghani Value Glass Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/ghani-value-glass.svg",
+      "localLogo": "/stock-logos/GVGL.svg"
+    },
+    "GWLC": {
+      "companyName": "Gharibwal Cement Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/gharibwal-cement.svg",
+      "localLogo": "/stock-logos/GWLC.svg"
+    },
+    "HABSM": {
+      "companyName": "Habib Sugar Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/habib-sugar-mills.svg",
+      "localLogo": "/stock-logos/HABSM.svg"
+    },
+    "HAFL": {
+      "companyName": "Hafiz Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/HAFL.svg",
+      "localLogo": "/stock-logos/HAFL.svg"
+    },
+    "HALEON": {
+      "companyName": "Haleon Pakistan Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/HALEON.svg",
+      "localLogo": "/stock-logos/HALEON.svg"
+    },
+    "HASCOL": {
+      "companyName": "Hascol Petroleum Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/HASCOL.svg",
+      "localLogo": "/stock-logos/HASCOL.svg"
+    },
+    "HBL": {
+      "companyName": "Habib Bank Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/habib-bank.svg",
+      "localLogo": "/stock-logos/HBL.svg"
+    },
+    "HBLTETF": {
+      "companyName": "HBL Total Treasury ETF",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/HBLTETF.svg",
+      "localLogo": "/stock-logos/HBLTETF.svg"
+    },
+    "HCAR": {
+      "companyName": "Honda Atlas Cars (Pakistan) Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/honda.svg",
+      "localLogo": "/stock-logos/HCAR.svg"
+    },
+    "HGFA": {
+      "companyName": "HBL Growth Fund",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/HGFA.svg",
+      "localLogo": "/stock-logos/HGFA.svg"
+    },
+    "HICL": {
+      "companyName": "Habib Insurance Company Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/HICL.svg",
+      "localLogo": "/stock-logos/HICL.svg"
+    },
+    "HIFA": {
+      "companyName": "HBL Investment Fund",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/HIFA.svg",
+      "localLogo": "/stock-logos/HIFA.svg"
+    },
+    "HINO": {
+      "companyName": "Hinopak Motors Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/hinopak-motors.svg",
+      "localLogo": "/stock-logos/HINO.svg"
+    },
+    "HINOON": {
+      "companyName": "Highnoon Laboratories Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/highnoon-laboratories.svg",
+      "localLogo": "/stock-logos/HINOON.svg"
+    },
+    "HIRAT": {
+      "companyName": "Hira Textile Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/HIRAT.svg",
+      "localLogo": "/stock-logos/HIRAT.svg"
+    },
+    "HMB": {
+      "companyName": "Habib Metropolitan Bank Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/habib-metropolitan-bank.svg",
+      "localLogo": "/stock-logos/HMB.svg"
+    },
+    "HPL": {
+      "companyName": "Hoechst Pakistan Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/HPL.svg",
+      "localLogo": "/stock-logos/HPL.svg"
+    },
+    "HRPL": {
+      "companyName": "Habib Rice Product Limited.",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/habib-rice-products.svg",
+      "localLogo": "/stock-logos/HRPL.svg"
+    },
+    "HTL": {
+      "companyName": "Hi-Tech Lubricants Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/HTL.svg",
+      "localLogo": "/stock-logos/HTL.svg"
+    },
+    "HUBC": {
+      "companyName": "The Hub Power Company Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/hub-power-co.svg",
+      "localLogo": "/stock-logos/HUBC.svg"
+    },
+    "HUMNL": {
+      "companyName": "Hum Network Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/hum-network.svg",
+      "localLogo": "/stock-logos/HUMNL.svg"
+    },
+    "HUSI": {
+      "companyName": "Husein Industries Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/HUSI.svg",
+      "localLogo": "/stock-logos/HUSI.svg"
+    },
+    "HWQS": {
+      "companyName": "Haseeb Waqas Sugar Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/HWQS.svg",
+      "localLogo": "/stock-logos/HWQS.svg"
+    },
+    "IBFL": {
+      "companyName": "Ibrahim Fibres Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/ibrahim-fibres.svg",
+      "localLogo": "/stock-logos/IBFL.svg"
+    },
+    "IBLHL": {
+      "companyName": "IBL HealthCare Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/ibl-healthcare.svg",
+      "localLogo": "/stock-logos/IBLHL.svg"
+    },
+    "ICCI": {
+      "companyName": "ICC Industries Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/ICCI.svg",
+      "localLogo": "/stock-logos/ICCI.svg"
+    },
+    "ICI": {
+      "companyName": "ICI Pakistan Limited",
+      "logoUrl": null,
+      "localLogo": null
+    },
+    "ICIBL": {
+      "companyName": "Invest Capital Investment Bank Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/ICIBL.svg",
+      "localLogo": "/stock-logos/ICIBL.svg"
+    },
+    "ICL": {
+      "companyName": "Ittehad Chemicals Limted",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/ittehad-chemicals.svg",
+      "localLogo": "/stock-logos/ICL.svg"
+    },
+    "IDRT": {
+      "companyName": "Idrees Textile Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/IDRT.svg",
+      "localLogo": "/stock-logos/IDRT.svg"
+    },
+    "IDSM": {
+      "companyName": "Ideal Spinning Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/IDSM.svg",
+      "localLogo": "/stock-logos/IDSM.svg"
+    },
+    "IDYM": {
+      "companyName": "Indus Dyeing & Manufacturing Co. Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/indus-dyeing-and-manufacturing-co.svg",
+      "localLogo": "/stock-logos/IDYM.svg"
+    },
+    "IGIHL": {
+      "companyName": "IGI Holdings Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/igi-holdings.svg",
+      "localLogo": "/stock-logos/IGIHL.svg"
+    },
+    "IGIL": {
+      "companyName": "IGI Life Insurance Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/igi-life-insurance.svg",
+      "localLogo": "/stock-logos/IGIL.svg"
+    },
+    "ILP": {
+      "companyName": "Interloop Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/interloop.svg",
+      "localLogo": "/stock-logos/ILP.svg"
+    },
+    "IMAGE": {
+      "companyName": "Image Pakistan Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/image-pakistan.svg",
+      "localLogo": "/stock-logos/IMAGE.svg"
+    },
+    "IML": {
+      "companyName": "Imperial  Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/imperial.svg",
+      "localLogo": "/stock-logos/IML.svg"
+    },
+    "IMS": {
+      "companyName": "Intermarket Securities Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/IMS.svg",
+      "localLogo": "/stock-logos/IMS.svg"
+    },
+    "INDU": {
+      "companyName": "Indus Motor Company Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/toyota.svg",
+      "localLogo": "/stock-logos/INDU.svg"
+    },
+    "INIL": {
+      "companyName": "International Industries Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/international-industries.svg",
+      "localLogo": "/stock-logos/INIL.svg"
+    },
+    "INKL": {
+      "companyName": "International Knitwear Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/INKL.svg",
+      "localLogo": "/stock-logos/INKL.svg"
+    },
+    "IPAK": {
+      "companyName": "International Packaging Films Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/IPAK.svg",
+      "localLogo": "/stock-logos/IPAK.svg"
+    },
+    "IREIT": {
+      "companyName": "Image Reit",
+      "logoUrl": null,
+      "localLogo": null
+    },
+    "ISIL": {
+      "companyName": "Ismail Industries Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/ismail-industries.svg",
+      "localLogo": "/stock-logos/ISIL.svg"
+    },
+    "ISL": {
+      "companyName": "International Steels Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/international-steels.svg",
+      "localLogo": "/stock-logos/ISL.svg"
+    },
+    "ITANZ": {
+      "companyName": "Itanz Technologies Limited",
+      "logoUrl": null,
+      "localLogo": null
+    },
+    "ITTEFAQ": {
+      "companyName": "Ittefaq Iron Industries Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/ITTEFAQ.svg",
+      "localLogo": "/stock-logos/ITTEFAQ.svg"
+    },
+    "JATM": {
+      "companyName": "J.A. Textile Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/JATM.svg",
+      "localLogo": "/stock-logos/JATM.svg"
+    },
+    "JDMT": {
+      "companyName": "Janana De Malucho Textile Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/JDMT.svg",
+      "localLogo": "/stock-logos/JDMT.svg"
+    },
+    "JDWS": {
+      "companyName": "JDW Sugar Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/jdw-sugar-mills.svg",
+      "localLogo": "/stock-logos/JDWS.svg"
+    },
+    "JGICL": {
+      "companyName": "Jubilee General Insurance Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/jubilee-holdings.svg",
+      "localLogo": "/stock-logos/JGICL.svg"
+    },
+    "JKSM": {
+      "companyName": "J.K. Spinning Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/jk-spinning-mills.svg",
+      "localLogo": "/stock-logos/JKSM.svg"
+    },
+    "JLICL": {
+      "companyName": "Jubilee Life Insurance Company Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/jubilee-life-insurance-company.svg",
+      "localLogo": "/stock-logos/JLICL.svg"
+    },
+    "JSBL": {
+      "companyName": "JS Bank Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/js-bank.svg",
+      "localLogo": "/stock-logos/JSBL.svg"
+    },
+    "JSCL": {
+      "companyName": "Jahangir Siddiqui & Co. Ltd.",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/js-bank.svg",
+      "localLogo": "/stock-logos/JSCL.svg"
+    },
+    "JSGBETF": {
+      "companyName": "JS Global Banking Sector(ETF)",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/JSGBETF.svg",
+      "localLogo": "/stock-logos/JSGBETF.svg"
+    },
+    "JSGCL": {
+      "companyName": "JS Global Capital Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/js-momentum-factor-etf.svg",
+      "localLogo": "/stock-logos/JSGCL.svg"
+    },
+    "JSIL": {
+      "companyName": "JS Investments Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/js-bank.svg",
+      "localLogo": "/stock-logos/JSIL.svg"
+    },
+    "JSMFETF": {
+      "companyName": "JS Momentum Factor Exchange Traded Fund",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/js-bank.svg",
+      "localLogo": "/stock-logos/JSMFETF.svg"
+    },
+    "JSML": {
+      "companyName": "Jauharabad Sugar Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/jauharabad-sugar-mills.svg",
+      "localLogo": "/stock-logos/JSML.svg"
+    },
+    "JUBS": {
+      "companyName": "Jubilee Spinning & Weaving Mills Ltd.",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/JUBS.svg",
+      "localLogo": "/stock-logos/JUBS.svg"
+    },
+    "JVDC": {
+      "companyName": "Javedan Corporation Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/javedan-oration.svg",
+      "localLogo": "/stock-logos/JVDC.svg"
+    },
+    "JVDCPS": {
+      "companyName": "Javedan Corporation (Pref)",
+      "logoUrl": null,
+      "localLogo": null
+    },
+    "KAPCO": {
+      "companyName": "Kot Addu Power Company Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/kot-addu-power-co.svg",
+      "localLogo": "/stock-logos/KAPCO.svg"
+    },
+    "KCL": {
+      "companyName": "Karam Ceramics Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/KCL.svg",
+      "localLogo": "/stock-logos/KCL.svg"
+    },
+    "KEL": {
+      "companyName": "K-Electric Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/k-electric.svg",
+      "localLogo": "/stock-logos/KEL.svg"
+    },
+    "KHTC": {
+      "companyName": "Khyber Tobacco Company Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/khyber-tobacco-co.svg",
+      "localLogo": "/stock-logos/KHTC.svg"
+    },
+    "KHYT": {
+      "companyName": "Khyber Textile Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/KHYT.svg",
+      "localLogo": "/stock-logos/KHYT.svg"
+    },
+    "KML": {
+      "companyName": "Kohinoor Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/kohinoor-mills.svg",
+      "localLogo": "/stock-logos/KML.svg"
+    },
+    "KOHC": {
+      "companyName": "Kohat Cement Company Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/kohat-cement-co.svg",
+      "localLogo": "/stock-logos/KOHC.svg"
+    },
+    "KOHE": {
+      "companyName": "Kohinoor Energy Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/kohinoor-energy.svg",
+      "localLogo": "/stock-logos/KOHE.svg"
+    },
+    "KOHP": {
+      "companyName": "Kohinoor Power Company Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/KOHP.svg",
+      "localLogo": "/stock-logos/KOHP.svg"
+    },
+    "KOHTM": {
+      "companyName": "Kohat Textile Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/saif-textile-mills.svg",
+      "localLogo": "/stock-logos/KOHTM.svg"
+    },
+    "KOIL": {
+      "companyName": "Kohinoor Industries Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/kohinoor-industries.svg",
+      "localLogo": "/stock-logos/KOIL.svg"
+    },
+    "KOSM": {
+      "companyName": "Kohinoor Spinning Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/kohinoor-mills.svg",
+      "localLogo": "/stock-logos/KOSM.svg"
+    },
+    "KPUS": {
+      "companyName": "Khairpur Sugar Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/khairpur-sugar-mills.svg",
+      "localLogo": "/stock-logos/KPUS.svg"
+    },
+    "KSBP": {
+      "companyName": "KSB Pumps Company Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/ksb-ag-vorzug.svg",
+      "localLogo": "/stock-logos/KSBP.svg"
+    },
+    "KSTM": {
+      "companyName": "Khalid Siraj Textile Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/KSTM.svg",
+      "localLogo": "/stock-logos/KSTM.svg"
+    },
+    "KTML": {
+      "companyName": "Kohinoor Textile Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/kohinoor-textiles-mills.svg",
+      "localLogo": "/stock-logos/KTML.svg"
+    },
+    "LCI": {
+      "companyName": "Lucky Core Industries Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/LCI.svg",
+      "localLogo": "/stock-logos/LCI.svg"
+    },
+    "LEUL": {
+      "companyName": "Leather Up Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/LEUL.svg",
+      "localLogo": "/stock-logos/LEUL.svg"
+    },
+    "LIVEN": {
+      "companyName": "Liven Pharma Limited",
+      "logoUrl": null,
+      "localLogo": null
+    },
+    "LOADS": {
+      "companyName": "Loads Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/loads.svg",
+      "localLogo": "/stock-logos/LOADS.svg"
+    },
+    "LOTCHEM": {
+      "companyName": "Lotte Chemical Pakistan Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/lotte-chemical.svg",
+      "localLogo": "/stock-logos/LOTCHEM.svg"
+    },
+    "LPGL": {
+      "companyName": "Leiner Pak Gelatine Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/LPGL.svg",
+      "localLogo": "/stock-logos/LPGL.svg"
+    },
+    "LPL": {
+      "companyName": "Lalpir Power Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/pakgen-power.svg",
+      "localLogo": "/stock-logos/LPL.svg"
+    },
+    "LSECL": {
+      "companyName": "LSE Capital Limited.",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/LSECL.svg",
+      "localLogo": "/stock-logos/LSECL.svg"
+    },
+    "LSEFSL": {
+      "companyName": "LSE Financial Services Limited.",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/LSEFSL.svg",
+      "localLogo": "/stock-logos/LSEFSL.svg"
+    },
+    "LSEVL": {
+      "companyName": "LSE Ventures Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/LSEVL.svg",
+      "localLogo": "/stock-logos/LSEVL.svg"
+    },
+    "LUCK": {
+      "companyName": "Lucky Cement Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/lucky-cement.svg",
+      "localLogo": "/stock-logos/LUCK.svg"
+    },
+    "MACFL": {
+      "companyName": "MACPAC Films Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/macpac-films.svg",
+      "localLogo": "/stock-logos/MACFL.svg"
+    },
+    "MACTER": {
+      "companyName": "Macter International Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/macter-international.svg",
+      "localLogo": "/stock-logos/MACTER.svg"
+    },
+    "MARI": {
+      "companyName": "Mari Energies Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/mari-petroleum-company.svg",
+      "localLogo": "/stock-logos/MARI.svg"
+    },
+    "MCB": {
+      "companyName": "MCB Bank Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/mcb-bank.svg",
+      "localLogo": "/stock-logos/MCB.svg"
+    },
+    "MCBIM": {
+      "companyName": "MCB Investment Management Limited.",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/MCBIM.svg",
+      "localLogo": "/stock-logos/MCBIM.svg"
+    },
+    "MDTL": {
+      "companyName": "Media Times Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/pace-pakistan.svg",
+      "localLogo": "/stock-logos/MDTL.svg"
+    },
+    "MEBL": {
+      "companyName": "Meezan Bank Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/meezan-pakistan-etf.svg",
+      "localLogo": "/stock-logos/MEBL.svg"
+    },
+    "MEHT": {
+      "companyName": "Mehmood Textile Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/mahmood-textile-mills.svg",
+      "localLogo": "/stock-logos/MEHT.svg"
+    },
+    "MERIT": {
+      "companyName": "Merit Packaging Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/merit-packaging.svg",
+      "localLogo": "/stock-logos/MERIT.svg"
+    },
+    "MFFL": {
+      "companyName": "Mitchells Fruit Farms Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/MFFL.svg",
+      "localLogo": "/stock-logos/MFFL.svg"
+    },
+    "MFFLR1": {
+      "companyName": "Mitchells Fruit Farms Limited(Right)",
+      "logoUrl": null,
+      "localLogo": null
+    },
+    "MFL": {
+      "companyName": "Matco Foods Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/matco-foods.svg",
+      "localLogo": "/stock-logos/MFL.svg"
+    },
+    "MIIETF": {
+      "companyName": "Mahaana Islamic Index ETF",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/MIIETF.svg",
+      "localLogo": "/stock-logos/MIIETF.svg"
+    },
+    "MIRKS": {
+      "companyName": "Mirpurkhas Sugar Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/mirpurkhas-sugar-mills.svg",
+      "localLogo": "/stock-logos/MIRKS.svg"
+    },
+    "MLCF": {
+      "companyName": "Maple Leaf Cement Factory Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/maple-leaf-cement-factory.svg",
+      "localLogo": "/stock-logos/MLCF.svg"
+    },
+    "MQTM": {
+      "companyName": "Maqbool Textile Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/maqbool-textile-mills.svg",
+      "localLogo": "/stock-logos/MQTM.svg"
+    },
+    "MRNS": {
+      "companyName": "Mehran Sugar Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/mehran-sugar-mills.svg",
+      "localLogo": "/stock-logos/MRNS.svg"
+    },
+    "MSCL": {
+      "companyName": "Metropolitan Steel Corporation Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/MSCL.svg",
+      "localLogo": "/stock-logos/MSCL.svg"
+    },
+    "MSOT": {
+      "companyName": "Masood Textile Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/masood-textile-mills.svg",
+      "localLogo": "/stock-logos/MSOT.svg"
+    },
+    "MTL": {
+      "companyName": "Millat Tractors Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/millat-tractors.svg",
+      "localLogo": "/stock-logos/MTL.svg"
+    },
+    "MUGHAL": {
+      "companyName": "Mughal Iron & Steel Industries Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/mughal-iron-and-steel-industries.svg",
+      "localLogo": "/stock-logos/MUGHAL.svg"
+    },
+    "MUGHALC": {
+      "companyName": "Mughal Iron & Steel Industries Ltd(C)",
+      "logoUrl": null,
+      "localLogo": null
+    },
+    "MUREB": {
+      "companyName": "Murree Brewery Company Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/murree-brewery.svg",
+      "localLogo": "/stock-logos/MUREB.svg"
+    },
+    "MWMP": {
+      "companyName": "Mandviwala Mauser Plastic Industries",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/MWMP.svg",
+      "localLogo": "/stock-logos/MWMP.svg"
+    },
+    "MZNPETF": {
+      "companyName": "Meezan Pakistan ETF",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/MZNPETF.svg",
+      "localLogo": "/stock-logos/MZNPETF.svg"
+    },
+    "NAGC": {
+      "companyName": "Nagina Cotton Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/prosperity-weaving-mills.svg",
+      "localLogo": "/stock-logos/NAGC.svg"
+    },
+    "NATF": {
+      "companyName": "National Foods Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/NATF.svg",
+      "localLogo": "/stock-logos/NATF.svg"
+    },
+    "NBP": {
+      "companyName": "National Bank of Pakistan",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/NBP.svg",
+      "localLogo": "/stock-logos/NBP.svg"
+    },
+    "NBPGETF": {
+      "companyName": "NBP Pakistan  Growth ETF",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/NBPGETF.svg",
+      "localLogo": "/stock-logos/NBPGETF.svg"
+    },
+    "NCL": {
+      "companyName": "Nishat Chunian Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/nishat-chunian-power.svg",
+      "localLogo": "/stock-logos/NCL.svg"
+    },
+    "NCML": {
+      "companyName": "Nazir Cotton Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/NCML.svg",
+      "localLogo": "/stock-logos/NCML.svg"
+    },
+    "NCPL": {
+      "companyName": "Nishat Chunian Power Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/nishat-chunian-power.svg",
+      "localLogo": "/stock-logos/NCPL.svg"
+    },
+    "NESTLE": {
+      "companyName": "Nestle Pakistan Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/nestle.svg",
+      "localLogo": "/stock-logos/NESTLE.svg"
+    },
+    "NETSOL": {
+      "companyName": "NetSol Technologies Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/netsol-technologies.svg",
+      "localLogo": "/stock-logos/NETSOL.svg"
+    },
+    "NEXT": {
+      "companyName": "Next Capital Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/NEXT.svg",
+      "localLogo": "/stock-logos/NEXT.svg"
+    },
+    "NICL": {
+      "companyName": "Nimir Industrial Chemicals Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/nimir-industrial-chemicals.svg",
+      "localLogo": "/stock-logos/NICL.svg"
+    },
+    "NITGETF": {
+      "companyName": "NIT Pakistan Gateway ETF",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/NITGETF.svg",
+      "localLogo": "/stock-logos/NITGETF.svg"
+    },
+    "NML": {
+      "companyName": "Nishat Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/nishat-mills.svg",
+      "localLogo": "/stock-logos/NML.svg"
+    },
+    "NONS": {
+      "companyName": "Noon Sugar Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/noon-sugar-mills.svg",
+      "localLogo": "/stock-logos/NONS.svg"
+    },
+    "NPL": {
+      "companyName": "Nishat Power Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/nishat-mills.svg",
+      "localLogo": "/stock-logos/NPL.svg"
+    },
+    "NRL": {
+      "companyName": "National Refinery Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/national-refinery.svg",
+      "localLogo": "/stock-logos/NRL.svg"
+    },
+    "NRSL": {
+      "companyName": "Nimir Resins Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/nimir-industrial-chemicals.svg",
+      "localLogo": "/stock-logos/NRSL.svg"
+    },
+    "NSRM": {
+      "companyName": "The National Silk & Rayon Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/the-national-silk-and-rayon-mills.svg",
+      "localLogo": "/stock-logos/NSRM.svg"
+    },
+    "OBOY": {
+      "companyName": "Oilboy Energy Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/OBOY.svg",
+      "localLogo": "/stock-logos/OBOY.svg"
+    },
+    "OCTOPUS": {
+      "companyName": "Octopus Digital Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/OCTOPUS.svg",
+      "localLogo": "/stock-logos/OCTOPUS.svg"
+    },
+    "OGDC": {
+      "companyName": "Oil & Gas Development Company Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/oil-and-gas-develop-gdr-reg-s.svg",
+      "localLogo": "/stock-logos/OGDC.svg"
+    },
+    "OLPL": {
+      "companyName": "OLP Financial Services Pakistan Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/olp-financial-services-pakistan.svg",
+      "localLogo": "/stock-logos/OLPL.svg"
+    },
+    "OLPM": {
+      "companyName": "OLP Modaraba",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/OLPM.svg",
+      "localLogo": "/stock-logos/OLPM.svg"
+    },
+    "ORM": {
+      "companyName": "Orient Rental Mod",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/ORM.svg",
+      "localLogo": "/stock-logos/ORM.svg"
+    },
+    "OTSU": {
+      "companyName": "Otsuka Pakistan Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/otsuka-pakistan.svg",
+      "localLogo": "/stock-logos/OTSU.svg"
+    },
+    "PABC": {
+      "companyName": "Pakistan Aluminium Beverage Cans Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/pakistan-aluminium-beverage-cans.svg",
+      "localLogo": "/stock-logos/PABC.svg"
+    },
+    "PACE": {
+      "companyName": "Pace (Pakistan) Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/pace-pakistan.svg",
+      "localLogo": "/stock-logos/PACE.svg"
+    },
+    "PAEL": {
+      "companyName": "Pak Elektron Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/pak-elektron.svg",
+      "localLogo": "/stock-logos/PAEL.svg"
+    },
+    "PAKD": {
+      "companyName": "Pak Datacom Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/PAKD.svg",
+      "localLogo": "/stock-logos/PAKD.svg"
+    },
+    "PAKOXY": {
+      "companyName": "Pakistan Oxygen Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/pakistan-oxygen.svg",
+      "localLogo": "/stock-logos/PAKOXY.svg"
+    },
+    "PAKQATAR": {
+      "companyName": "Pak Qatar Family Takaful Limited",
+      "logoUrl": null,
+      "localLogo": null
+    },
+    "PAKRI": {
+      "companyName": "Pakistan Reinsurance Company Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/pakistan-reinsurance-co.svg",
+      "localLogo": "/stock-logos/PAKRI.svg"
+    },
+    "PAKT": {
+      "companyName": "Pakistan Tobacco Company Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/pakistan-tobacco-co.svg",
+      "localLogo": "/stock-logos/PAKT.svg"
+    },
+    "PASL": {
+      "companyName": "Pervez Ahmed Consultancy Services Ltd.",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/PASL.svg",
+      "localLogo": "/stock-logos/PASL.svg"
+    },
+    "PASM": {
+      "companyName": "Paramount Spinning Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/PASM.svg",
+      "localLogo": "/stock-logos/PASM.svg"
+    },
+    "PCAL": {
+      "companyName": "Pakistan Cables Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/pakistan-cables.svg",
+      "localLogo": "/stock-logos/PCAL.svg"
+    },
+    "PECO": {
+      "companyName": "Pakistan Engineering Company Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/PECO.svg",
+      "localLogo": "/stock-logos/PECO.svg"
+    },
+    "PGLC": {
+      "companyName": "Pak-Gulf Leasing Company Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/PGLC.svg",
+      "localLogo": "/stock-logos/PGLC.svg"
+    },
+    "PIAHCLA": {
+      "companyName": "PIA Holding Company Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/PIAHCLA.svg",
+      "localLogo": "/stock-logos/PIAHCLA.svg"
+    },
+    "PIAHCLB": {
+      "companyName": "PIA Holding Company LimitedB",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/PIAHCLB.svg",
+      "localLogo": "/stock-logos/PIAHCLB.svg"
+    },
+    "PIBTL": {
+      "companyName": "Pakistan International Bulk Terminal",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/pakistan-international-bulk-terminal.svg",
+      "localLogo": "/stock-logos/PIBTL.svg"
+    },
+    "PICT": {
+      "companyName": "Pakistan International Container",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/int-l-container-terminals.svg",
+      "localLogo": "/stock-logos/PICT.svg"
+    },
+    "PIL": {
+      "companyName": "PICIC Insurance Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/PIL.svg",
+      "localLogo": "/stock-logos/PIL.svg"
+    },
+    "PIM": {
+      "companyName": "Popular Islamic Modaraba",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/PIM.svg",
+      "localLogo": "/stock-logos/PIM.svg"
+    },
+    "PINL": {
+      "companyName": "Premier Insurance Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/premier-insurance-co-of-pakistan.svg",
+      "localLogo": "/stock-logos/PINL.svg"
+    },
+    "PIOC": {
+      "companyName": "Pioneer Cement Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/pioneer-cement.svg",
+      "localLogo": "/stock-logos/PIOC.svg"
+    },
+    "PKGI": {
+      "companyName": "The Pakistan General Insurance Co. Ltd.",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/PKGI.svg",
+      "localLogo": "/stock-logos/PKGI.svg"
+    },
+    "PKGP": {
+      "companyName": "Pakgen Power Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/pakgen-power.svg",
+      "localLogo": "/stock-logos/PKGP.svg"
+    },
+    "PKGS": {
+      "companyName": "Packages Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/packages.svg",
+      "localLogo": "/stock-logos/PKGS.svg"
+    },
+    "PMRS": {
+      "companyName": "The Premier Sugar Mills",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/the-premier-sugar-mills-and-distillery-co.svg",
+      "localLogo": "/stock-logos/PMRS.svg"
+    },
+    "PNSC": {
+      "companyName": "Pakistan National Shipping Corporation",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/PNSC.svg",
+      "localLogo": "/stock-logos/PNSC.svg"
+    },
+    "POL": {
+      "companyName": "Pakistan Oilfields Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/pakistan-oilfields.svg",
+      "localLogo": "/stock-logos/POL.svg"
+    },
+    "POML": {
+      "companyName": "Punjab Oil Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/POML.svg",
+      "localLogo": "/stock-logos/POML.svg"
+    },
+    "POWER": {
+      "companyName": "Power Cement Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/power-cement.svg",
+      "localLogo": "/stock-logos/POWER.svg"
+    },
+    "POWERPS": {
+      "companyName": "Power Cement (Pref)",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/POWERPS.svg",
+      "localLogo": "/stock-logos/POWERPS.svg"
+    },
+    "PPL": {
+      "companyName": "Pakistan Petroleum Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/pakistan-petroleum.svg",
+      "localLogo": "/stock-logos/PPL.svg"
+    },
+    "PPP": {
+      "companyName": "Pakistan Paper Products Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/pakistan-paper-product.svg",
+      "localLogo": "/stock-logos/PPP.svg"
+    },
+    "PPVC": {
+      "companyName": "Pakistan PVC Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/PPVC.svg",
+      "localLogo": "/stock-logos/PPVC.svg"
+    },
+    "PQGTL": {
+      "companyName": "Pak Qatar General Takaful Limited",
+      "logoUrl": null,
+      "localLogo": null
+    },
+    "PREMA": {
+      "companyName": "At-Tahur Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/at-tahur.svg",
+      "localLogo": "/stock-logos/PREMA.svg"
+    },
+    "PRET": {
+      "companyName": "Premium Textile Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/premium-textile-mills.svg",
+      "localLogo": "/stock-logos/PRET.svg"
+    },
+    "PRL": {
+      "companyName": "Pakistan Refinery Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/pakistan-refinery.svg",
+      "localLogo": "/stock-logos/PRL.svg"
+    },
+    "PRWM": {
+      "companyName": "Prosperity Weaving Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/prosperity-weaving-mills.svg",
+      "localLogo": "/stock-logos/PRWM.svg"
+    },
+    "PSEL": {
+      "companyName": "Pakistan Services Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/pakistan-services.svg",
+      "localLogo": "/stock-logos/PSEL.svg"
+    },
+    "PSMC": {
+      "companyName": "Pak Suzuki Motor Company Limited",
+      "logoUrl": null,
+      "localLogo": null
+    },
+    "PSO": {
+      "companyName": "Pakistan State Oil Company Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/pakistan-state-oil-co.svg",
+      "localLogo": "/stock-logos/PSO.svg"
+    },
+    "PSX": {
+      "companyName": "Pakistan Stock Exchange Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/pakistan-stock-exchange.svg",
+      "localLogo": "/stock-logos/PSX.svg"
+    },
+    "PTC": {
+      "companyName": "Pakistan Telecommunication Company Ltd",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/pakistan-telecommunication-company.svg",
+      "localLogo": "/stock-logos/PTC.svg"
+    },
+    "PTL": {
+      "companyName": "Panther Tyres Ltd.",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/panther-tyres.svg",
+      "localLogo": "/stock-logos/PTL.svg"
+    },
+    "QTECH": {
+      "companyName": "Quantum Data Technologies Limited",
+      "logoUrl": null,
+      "localLogo": null
+    },
+    "QUET": {
+      "companyName": "Quetta Textile Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/QUET.svg",
+      "localLogo": "/stock-logos/QUET.svg"
+    },
+    "QUICE": {
+      "companyName": "Quice Food Industries Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/QUICE.svg",
+      "localLogo": "/stock-logos/QUICE.svg"
+    },
+    "RCML": {
+      "companyName": "Reliance Cotton Spinning Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/reliance-cotton-spinning-mills.svg",
+      "localLogo": "/stock-logos/RCML.svg"
+    },
+    "REDCO": {
+      "companyName": "Redco Textiles Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/REDCO.svg",
+      "localLogo": "/stock-logos/REDCO.svg"
+    },
+    "REWM": {
+      "companyName": "Reliance Weaving Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/REWM.svg",
+      "localLogo": "/stock-logos/REWM.svg"
+    },
+    "RICL": {
+      "companyName": "Reliance Insurance Company Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/RICL.svg",
+      "localLogo": "/stock-logos/RICL.svg"
+    },
+    "RMPL": {
+      "companyName": "Rafhan Maize Products Company Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/rafhan-maize-products-co.svg",
+      "localLogo": "/stock-logos/RMPL.svg"
+    },
+    "RPL": {
+      "companyName": "Roshan Packages Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/roshan-packages.svg",
+      "localLogo": "/stock-logos/RPL.svg"
+    },
+    "RUBY": {
+      "companyName": "Ruby Textile Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/RUBY.svg",
+      "localLogo": "/stock-logos/RUBY.svg"
+    },
+    "RUPL": {
+      "companyName": "Rupali Polyester Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/rupali-polyester.svg",
+      "localLogo": "/stock-logos/RUPL.svg"
+    },
+    "SAIF": {
+      "companyName": "Saif Textile Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/saif-textile-mills.svg",
+      "localLogo": "/stock-logos/SAIF.svg"
+    },
+    "SANSM": {
+      "companyName": "Sanghar Sugar Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/sanghar-sugar-mills.svg",
+      "localLogo": "/stock-logos/SANSM.svg"
+    },
+    "SAPT": {
+      "companyName": "Sapphire Textile Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/sapphire-textile-mills.svg",
+      "localLogo": "/stock-logos/SAPT.svg"
+    },
+    "SARC": {
+      "companyName": "Sardar Chemical Industries Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/SARC.svg",
+      "localLogo": "/stock-logos/SARC.svg"
+    },
+    "SASML": {
+      "companyName": "Sindh Abadgars Sugar Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/SASML.svg",
+      "localLogo": "/stock-logos/SASML.svg"
+    },
+    "SAZEW": {
+      "companyName": "Sazgar Engineering Works Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/sazgar-engineering-works.svg",
+      "localLogo": "/stock-logos/SAZEW.svg"
+    },
+    "SBL": {
+      "companyName": "Samba Bank Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/samba-bank.svg",
+      "localLogo": "/stock-logos/SBL.svg"
+    },
+    "SCBPL": {
+      "companyName": "Standard Chartered Bank (Pak) Ltd",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/standard-chartered.svg",
+      "localLogo": "/stock-logos/SCBPL.svg"
+    },
+    "SCL": {
+      "companyName": "Shield Corporation Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/shield-oration.svg",
+      "localLogo": "/stock-logos/SCL.svg"
+    },
+    "SEARL": {
+      "companyName": "The Searle Company Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/the-searle-company.svg",
+      "localLogo": "/stock-logos/SEARL.svg"
+    },
+    "SEL": {
+      "companyName": "Sitara Energy Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/SEL.svg",
+      "localLogo": "/stock-logos/SEL.svg"
+    },
+    "SEPL": {
+      "companyName": "Security Papers Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/security-papers.svg",
+      "localLogo": "/stock-logos/SEPL.svg"
+    },
+    "SERT": {
+      "companyName": "Service Industries Textiles Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/SERT.svg",
+      "localLogo": "/stock-logos/SERT.svg"
+    },
+    "SFL": {
+      "companyName": "Sapphire Fibres Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/sapphire-textile-mills.svg",
+      "localLogo": "/stock-logos/SFL.svg"
+    },
+    "SGF": {
+      "companyName": "Service GlobalFootwear Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/service-global-footwear.svg",
+      "localLogo": "/stock-logos/SGF.svg"
+    },
+    "SGPL": {
+      "companyName": "S.G. Power Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/SGPL.svg",
+      "localLogo": "/stock-logos/SGPL.svg"
+    },
+    "SHCM": {
+      "companyName": "Shadman Cotton Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/SHCM.svg",
+      "localLogo": "/stock-logos/SHCM.svg"
+    },
+    "SHDT": {
+      "companyName": "Shadab Textile Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/SHDT.svg",
+      "localLogo": "/stock-logos/SHDT.svg"
+    },
+    "SHEZ": {
+      "companyName": "Shezan International Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/shezan-international.svg",
+      "localLogo": "/stock-logos/SHEZ.svg"
+    },
+    "SHFA": {
+      "companyName": "Shifa International Hospitals Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/shifa-international-hospitals.svg",
+      "localLogo": "/stock-logos/SHFA.svg"
+    },
+    "SHJS": {
+      "companyName": "Shahtaj Sugar Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/shahtaj-sugar-mills.svg",
+      "localLogo": "/stock-logos/SHJS.svg"
+    },
+    "SHNI": {
+      "companyName": "Shaheen Insurance Company Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/SHNI.svg",
+      "localLogo": "/stock-logos/SHNI.svg"
+    },
+    "SHSML": {
+      "companyName": "Shahmurad Sugar Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/shahmurad-sugar-mills.svg",
+      "localLogo": "/stock-logos/SHSML.svg"
+    },
+    "SIBL": {
+      "companyName": "Security Investment Bank Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/SIBL.svg",
+      "localLogo": "/stock-logos/SIBL.svg"
+    },
+    "SINDM": {
+      "companyName": "Sindh Modaraba",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/SINDM.svg",
+      "localLogo": "/stock-logos/SINDM.svg"
+    },
+    "SITC": {
+      "companyName": "Sitara Chemical Industries Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/sitara-chemicals-industries.svg",
+      "localLogo": "/stock-logos/SITC.svg"
+    },
+    "SKRS": {
+      "companyName": "Sakrand Sugar Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/SKRS.svg",
+      "localLogo": "/stock-logos/SKRS.svg"
+    },
+    "SLGL": {
+      "companyName": "Secure Logistics-Trax Group Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/SLGL.svg",
+      "localLogo": "/stock-logos/SLGL.svg"
+    },
+    "SLYT": {
+      "companyName": "Sally Textile Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/SLYT.svg",
+      "localLogo": "/stock-logos/SLYT.svg"
+    },
+    "SMCPL": {
+      "companyName": "Safe Mix Concrete Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/SMCPL.svg",
+      "localLogo": "/stock-logos/SMCPL.svg"
+    },
+    "SML": {
+      "companyName": "Shakarganj Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/SML.svg",
+      "localLogo": "/stock-logos/SML.svg"
+    },
+    "SNAI": {
+      "companyName": "Sana Industries Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/sana-industries.svg",
+      "localLogo": "/stock-logos/SNAI.svg"
+    },
+    "SNBL": {
+      "companyName": "Soneri Bank Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/soneri-bank.svg",
+      "localLogo": "/stock-logos/SNBL.svg"
+    },
+    "SNGP": {
+      "companyName": "Sui Northern Gas Pipelines Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/sui-northern-gas-pipelines.svg",
+      "localLogo": "/stock-logos/SNGP.svg"
+    },
+    "SPEL": {
+      "companyName": "SPEL Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/synthetic-products-enterprises.svg",
+      "localLogo": "/stock-logos/SPEL.svg"
+    },
+    "SPL": {
+      "companyName": "Sitara Peroxide Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/SPL.svg",
+      "localLogo": "/stock-logos/SPL.svg"
+    },
+    "SPWL": {
+      "companyName": "Saif Power Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/saif-power.svg",
+      "localLogo": "/stock-logos/SPWL.svg"
+    },
+    "SRR": {
+      "companyName": "Signature Residency Reit",
+      "logoUrl": null,
+      "localLogo": null
+    },
+    "SRVI": {
+      "companyName": "Service Industries Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/service-industries.svg",
+      "localLogo": "/stock-logos/SRVI.svg"
+    },
+    "SSGC": {
+      "companyName": "Sui Southern Gas Company Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/sui-southern-gas-co.svg",
+      "localLogo": "/stock-logos/SSGC.svg"
+    },
+    "SSML": {
+      "companyName": "Saritow Spinning Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/SSML.svg",
+      "localLogo": "/stock-logos/SSML.svg"
+    },
+    "SSOM": {
+      "companyName": "S.S.Oil Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/SSOM.svg",
+      "localLogo": "/stock-logos/SSOM.svg"
+    },
+    "STCL": {
+      "companyName": "Shabbir Tiles & Ceramics Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/shabbir-tiles-and-ceramics.svg",
+      "localLogo": "/stock-logos/STCL.svg"
+    },
+    "STJT": {
+      "companyName": "Shahtaj Textile Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/shahtaj-textile-mills.svg",
+      "localLogo": "/stock-logos/STJT.svg"
+    },
+    "STL": {
+      "companyName": "Supernet Technologies Limited",
+      "logoUrl": null,
+      "localLogo": null
+    },
+    "STML": {
+      "companyName": "Shams Textile Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/shams-textile-mills.svg",
+      "localLogo": "/stock-logos/STML.svg"
+    },
+    "STPL": {
+      "companyName": "Siddiqsons Tin Plate Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/STPL.svg",
+      "localLogo": "/stock-logos/STPL.svg"
+    },
+    "STYLERS": {
+      "companyName": "Stylers International Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/STYLERS.svg",
+      "localLogo": "/stock-logos/STYLERS.svg"
+    },
+    "SURC": {
+      "companyName": "Suraj Cotton Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/suraj-cotton-mills.svg",
+      "localLogo": "/stock-logos/SURC.svg"
+    },
+    "SUTM": {
+      "companyName": "Sunrays Textile Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/sunrays-textile-mills.svg",
+      "localLogo": "/stock-logos/SUTM.svg"
+    },
+    "SYM": {
+      "companyName": "Symmetry Group Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/SYM.svg",
+      "localLogo": "/stock-logos/SYM.svg"
+    },
+    "SYS": {
+      "companyName": "Systems Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/systems.svg",
+      "localLogo": "/stock-logos/SYS.svg"
+    },
+    "SZTM": {
+      "companyName": "Shahzad Textile Mills Limited",
+      "logoUrl": null,
+      "localLogo": null
+    },
+    "TATM": {
+      "companyName": "Tata Textile Mills Limited",
+      "logoUrl": null,
+      "localLogo": null
+    },
+    "TBL": {
+      "companyName": "Treet Battery Limited.",
+      "logoUrl": null,
+      "localLogo": null
+    },
+    "TCORP": {
+      "companyName": "Tariq Corporation Limited",
+      "logoUrl": null,
+      "localLogo": null
+    },
+    "TCORPCPS": {
+      "companyName": "Tariq Corporation Limited(Pref)",
+      "logoUrl": null,
+      "localLogo": null
+    },
+    "TELE": {
+      "companyName": "Telecard Limited",
+      "logoUrl": null,
+      "localLogo": null
+    },
+    "TGL": {
+      "companyName": "Tariq Glass Industries Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/tariq-glass-industries.svg",
+      "localLogo": "/stock-logos/TGL.svg"
+    },
+    "THALL": {
+      "companyName": "Thal Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/thal.svg",
+      "localLogo": "/stock-logos/THALL.svg"
+    },
+    "THCCL": {
+      "companyName": "Thatta Cement Company Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/thatta-cement-company.svg",
+      "localLogo": "/stock-logos/THCCL.svg"
+    },
+    "TICL": {
+      "companyName": "The Thal Industries Corporation Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/the-thal-industrial-oration.svg",
+      "localLogo": "/stock-logos/TICL.svg"
+    },
+    "TOMCL": {
+      "companyName": "The Organic Meat Company Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/the-organic-meat-co.svg",
+      "localLogo": "/stock-logos/TOMCL.svg"
+    },
+    "TOWL": {
+      "companyName": "Towellers Limited",
+      "logoUrl": null,
+      "localLogo": null
+    },
+    "TPL": {
+      "companyName": "TPL Corp Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/tpl.svg",
+      "localLogo": "/stock-logos/TPL.svg"
+    },
+    "TPLI": {
+      "companyName": "TPL Insurance Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/tpl-insurance.svg",
+      "localLogo": "/stock-logos/TPLI.svg"
+    },
+    "TPLL": {
+      "companyName": "TPL Life Insurance Limited",
+      "logoUrl": null,
+      "localLogo": null
+    },
+    "TPLP": {
+      "companyName": "TPL Properties Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/tpl-properties.svg",
+      "localLogo": "/stock-logos/TPLP.svg"
+    },
+    "TPLRF1": {
+      "companyName": "TPL REIT Fund I",
+      "logoUrl": null,
+      "localLogo": null
+    },
+    "TPLT": {
+      "companyName": "TPL Trakker Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/tpl-trakker.svg",
+      "localLogo": "/stock-logos/TPLT.svg"
+    },
+    "TREET": {
+      "companyName": "Treet Corporation Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/treet.svg",
+      "localLogo": "/stock-logos/TREET.svg"
+    },
+    "TRG": {
+      "companyName": "TRG Pakistan Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/trg-pakistan.svg",
+      "localLogo": "/stock-logos/TRG.svg"
+    },
+    "TRIPF": {
+      "companyName": "Tri-Pack Films Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/tri-pack-films.svg",
+      "localLogo": "/stock-logos/TRIPF.svg"
+    },
+    "TRSM": {
+      "companyName": "Trust Modaraba",
+      "logoUrl": null,
+      "localLogo": null
+    },
+    "TSBL": {
+      "companyName": "Trust Securities & Brokerage Limited",
+      "logoUrl": null,
+      "localLogo": null
+    },
+    "TSMF": {
+      "companyName": "Tri-Star Mutual Fund Limited",
+      "logoUrl": null,
+      "localLogo": null
+    },
+    "TSML": {
+      "companyName": "Tandlianwala Sugar Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/tandlianwala-sugar-mills.svg",
+      "localLogo": "/stock-logos/TSML.svg"
+    },
+    "TSPL": {
+      "companyName": "Tri-Star Power Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/tri-star-power-co.svg",
+      "localLogo": "/stock-logos/TSPL.svg"
+    },
+    "UBDL": {
+      "companyName": "United Brands Limited",
+      "logoUrl": null,
+      "localLogo": null
+    },
+    "UBL": {
+      "companyName": "United Bank Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/united-bank.svg",
+      "localLogo": "/stock-logos/UBL.svg"
+    },
+    "UBLPETF": {
+      "companyName": "UBLPakistan Enterprise ETF",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/united-bank.svg",
+      "localLogo": "/stock-logos/UBLPETF.svg"
+    },
+    "UCAPM": {
+      "companyName": "Unicap Modaraba",
+      "logoUrl": null,
+      "localLogo": null
+    },
+    "UDLI": {
+      "companyName": "UDL International Limited",
+      "logoUrl": null,
+      "localLogo": null
+    },
+    "UDPL": {
+      "companyName": "United Distributors Pakistan Limited",
+      "logoUrl": null,
+      "localLogo": null
+    },
+    "UNIC": {
+      "companyName": "The United Insurance Company",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/united-insurance-co-of-pakistan.svg",
+      "localLogo": "/stock-logos/UNIC.svg"
+    },
+    "UNITY": {
+      "companyName": "Unity Foods Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/unity-foods.svg",
+      "localLogo": "/stock-logos/UNITY.svg"
+    },
+    "UPFL": {
+      "companyName": "Unilever Pakistan Foods Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/unilever.svg",
+      "localLogo": "/stock-logos/UPFL.svg"
+    },
+    "UVIC": {
+      "companyName": "The Universal Insurance Company Limited",
+      "logoUrl": null,
+      "localLogo": null
+    },
+    "WAFI": {
+      "companyName": "Wafi Energy Pakistan Limited",
+      "logoUrl": null,
+      "localLogo": null
+    },
+    "WAHN": {
+      "companyName": "Wah Noble Chemicals Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/wah-nobel-chemicals.svg",
+      "localLogo": "/stock-logos/WAHN.svg"
+    },
+    "WASL": {
+      "companyName": "Wasl Mobility Modaraba",
+      "logoUrl": null,
+      "localLogo": null
+    },
+    "WAVES": {
+      "companyName": "Waves Corporation Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/waves-home-appliances.svg",
+      "localLogo": "/stock-logos/WAVES.svg"
+    },
+    "WAVESAPP": {
+      "companyName": "Waves Home Appliances Limited",
+      "logoUrl": null,
+      "localLogo": null
+    },
+    "WTL": {
+      "companyName": "Worldcall Telecom Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/worldcall-telecom.svg",
+      "localLogo": "/stock-logos/WTL.svg"
+    },
+    "YOUW": {
+      "companyName": "Yousaf Weaving Mills Limited",
+      "logoUrl": null,
+      "localLogo": null
+    },
+    "ZAHID": {
+      "companyName": "Zahidjee Textile Mills Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/zahidjee-textile-mills.svg",
+      "localLogo": "/stock-logos/ZAHID.svg"
+    },
+    "ZAL": {
+      "companyName": "Zarea Limited",
+      "logoUrl": null,
+      "localLogo": null
+    },
+    "ZIL": {
+      "companyName": "ZIL Limited",
+      "logoUrl": null,
+      "localLogo": null
+    },
+    "ZTL": {
+      "companyName": "Zephyr Textiles Limited",
+      "logoUrl": "https://sarmaaya-images.s3.amazonaws.com/company_logos/zephyr-textiles.svg",
+      "localLogo": "/stock-logos/ZTL.svg"
+    },
+    "ZUMA": {
+      "companyName": "Zuma Resources Limited",
+      "logoUrl": null,
+      "localLogo": null
+    }
+  }
+}
