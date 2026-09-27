@@ -1,15 +1,14 @@
 import { useState, useMemo, useCallback, useRef } from 'react';
 import {
   Box, Card, CardContent, Typography, TextField, IconButton, Chip, Skeleton,
-  Dialog, DialogTitle, DialogContent, DialogActions, Button, InputAdornment,
+  Dialog, DialogContent, DialogActions, Button, InputAdornment,
   ToggleButtonGroup, ToggleButton, useMediaQuery, useTheme, Divider, CircularProgress,
-  Menu, MenuItem, ListItemIcon, ListItemText, Tooltip,
+  Menu, MenuItem, ListItemText, Tooltip,
+  Alert,
 } from '@mui/material';
 import {
   Search, Refresh, Close, TrendingUp, TrendingDown, LocalFireDepartment,
-  StarOutlineRounded, StarRounded, ShowChart, SwapVert,
-  SortRounded, ArrowDropUp, ArrowDropDown, BarChartRounded,
-  FilterListRounded, CheckRounded,
+  StarOutlineRounded, StarRounded, ShowChart, SortRounded, ArrowDropUp, ArrowDropDown, FilterListRounded, CheckRounded,
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabase';
@@ -21,7 +20,7 @@ import {
 import DataFreshness from '../../components/DataFreshness';
 import { useAuthStore } from '../../store/authStore';
 import { useAppStore } from '../../store/appStore';
-import { formatCurrency, formatNumber, formatPercent, getPnLColor, calcBrokerFee } from '../../lib/formatters';
+import { formatCurrency, formatNumber, getPnLColor, calcBrokerFee } from '../../lib/formatters';
 import { getStockSector, getAllSectors } from '../../lib/psxSectors';
 import StockLogo from '../../components/StockLogo';
 import { getStockName } from '../../lib/stockMeta';
@@ -32,7 +31,6 @@ const SELL_COLOR = '#b91c1c';
 export default function SharesPage() {
   const user = useAuthStore((s) => s.user);
   const showSnackbar = useAppStore((s) => s.showSnackbar);
-  const showConfirm = useAppStore((s) => s.showConfirm);
   const queryClient = useQueryClient();
   const isMobile = useMediaQuery('(max-width:768px)');
   const theme = useTheme();
@@ -328,6 +326,26 @@ export default function SharesPage() {
           ),
         }}
       />
+
+      {/* The market feed failing is not the same as an empty market. Every
+          query here used to be read as `data?.data || []`, so an outage
+          rendered as "no stocks found" — indistinguishable from a filter that
+          matched nothing. */}
+      {stocksFailed && (
+        <Alert
+          severity="warning"
+          sx={{ mb: 1, borderRadius: 2.5, fontSize: '0.72rem', py: 0.25 }}
+          action={
+            <IconButton size="small" onClick={handleScrape} disabled={scraping} aria-label="Retry">
+              <Refresh sx={{ fontSize: 15 }} />
+            </IconButton>
+          }
+        >
+          {stocksError?.isOffline
+            ? 'Cannot reach the market data service. Showing nothing rather than stale prices.'
+            : `Market data unavailable (${stocksError?.message || 'unknown error'}).`}
+        </Alert>
+      )}
 
       {/* ── Filter Chips + Sort + Sector (single row, horizontally scrollable) ── */}
       <Box sx={{

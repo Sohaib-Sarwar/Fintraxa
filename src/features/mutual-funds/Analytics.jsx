@@ -12,7 +12,7 @@ import { motion } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import { mufapFundsQuery, fundPriceMap } from '../../lib/marketQueries';
 import { useAuthStore } from '../../store/authStore';
-import { formatCurrency, formatNumber, getPnLColor, formatPercent, shortFundName } from '../../lib/formatters';
+import { formatCurrency, formatPercent, shortFundName } from '../../lib/formatters';
 import { subMonths, format } from 'date-fns';
 
 /* ─── Profit / Loss color palettes ─── */

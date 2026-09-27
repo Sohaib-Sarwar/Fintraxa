@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import {
   Box, Typography, Card, CardContent, TextField, InputAdornment, Button,
-  Chip, Autocomplete, Slider, LinearProgress, Collapse, useTheme, useMediaQuery, alpha,
+  Chip, Autocomplete, Slider, LinearProgress, Collapse, useTheme, alpha,
 } from '@mui/material';
 import {
   CalculateRounded, SearchRounded, TrendingUpRounded,
@@ -75,7 +75,6 @@ function MetricPill({ label, value, color }) {
 export default function Tools() {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
-  const isMobile = useMediaQuery('(max-width:768px)');
   const [activeTool, setActiveTool] = useState('analyzer');
 
   return (
@@ -257,7 +256,7 @@ function StockAnalyzer() {
 
           {/* ─ Valuation Models (collapsible) ─ */}
           <Card sx={{ ...cardSx, mb: 1.5, overflow: 'hidden' }}>
-            {sectionHeader({ title: "Valuation Models", sectionKey: "valuation", icon: <CalculateRounded sx={{ fontSize: 16 } })}} />
+            {sectionHeader({ title: 'Valuation Models', sectionKey: 'valuation', icon: <CalculateRounded sx={{ fontSize: 16 }} /> })}
             <Collapse in={openSections.valuation}>
               <CardContent sx={{ p: 2, pt: 1.5, '&:last-child': { pb: 2 } }}>
                 <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 1 }}>
@@ -306,7 +305,7 @@ function StockAnalyzer() {
 
           {/* ─ Quality & Safety (collapsible) ─ */}
           <Card sx={{ ...cardSx, mb: 1.5, overflow: 'hidden' }}>
-            {sectionHeader({ title: "Quality & Safety", sectionKey: "quality", icon: <GppGoodRounded sx={{ fontSize: 16 } })}} />
+            {sectionHeader({ title: 'Quality & Safety', sectionKey: 'quality', icon: <GppGoodRounded sx={{ fontSize: 16 }} /> })}
             <Collapse in={openSections.quality}>
               <CardContent sx={{ p: { xs: 1.5, sm: 2 }, pt: 1.5, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
                 <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)' }, gap: 0.75 }}>
@@ -350,7 +349,7 @@ function StockAnalyzer() {
 
           {/* ─ Technical Levels (collapsible) ─ */}
           <Card sx={{ ...cardSx, mb: 1.5, overflow: 'hidden' }}>
-            {sectionHeader({ title: "Technical Levels", sectionKey: "technical", icon: <TrendingUpRounded sx={{ fontSize: 16 } })}} />
+            {sectionHeader({ title: 'Technical Levels', sectionKey: 'technical', icon: <TrendingUpRounded sx={{ fontSize: 16 }} /> })}
             <Collapse in={openSections.technical}>
               <CardContent sx={{ p: 2, pt: 1.5, '&:last-child': { pb: 2 } }}>
                 {/* Visual price ruler */}

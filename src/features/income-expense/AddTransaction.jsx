@@ -1,9 +1,8 @@
 ﻿import { useState, useMemo } from 'react';
 import {
   Box, TextField, Button, Typography, Card, CardContent,
-  Select, FormControl, InputLabel, InputAdornment, MenuItem,
-  Grid, Alert, useTheme, useMediaQuery, Dialog, DialogTitle,
-  DialogContent, DialogActions, ListItemIcon, ListItemText, IconButton,
+  Select, FormControl, InputLabel, MenuItem,
+  Alert, useTheme, useMediaQuery, Dialog, DialogContent, DialogActions, ListItemIcon, ListItemText, IconButton,
 } from '@mui/material';
 import {
   ArrowDownward, ArrowUpward,
@@ -17,7 +16,8 @@ import { useAppStore } from '../../store/appStore';
 import { useNavigate } from 'react-router-dom';
 import { formatCurrency } from '../../lib/formatters';
 import { format } from 'date-fns';
-import CategoryIcon, { DEFAULT_CATEGORIES } from '../../lib/categoryIcons';
+import CategoryIcon from '../../lib/categoryIcons';
+import { DEFAULT_CATEGORIES } from '../../lib/defaultCategories';
 
 export default function AddTransaction() {
   const user = useAuthStore((s) => s.user);
@@ -50,7 +50,15 @@ export default function AddTransaction() {
         const rows = missing.map((c) => ({ ...c, user_id: user.id, is_default: true }));
         const { data: seeded, error: seedErr } = await supabase
           .from('categories').upsert(rows, { onConflict: 'user_id,name', ignoreDuplicates: true }).select();
-        if (!seedErr && seeded?.length) {
+        // `onConflict: 'user_id,name'` needs the categories_user_id_name_unique
+        // constraint; without it Postgres raises 42P10 and the user is left
+        // with no categories and no way to record anything. The error used to
+        // be checked and then dropped, so that failure was invisible.
+        if (seedErr) {
+          console.error('[Fintraxa] could not seed default categories', seedErr);
+          throw seedErr;
+        }
+        if (seeded?.length) {
           return [...data, ...seeded].sort((a, b) => a.name.localeCompare(b.name));
         }
       }

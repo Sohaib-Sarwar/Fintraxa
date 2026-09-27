@@ -1,8 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
   Box, Card, CardContent, Typography, Grid, Skeleton, Chip, useTheme, useMediaQuery,
-  TextField, InputAdornment, Menu, MenuItem, alpha,
-} from '@mui/material';
+  TextField, InputAdornment, Menu, MenuItem, } from '@mui/material';
 import {
   SavingsRounded, PieChartRounded, ShowChartRounded,
   TrendingUpRounded, TrendingDownRounded, WarningAmberRounded,
@@ -20,8 +19,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import { psxStocksQuery, stockPriceMap } from '../../lib/marketQueries';
 import { useAuthStore } from '../../store/authStore';
-import { formatCurrency, formatNumber, getPnLColor, formatPercent } from '../../lib/formatters';
-import { getStockSector, getSectorColor, SECTOR_COLORS, getAllSectors } from '../../lib/psxSectors';
+import { formatCurrency, getPnLColor, formatPercent } from '../../lib/formatters';
+import { getStockSector, getSectorColor, getAllSectors } from '../../lib/psxSectors';
 import { subMonths, format } from 'date-fns';
 import { getStockName } from '../../lib/stockMeta';
 import StockLogo from '../../components/StockLogo';
@@ -39,27 +38,6 @@ const SECTIONS = [
 /* ─── Profit / Loss color palettes ─── */
 const profitColors = ['#22c55e', '#4ade80', '#86efac', '#bbf7d0'];
 const lossColors = ['#ef4444', '#f87171', '#fca5a5', '#fecaca'];
-
-/* Active shape — shows symbol, value, percentage */
-const renderActive = (props) => {
-  const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill, payload, percent, value } = props;
-  return (
-    <g>
-      <text x={cx} y={cy - 14} textAnchor="middle" fontSize={11} fontWeight={600} fill={fill}>
-        {payload.name}
-      </text>
-      <text x={cx} y={cy + 3} textAnchor="middle" fontSize={13} fontWeight={800} fill={fill}>
-        {formatCurrency(value)}
-      </text>
-      <text x={cx} y={cy + 18} textAnchor="middle" fontSize={10} fill="#888">
-        {`${(percent * 100).toFixed(1)}%`}
-      </text>
-      <Sector cx={cx} cy={cy} innerRadius={innerRadius - 3} outerRadius={outerRadius + 6}
-        startAngle={startAngle} endAngle={endAngle} fill={fill} />
-    </g>
-  );
-};
-
 /* Outer labels — clean text style (matches MF) */
 const RADIAN = Math.PI / 180;
 const renderOuterLabel = ({ cx, cy, midAngle, outerRadius, percent, payload, fill, viewBox }) => {
@@ -303,7 +281,7 @@ export default function PSXAnalytics() {
       ...s, color: getSectorColor(i),
     }));
 
-    const sectorPnL = sectorArr.map((s, i) => {
+    const sectorPnL = sectorArr.map((s) => {
       const pct = s.invested > 0 ? (s.gainLoss / s.invested) * 100 : 0;
       return {
         name: s.name,
