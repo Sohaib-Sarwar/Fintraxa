@@ -78,7 +78,8 @@ export default function SharesPage() {
   const { data: freeCashData } = useQuery({
     queryKey: ['stock-free-cash', user?.id],
     queryFn: async () => {
-      const { data: cats } = await supabase.from('categories').select('id').ilike('name', '%Investment - Stocks%');
+      const { data: cats } = await supabase.from('categories').select('id')
+        .eq('user_id', user.id).ilike('name', '%Investment - Stocks%');
       const catIds = (cats || []).map((c) => c.id);
       let deposited = 0;
       if (catIds.length > 0) {
@@ -217,7 +218,7 @@ export default function SharesPage() {
       setDetailStock(null);
       showSnackbar(`${tradeMode === 'buy' ? 'Bought' : 'Sold'} successfully`, 'success');
     },
-    onError: (e) => showSnackbar(e.message, 'error'),
+    onError: dbErrorHandler(showSnackbar, 'Could not record trade'),
   });
 
   /* ── Refresh ──
@@ -260,10 +261,10 @@ export default function SharesPage() {
   /* Auto-calculate broker fee unless user has manually edited it */
   const autoFee = calcBrokerFee(Number(tradePrice) || 0, computedShares);
   const effectiveFee = feeEdited ? (Number(tradeFee) || 0) : autoFee;
-  // Auto-sync display when not manually edited
-  if (!feeEdited && tradeFee !== String(autoFee) && computedShares > 0) {
-    // We'll set it in the render via useEffect-free pattern — store as derived
-  }
+  /* An empty `if` block sat here whose body was a comment saying the value
+     would be stored as derived state. It already is: the fee field renders
+     `feeEdited ? tradeFee : String(autoFee)`, so the branch did nothing but
+     run a string comparison on every render. */
   const totalWithFee = tradeMode === 'buy' ? computedAmount + effectiveFee : computedAmount - effectiveFee;
 
   const myHolding = detailStock ? (holdingsMap[detailStock.symbol?.toUpperCase()] || { shares: 0, totalCost: 0 }) : { shares: 0, totalCost: 0 };

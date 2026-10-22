@@ -1,5 +1,6 @@
-import { Suspense, lazy } from 'react';
+import { Suspense, lazy, useMemo } from 'react';
 import { useMediaQuery } from '@mui/material';
+import { useLocation } from 'react-router-dom';
 import SwipeablePages from '../../components/SwipeablePages';
 import InfiniteSpinner from '../../components/InfiniteSpinner';
 
@@ -8,25 +9,29 @@ const AddFund = lazy(() => import('./AddFund'));
 const Analytics = lazy(() => import('./Analytics'));
 
 const Loader = () => <InfiniteSpinner size={64} minHeight="40vh" />;
+const wrap = (El) => <Suspense fallback={<Loader />}><El /></Suspense>;
+
+/* The URL is the source of truth for which page is showing, on both layouts.
+   `/funds/add` and `/funds/analytics` route here now rather than straight to
+   the leaf component, so on a phone they open the carousel at the right tab
+   instead of a dead-end page with no sub-navigation. */
+const PAGES = [
+  { label: 'Portfolio', path: '/funds', component: wrap(Dashboard) },
+  { label: 'Add Fund', path: '/funds/add', component: wrap(AddFund) },
+  { label: 'Analytics', path: '/funds/analytics', component: wrap(Analytics) },
+];
 
 export default function MFSection() {
   const isMobile = useMediaQuery('(max-width:768px)');
+  const { pathname } = useLocation();
 
-  /* Desktop — show Dashboard only (sidebar handles sub-page nav) */
-  if (!isMobile) {
-    return (
-      <Suspense fallback={<Loader />}>
-        <Dashboard />
-      </Suspense>
-    );
-  }
+  const current = useMemo(
+    () => PAGES.find((p) => p.path === pathname) ?? PAGES[0],
+    [pathname],
+  );
 
-  /* Mobile — all pages in a swipeable carousel */
-  const pages = [
-    { label: 'Portfolio', component: <Suspense fallback={<Loader />}><Dashboard /></Suspense> },
-    { label: 'Add Fund', component: <Suspense fallback={<Loader />}><AddFund /></Suspense> },
-    { label: 'Analytics', component: <Suspense fallback={<Loader />}><Analytics /></Suspense> },
-  ];
+  /* Desktop — the sidebar is the sub-navigation, so render just the one page. */
+  if (!isMobile) return current.component;
 
-  return <SwipeablePages pages={pages} />;
+  return <SwipeablePages pages={PAGES} />;
 }

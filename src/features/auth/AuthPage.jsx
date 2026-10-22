@@ -1,44 +1,60 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Box, TextField, Button, Typography, Alert, CircularProgress,
-  InputAdornment, IconButton, useMediaQuery, } from '@mui/material';
+  InputAdornment, IconButton, useMediaQuery, Link,
+} from '@mui/material';
 import {
-  PersonRounded as PersonIcon,
-  LockRounded as Visibility, VisibilityOff,
-  SpaceDashboardRounded as DashboardIcon,
-  PieChartRounded as FundsIcon,
-  CandlestickChartRounded as StocksIcon,
-  AutoGraphRounded as AnalyticsIcon,
-  ShieldRounded as SecurityIcon,
-  CheckCircleOutlineRounded as CheckIcon,
-  RadioButtonUncheckedRounded as UncheckIcon,
-  GetAppRounded as GetAppIcon,
-  PhoneIphoneRounded as PhoneIcon,
-  IosShareRounded as ShareIcon,
-  CloseRounded as CloseIcon,
-} from '@mui/icons-material';
+  User, Eye, EyeOff, Mail,
+  LayoutDashboard, PieChart, CandlestickChart, Sparkles, ShieldCheck,
+  Check, Circle, Download, Smartphone, Share, X, ArrowRight,
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '../../store/authStore';
 import FintraxaLogo from '../../components/FintraxaLogo';
+import GlassPanel from '../../components/GlassPanel';
+import { Reveal, ShinyText } from '../../components/motion';
+
+/* The plate generated for this screen. Two crops: the 16:9 original for wide
+   viewports, and a portrait cut framed on the teal bloom for phones, where
+   centre-cropping the wide one would land on empty black. */
+const BG_DESKTOP = '/login-bg.webp';
+const BG_MOBILE = '/login-bg-mobile.webp';
+
+/* A 20px blur of the plate, inlined. It paints on the first frame, so the
+   screen fades from roughly the right colours into the photograph instead of
+   flashing black — and it costs ~0.1 kB rather than a request. */
+const BG_LQIP = 'data:image/webp;base64,UklGRkgAAABXRUJQVlA4IDwAAABwAwCdASoUAAsAPu1iqU2ppaOiMAgBMB2JZwDA3DKKybYaDQAA/vB1yqiz2y6S/WuqwwOT4';
 
 const pillInput = {
-  '& .MuiInputBase-root': { minHeight: 42 },
+  '& .MuiInputBase-root': { minHeight: 46 },
   '& .MuiOutlinedInput-root': {
     borderRadius: '36px',
-    bgcolor: 'rgba(255,255,255,0.045)',
+    bgcolor: 'rgba(255,255,255,0.05)',
     color: '#fff',
-    fontSize: '0.82rem',
-    '& fieldset': { borderColor: 'rgba(255,255,255,0.28)', borderRadius: '36px' },
-    '&:hover fieldset': { borderColor: 'rgba(255,255,255,0.5)' },
-    '&.Mui-focused fieldset': { borderColor: 'rgba(255,255,255,0.6)', borderWidth: 1 },
+    fontSize: '0.84rem',
+    transition: 'background-color .2s ease, box-shadow .2s ease',
+    '& fieldset': { borderColor: 'rgba(255,255,255,0.22)', borderRadius: '36px', transition: 'border-color .2s ease' },
+    '&:hover fieldset': { borderColor: 'rgba(255,255,255,0.42)' },
+    '&.Mui-focused': { bgcolor: 'rgba(255,255,255,0.08)', boxShadow: '0 0 0 3px rgba(13,148,136,0.28)' },
+    '&.Mui-focused fieldset': { borderColor: 'rgba(45,212,191,0.75)', borderWidth: 1 },
+    '&.Mui-error fieldset': { borderColor: 'rgba(248,113,113,0.65)' },
   },
   '& .MuiInputBase-input': {
-    pl: '15px', pr: '8px', color: '#fff', py: '10px',
-    '&::placeholder': { color: 'rgba(255,255,255,0.42)', opacity: 1 },
+    pl: '17px', pr: '8px', color: '#fff', py: '11px',
+    '&::placeholder': { color: 'rgba(255,255,255,0.4)', opacity: 1 },
+    /* Chrome paints its own slab over autofilled fields, which destroys the
+       glass. A long inset shadow is the only way to override it. */
+    '&:-webkit-autofill': {
+      WebkitBoxShadow: '0 0 0 1000px rgba(22,26,30,0.96) inset',
+      WebkitTextFillColor: '#fff',
+      caretColor: '#fff',
+      transition: 'background-color 9999s ease-in-out 0s',
+    },
   },
-  '& .MuiInputAdornment-root': { mr: '8px' },
-  '& .MuiInputAdornment-root .MuiSvgIcon-root': { color: 'rgba(255,255,255,0.42)', fontSize: 17 },
+  '& .MuiInputAdornment-root': { mr: '10px', color: 'rgba(255,255,255,0.4)' },
 };
+
+const helperSx = { ml: 2, mt: 0.4, mb: -0.5, color: 'rgba(255,255,255,0.72)', fontSize: '0.68rem' };
 
 const getPasswordChecks = (pw) => ({
   minLength: pw.length >= 6,
@@ -50,19 +66,19 @@ const getPasswordChecks = (pw) => ({
 
 const getPasswordStrength = (checks) => {
   const passed = Object.values(checks).filter(Boolean).length;
-  if (passed <= 1) return { label: 'Weak', color: 'rgba(239,68,68,0.85)', pct: 20 };
-  if (passed === 2) return { label: 'Fair', color: 'rgba(251,191,36,0.85)', pct: 40 };
-  if (passed === 3) return { label: 'Good', color: 'rgba(251,191,36,0.9)', pct: 60 };
-  if (passed === 4) return { label: 'Strong', color: 'rgba(74,222,128,0.85)', pct: 80 };
-  return { label: 'Excellent', color: 'rgba(74,222,128,0.95)', pct: 100 };
+  if (passed <= 1) return { label: 'Weak', color: 'rgba(248,113,113,0.9)', pct: 20 };
+  if (passed === 2) return { label: 'Fair', color: 'rgba(251,191,36,0.9)', pct: 40 };
+  if (passed === 3) return { label: 'Good', color: 'rgba(251,191,36,0.95)', pct: 60 };
+  if (passed === 4) return { label: 'Strong', color: 'rgba(45,212,191,0.9)', pct: 80 };
+  return { label: 'Excellent', color: 'rgba(45,212,191,1)', pct: 100 };
 };
 
 const features = [
-  { icon: <DashboardIcon sx={{ fontSize: 26 }} />, title: 'Expense & Income', desc: 'Track every transaction, set budgets and monitor cash flow in real time.' },
-  { icon: <FundsIcon sx={{ fontSize: 26 }} />, title: 'Mutual Funds', desc: 'Invest in MUFAP-listed funds, monitor NAV and track portfolio growth.' },
-  { icon: <StocksIcon sx={{ fontSize: 26 }} />, title: 'PSX Equities', desc: 'Manage Pakistan Stock Exchange holdings with live price tracking.' },
-  { icon: <AnalyticsIcon sx={{ fontSize: 26 }} />, title: 'Smart Analytics', desc: 'Rich charts and insights to help you make better financial decisions.' },
-  { icon: <SecurityIcon sx={{ fontSize: 26 }} />, title: 'Secure & Private', desc: 'Bank-grade encryption keeps your financial data safe at all times.' },
+  { Icon: LayoutDashboard, title: 'Expense & Income', desc: 'Every transaction, budget and cash-flow trend in one ledger.' },
+  { Icon: PieChart, title: 'Mutual Funds', desc: 'MUFAP-listed funds valued at the repurchase price, not at cost.' },
+  { Icon: CandlestickChart, title: 'PSX Equities', desc: 'Pakistan Stock Exchange holdings priced off the daily board.' },
+  { Icon: Sparkles, title: 'Smart Analytics', desc: 'Sector exposure, Graham value and dividend-safety scoring.' },
+  { Icon: ShieldCheck, title: 'Secure & Private', desc: 'Row-level security — your records are reachable only by you.' },
 ];
 
 const getFriendlyAuthError = (error, isSignUp) => {
@@ -118,14 +134,17 @@ export default function AuthPage() {
   const signIn = useAuthStore((s) => s.signIn);
   const signUp = useAuthStore((s) => s.signUp);
   const resetPassword = useAuthStore((s) => s.resetPassword);
-  const isMobile = useMediaQuery('(max-width:768px)');
+
+  /* 768 split the layout mid-tablet, where the two-column desktop view had
+     less room for the form than a phone does. 900 keeps both columns usable. */
+  const isMobile = useMediaQuery('(max-width:900px)');
 
   const isStandalone = typeof window !== 'undefined' && window.matchMedia('(display-mode: standalone)').matches;
   const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
   const showInstall = isMobile && !isStandalone && !installDismissed;
 
   useEffect(() => {
-    if (!isMobile) return;
+    if (!isMobile) return undefined;
     const handler = (e) => {
       e.preventDefault();
       setDeferredPrompt(e);
@@ -135,13 +154,12 @@ export default function AuthPage() {
   }, [isMobile]);
 
   const handleInstallClick = async () => {
-    if (deferredPrompt) {
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      if (outcome === 'accepted') {
-        setInstallDismissed(true);
-        setDeferredPrompt(null);
-      }
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setInstallDismissed(true);
+      setDeferredPrompt(null);
     }
   };
 
@@ -191,16 +209,12 @@ export default function AuthPage() {
     } catch (err) {
       console.error('[Fintraxa Auth]', err?.message || err, err);
       setError(getFriendlyAuthError(err, isSignUp));
-    }
-    finally { setLoading(false); }
+    } finally { setLoading(false); }
   };
 
-  /* Password recovery.
-     This control existed as styled text with no onClick — it looked
-     interactive and did nothing, which in a finance app means a locked-out
-     user has no way back in. Supabase always replies the same way whether or
-     not the address is registered, so the confirmation below deliberately does
-     not reveal which. */
+  /* Password recovery. Supabase replies identically whether or not the address
+     is registered, so the confirmation below deliberately does not reveal
+     which — "no account found" would be an account-enumeration oracle. */
   const handleForgotPassword = async () => {
     const normalizedEmail = email.trim().toLowerCase();
     setError('');
@@ -222,7 +236,7 @@ export default function AuthPage() {
   };
 
   const toggle = () => {
-    setIsSignUp(!isSignUp);
+    setIsSignUp((v) => !v);
     setError('');
     setSuccess('');
     setFieldErrors({});
@@ -234,112 +248,117 @@ export default function AuthPage() {
     setFullName('');
   };
 
+  const clearField = (key) => setFieldErrors((prev) => (prev[key] ? { ...prev, [key]: '' } : prev));
+
+  /* One background declaration shared by both layouts: the inlined placeholder
+     sits beneath the real plate, so neither layer ever shows bare black. */
+  const backdrop = useMemo(() => ({
+    backgroundColor: '#05070a',
+    backgroundImage: `url(${isMobile ? BG_MOBILE : BG_DESKTOP}), url(${BG_LQIP})`,
+    backgroundSize: 'cover, cover',
+    backgroundPosition: 'center, center',
+    backgroundRepeat: 'no-repeat, no-repeat',
+  }), [isMobile]);
+
   const formCard = (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}
-      style={{ width: '100%', maxWidth: 368, position: 'relative', zIndex: 2 }}
-    >
-      <Box sx={{
-        bgcolor: 'rgba(72,78,88,0.16)',
-        backdropFilter: 'blur(18px) saturate(135%)',
-        WebkitBackdropFilter: 'blur(18px) saturate(135%)',
-        border: '1px solid rgba(255,255,255,0.2)',
-        borderRadius: '16px',
-        px: isMobile ? 2.5 : 3,
-        pt: isMobile ? 3 : 3.25,
-        pb: isMobile ? 2.75 : 3,
-        boxShadow: '0 16px 44px rgba(0,0,0,0.34)',
-      }}>
-        {/* Show logo inside card only on desktop */}
+    <Reveal distance={18} duration={0.45} style={{ width: '100%', maxWidth: 384, position: 'relative', zIndex: 2 }}>
+      <GlassPanel radius={22} blur={30} sx={{ px: isMobile ? 2.75 : 3.25, pt: isMobile ? 3 : 3.5, pb: isMobile ? 3 : 3.25 }}>
         {!isMobile && (
-          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mb: 1.25 }}>
-            <FintraxaLogo size={34} />
+          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1.5 }}>
+            <FintraxaLogo size={36} />
           </Box>
         )}
-        <Typography sx={{
-          textAlign: 'center',
-          fontSize: '1.52rem',
-          fontWeight: 700,
-          color: '#fff',
-          letterSpacing: '-0.01em',
-          mb: 2.2,
+        <Typography component="h1" sx={{
+          textAlign: 'center', fontSize: '1.5rem', fontWeight: 700,
+          color: '#fff', letterSpacing: '-0.02em', mb: 0.4,
         }}>
-          {isSignUp ? 'Sign Up' : 'Login'}
+          {isSignUp ? 'Create account' : 'Welcome back'}
+        </Typography>
+        <Typography sx={{ textAlign: 'center', fontSize: '0.74rem', color: 'rgba(255,255,255,0.5)', mb: 2.4 }}>
+          {isSignUp ? 'Start tracking in under a minute' : 'Sign in to your Fintraxa account'}
         </Typography>
 
-        <AnimatePresence>
-          {error && (
-            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-              <Alert severity="error" sx={{ mb: 2.5, borderRadius: 2, bgcolor: 'rgba(239,68,68,0.15)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.3)', fontSize: '0.8rem' }}>{error}</Alert>
-            </motion.div>
-          )}
-          {success && (
-            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-              <Alert severity="success" sx={{ mb: 2.5, borderRadius: 2, bgcolor: 'rgba(16,185,129,0.15)', color: '#6ee7b7', border: '1px solid rgba(16,185,129,0.3)', fontSize: '0.8rem' }}>{success}</Alert>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Announced, not merely shown — a screen-reader user submitting the
+            form previously got silence on both failure and success. */}
+        <Box role="status" aria-live="polite">
+          <AnimatePresence>
+            {error && (
+              <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                <Alert severity="error" sx={{ mb: 2.5, borderRadius: 2.5, bgcolor: 'rgba(239,68,68,0.14)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.3)', fontSize: '0.78rem', '& .MuiAlert-icon': { color: '#fca5a5' } }}>{error}</Alert>
+              </motion.div>
+            )}
+            {success && (
+              <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                <Alert severity="success" sx={{ mb: 2.5, borderRadius: 2.5, bgcolor: 'rgba(13,148,136,0.16)', color: '#5eead4', border: '1px solid rgba(13,148,136,0.34)', fontSize: '0.78rem', '& .MuiAlert-icon': { color: '#5eead4' } }}>{success}</Alert>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </Box>
 
         <AnimatePresence mode="wait">
           <motion.form
             key={isSignUp ? 'signup' : 'login'}
-            initial={{ opacity: 0, x: isSignUp ? 24 : -24 }}
+            initial={{ opacity: 0, x: isSignUp ? 20 : -20 }}
             animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: isSignUp ? -24 : 24 }}
+            exit={{ opacity: 0, x: isSignUp ? -20 : 20 }}
             transition={{ duration: 0.2 }}
             onSubmit={handleSubmit}
             noValidate
           >
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.4 }}>
               {isSignUp && (
-                <TextField fullWidth placeholder="Full Name" value={fullName}
-                  onChange={(e) => {
-                    setFullName(e.target.value);
-                    setFieldErrors((prev) => ({ ...prev, fullName: '' }));
-                  }}
+                <TextField fullWidth placeholder="Full name" value={fullName}
+                  autoComplete="name"
+                  onChange={(e) => { setFullName(e.target.value); clearField('fullName'); }}
                   error={Boolean(fieldErrors.fullName)}
                   helperText={fieldErrors.fullName || ' '}
-                  FormHelperTextProps={{ sx: { ml: 1.5, mt: 0.4, mb: -0.5, color: 'rgba(255,255,255,0.72)', fontSize: '0.68rem' } }}
+                  slotProps={{
+                    formHelperText: { sx: helperSx },
+                    htmlInput: { 'aria-label': 'Full name' },
+                    input: { endAdornment: <InputAdornment position="end"><User size={17} /></InputAdornment> },
+                  }}
                   sx={pillInput}
-                  InputProps={{ endAdornment: <InputAdornment position="end"><PersonIcon /></InputAdornment> }}
                 />
               )}
-              <TextField fullWidth placeholder="Email"
-                type="email" value={email}
-                onChange={(e) => {
-                  setEmail(e.target.value);
-                  setFieldErrors((prev) => ({ ...prev, email: '' }));
-                }}
+              <TextField fullWidth placeholder="Email" type="email" value={email}
+                autoComplete="email"
+                onChange={(e) => { setEmail(e.target.value); clearField('email'); }}
                 error={Boolean(fieldErrors.email)}
                 helperText={fieldErrors.email || ' '}
-                FormHelperTextProps={{ sx: { ml: 1.5, mt: 0.4, mb: -0.5, color: 'rgba(255,255,255,0.72)', fontSize: '0.68rem' } }}
+                slotProps={{
+                  formHelperText: { sx: helperSx },
+                  htmlInput: { 'aria-label': 'Email address' },
+                  input: { endAdornment: <InputAdornment position="end"><Mail size={17} /></InputAdornment> },
+                }}
                 sx={pillInput}
-                InputProps={{ endAdornment: <InputAdornment position="end"><PersonIcon /></InputAdornment> }}
               />
               <TextField fullWidth placeholder="Password" type={showPw ? 'text' : 'password'}
                 value={password}
-                onChange={(e) => {
-                  setPassword(e.target.value);
-                  setFieldErrors((prev) => ({ ...prev, password: '' }));
-                }}
+                autoComplete={isSignUp ? 'new-password' : 'current-password'}
+                onChange={(e) => { setPassword(e.target.value); clearField('password'); }}
                 onFocus={() => isSignUp && setPwFocused(true)}
                 onBlur={() => setPwFocused(false)}
                 error={Boolean(fieldErrors.password)}
                 helperText={(!isSignUp || !pwFocused) ? (fieldErrors.password || ' ') : ' '}
-                FormHelperTextProps={{ sx: { ml: 1.5, mt: 0.4, mb: -0.5, color: 'rgba(255,255,255,0.72)', fontSize: '0.68rem' } }}
-                sx={pillInput}
-                InputProps={{
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <IconButton onClick={() => setShowPw(!showPw)} edge="end" size="small"
-                        sx={{ color: 'rgba(255,255,255,0.82)', p: '5px', mr: '2px' }}>
-                        {showPw ? <VisibilityOff sx={{ fontSize: 19 }} /> : <Visibility sx={{ fontSize: 19 }} />}
-                      </IconButton>
-                    </InputAdornment>
-                  ),
+                slotProps={{
+                  formHelperText: { sx: helperSx },
+                  htmlInput: { 'aria-label': 'Password' },
+                  input: {
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton onClick={() => setShowPw((v) => !v)} edge="end" size="small"
+                          aria-label={showPw ? 'Hide password' : 'Show password'}
+                          sx={{ color: 'rgba(255,255,255,0.75)', p: '6px', mr: '2px' }}>
+                          {showPw ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  },
                 }}
+                sx={pillInput}
               />
-              {/* Password strength & checklist (sign up only) */}
+
+              {/* Strength meter and checklist, sign-up only */}
               <AnimatePresence>
                 {isSignUp && (pwFocused || password.length > 0) && (
                   <motion.div
@@ -350,15 +369,21 @@ export default function AuthPage() {
                     style={{ overflow: 'hidden' }}
                   >
                     <Box sx={{ mt: -0.5, mb: 0.5, px: 0.5 }}>
-                      {/* Strength bar */}
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
-                        <Box sx={{ flex: 1, height: 3, bgcolor: 'rgba(255,255,255,0.12)', borderRadius: 2, overflow: 'hidden' }}>
-                          <Box sx={{ width: `${pwStrength.pct}%`, height: '100%', bgcolor: pwStrength.color, borderRadius: 2, transition: 'width 0.2s, background-color 0.2s' }} />
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.9 }}>
+                        <Box
+                          role="progressbar"
+                          aria-label="Password strength"
+                          aria-valuenow={pwStrength.pct}
+                          aria-valuemin={0}
+                          aria-valuemax={100}
+                          aria-valuetext={pwStrength.label}
+                          sx={{ flex: 1, height: 3, bgcolor: 'rgba(255,255,255,0.12)', borderRadius: 2, overflow: 'hidden' }}
+                        >
+                          <Box sx={{ width: `${pwStrength.pct}%`, height: '100%', bgcolor: pwStrength.color, borderRadius: 2, transition: 'width .25s ease, background-color .25s ease' }} />
                         </Box>
-                        <Typography sx={{ fontSize: '0.62rem', fontWeight: 600, color: pwStrength.color, minWidth: 48 }}>{pwStrength.label}</Typography>
+                        <Typography sx={{ fontSize: '0.62rem', fontWeight: 700, color: pwStrength.color, minWidth: 52 }}>{pwStrength.label}</Typography>
                       </Box>
-                      {/* Checklist */}
-                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
                         {[
                           { key: 'minLength', label: '6+ chars' },
                           { key: 'hasUpper', label: 'Uppercase' },
@@ -366,11 +391,11 @@ export default function AuthPage() {
                           { key: 'hasNumber', label: 'Number' },
                           { key: 'hasSpecial', label: 'Symbol' },
                         ].map((item) => (
-                          <Box key={item.key} sx={{ display: 'flex', alignItems: 'center', gap: 0.35 }}>
+                          <Box key={item.key} sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
                             {pwChecks[item.key]
-                              ? <CheckIcon sx={{ fontSize: 12, color: 'rgba(74,222,128,0.9)' }} />
-                              : <UncheckIcon sx={{ fontSize: 12, color: 'rgba(255,255,255,0.28)' }} />}
-                            <Typography sx={{ fontSize: '0.6rem', color: pwChecks[item.key] ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.38)', transition: 'color 0.15s' }}>
+                              ? <Check size={12} color="rgba(45,212,191,0.95)" strokeWidth={3} />
+                              : <Circle size={11} color="rgba(255,255,255,0.28)" />}
+                            <Typography sx={{ fontSize: '0.6rem', color: pwChecks[item.key] ? 'rgba(255,255,255,0.78)' : 'rgba(255,255,255,0.38)', transition: 'color .15s' }}>
                               {item.label}
                             </Typography>
                           </Box>
@@ -380,247 +405,252 @@ export default function AuthPage() {
                   </motion.div>
                 )}
               </AnimatePresence>
+
               {isSignUp && (
-                <TextField fullWidth placeholder="Confirm Password" type={showConfirmPw ? 'text' : 'password'}
+                <TextField fullWidth placeholder="Confirm password" type={showConfirmPw ? 'text' : 'password'}
                   value={confirmPassword}
-                  onChange={(e) => {
-                    setConfirmPassword(e.target.value);
-                    setFieldErrors((prev) => ({ ...prev, confirmPassword: '' }));
-                  }}
+                  autoComplete="new-password"
+                  onChange={(e) => { setConfirmPassword(e.target.value); clearField('confirmPassword'); }}
                   error={Boolean(fieldErrors.confirmPassword)}
                   helperText={fieldErrors.confirmPassword || ' '}
-                  FormHelperTextProps={{ sx: { ml: 1.5, mt: 0.4, mb: -0.5, color: 'rgba(255,255,255,0.72)', fontSize: '0.68rem' } }}
-                  sx={pillInput}
-                  InputProps={{
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <IconButton onClick={() => setShowConfirmPw(!showConfirmPw)} edge="end" size="small"
-                          sx={{ color: 'rgba(255,255,255,0.82)', p: '5px', mr: '2px' }}>
-                          {showConfirmPw ? <VisibilityOff sx={{ fontSize: 19 }} /> : <Visibility sx={{ fontSize: 19 }} />}
-                        </IconButton>
-                      </InputAdornment>
-                    ),
+                  slotProps={{
+                    formHelperText: { sx: helperSx },
+                    htmlInput: { 'aria-label': 'Confirm password' },
+                    input: {
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <IconButton onClick={() => setShowConfirmPw((v) => !v)} edge="end" size="small"
+                            aria-label={showConfirmPw ? 'Hide password' : 'Show password'}
+                            sx={{ color: 'rgba(255,255,255,0.75)', p: '6px', mr: '2px' }}>
+                            {showConfirmPw ? <EyeOff size={18} /> : <Eye size={18} />}
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    },
                   }}
+                  sx={pillInput}
                 />
               )}
             </Box>
 
             {!isSignUp && (
-              /* "Remember Me" used to sit here as a checkbox wired to a state
-                 variable nothing read — the session persists either way, so
-                 the control only ever misrepresented what it did. Removed
-                 rather than faked. */
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', mt: 1.4, mb: 0.25 }}>
-                <Button
-                  type="button"
-                  onClick={handleForgotPassword}
-                  disabled={resetting || loading}
+              /* "Remember Me" used to sit here as a checkbox wired to nothing —
+                 the session persists either way, so the control only ever
+                 misrepresented what it did. Removed rather than faked. */
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1.3, mb: 0.25 }}>
+                <Button type="button" onClick={handleForgotPassword} disabled={resetting || loading}
                   sx={{
                     p: 0, minWidth: 0, textTransform: 'none',
-                    fontSize: '0.78rem', fontWeight: 500,
-                    color: 'rgba(255,255,255,0.8)',
-                    '&:hover': { color: '#fff', bgcolor: 'transparent' },
+                    fontSize: '0.76rem', fontWeight: 500, color: 'rgba(255,255,255,0.78)',
+                    '&:hover': { color: '#5eead4', bgcolor: 'transparent' },
                     '&.Mui-disabled': { color: 'rgba(255,255,255,0.4)' },
                   }}
                 >
-                  {resetting ? 'Sending…' : 'Forgot Password?'}
+                  {resetting ? 'Sending…' : 'Forgot password?'}
                 </Button>
               </Box>
             )}
 
             <Button fullWidth variant="contained" type="submit" disabled={loading}
+              endIcon={loading ? null : <ArrowRight size={16} />}
               sx={{
-                mt: 1.8,
-                py: '9px',
-                borderRadius: '34px',
-                textTransform: 'none',
-                fontSize: '0.84rem',
-                fontWeight: 600,
-                letterSpacing: '0.01em',
-                bgcolor: '#fff',
-                color: '#18181f',
-                boxShadow: 'none',
-                '&:hover': { bgcolor: 'rgba(240,240,240,1)', boxShadow: 'none' },
-                '&:disabled': { bgcolor: 'rgba(255,255,255,0.4)', color: 'rgba(30,30,40,0.6)', boxShadow: 'none' },
+                mt: 2, py: '11px', borderRadius: '34px', textTransform: 'none',
+                fontSize: '0.86rem', fontWeight: 700, letterSpacing: '0.01em',
+                color: '#04100e',
+                background: 'linear-gradient(135deg, #ffffff 0%, #d7fbf4 100%)',
+                boxShadow: '0 10px 28px rgba(13,148,136,0.3)',
+                transition: 'transform .16s ease, box-shadow .16s ease, filter .16s ease',
+                '&:hover': { filter: 'brightness(1.04)', boxShadow: '0 14px 34px rgba(13,148,136,0.42)', transform: 'translateY(-1px)' },
+                '&:active': { transform: 'translateY(0)' },
+                '&:disabled': { background: 'rgba(255,255,255,0.32)', color: 'rgba(4,16,14,0.55)', boxShadow: 'none' },
+                '@media (prefers-reduced-motion: reduce)': { transition: 'none', '&:hover': { transform: 'none' } },
               }}
             >
-              {loading ? <CircularProgress size={18} sx={{ color: '#18181f' }} /> : (isSignUp ? 'Sign Up' : 'Submit')}
+              {loading ? <CircularProgress size={18} sx={{ color: '#04100e' }} /> : (isSignUp ? 'Create account' : 'Sign in')}
             </Button>
           </motion.form>
         </AnimatePresence>
 
-        <Typography sx={{ textAlign: 'center', mt: 1.9, fontSize: '0.75rem', color: 'rgba(255,255,255,0.65)' }}>
+        <Typography sx={{ textAlign: 'center', mt: 2, fontSize: '0.76rem', color: 'rgba(255,255,255,0.6)' }}>
           {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
-          <Box component="span" onClick={toggle}
-            sx={{ color: '#fff', fontWeight: 600, cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}>
-            {isSignUp ? 'Login' : 'Register'}
-          </Box>
+          <Link component="button" type="button" onClick={toggle} underline="hover"
+            sx={{ color: '#5eead4', fontWeight: 700, fontSize: '0.76rem', verticalAlign: 'baseline' }}>
+            {isSignUp ? 'Sign in' : 'Create one'}
+          </Link>
         </Typography>
-      </Box>
-    </motion.div>
+      </GlassPanel>
+    </Reveal>
   );
 
+  const installCard = (
+    <AnimatePresence>
+      {showInstall && (
+        <motion.div
+          initial={{ opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 18 }}
+          transition={{ delay: 0.35, duration: 0.3 }}
+          style={{ width: '100%', maxWidth: 384 }}
+        >
+          <GlassPanel radius={16} blur={18} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 1.75, pl: 2 }}>
+            <IconButton onClick={() => setInstallDismissed(true)} size="small" aria-label="Dismiss install prompt"
+              sx={{ position: 'absolute', top: 5, right: 5, color: 'rgba(255,255,255,0.45)', p: '4px', zIndex: 1 }}>
+              <X size={13} />
+            </IconButton>
+            <Box sx={{
+              width: 38, height: 38, borderRadius: '11px', flexShrink: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              bgcolor: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff',
+            }}>
+              <Smartphone size={19} />
+            </Box>
+            <Box sx={{ flex: 1, minWidth: 0, pr: 1 }}>
+              <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, color: '#fff', lineHeight: 1.3 }}>
+                Install as app
+              </Typography>
+              {isIOS ? (
+                <Typography component="span" sx={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.55)', lineHeight: 1.4, mt: 0.25, display: 'flex', alignItems: 'center', gap: 0.4, flexWrap: 'wrap' }}>
+                  Tap <Share size={12} /> then <strong>Add to Home Screen</strong>
+                </Typography>
+              ) : (
+                <Typography sx={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.5)', lineHeight: 1.35 }}>
+                  {deferredPrompt ? 'Full-screen, offline-ready' : 'Use the browser menu → Install app'}
+                </Typography>
+              )}
+            </Box>
+            {!isIOS && deferredPrompt && (
+              <Button onClick={handleInstallClick} size="small" startIcon={<Download size={14} />}
+                sx={{
+                  borderRadius: '10px', px: 1.75, py: 0.7, flexShrink: 0, minWidth: 'auto',
+                  fontSize: '0.7rem', fontWeight: 700, textTransform: 'none',
+                  bgcolor: '#fff', color: '#000', '&:hover': { bgcolor: 'rgba(240,240,240,1)' },
+                }}>
+                Install
+              </Button>
+            )}
+          </GlassPanel>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+
+  /* ─── Mobile ─── */
   if (isMobile) {
     return (
-      <Box sx={{
-        minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        px: 2, py: 3, position: 'relative', overflow: 'hidden',
-        backgroundImage: 'url(/background.jpg)',
-        backgroundSize: 'cover', backgroundPosition: 'center',
-        '&::before': { content: '""', position: 'absolute', inset: 0, bgcolor: 'rgba(0,0,0,0.52)', zIndex: 1 },
+      <Box component="main" sx={{
+        minHeight: '100dvh', display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center', gap: 2,
+        px: 2, py: 4, position: 'relative', overflow: 'hidden',
+        ...backdrop,
+        '&::before': {
+          content: '""', position: 'absolute', inset: 0, zIndex: 1,
+          background: 'linear-gradient(180deg, rgba(3,6,9,0.82) 0%, rgba(3,6,9,0.5) 45%, rgba(3,6,9,0.86) 100%)',
+        },
       }}>
-        {/* Logo centered between top and form */}
-        <Box sx={{
-          position: 'absolute',
-          top: '12%',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          zIndex: 2,
-        }}>
-          <FintraxaLogo size={80} />
+        <Box sx={{ position: 'relative', zIndex: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.75, mb: 0.5 }}>
+          <FintraxaLogo size={62} />
+          <Typography sx={{ fontSize: '1.35rem', fontWeight: 800, letterSpacing: '-0.045em', color: '#fff' }}>
+            Fintraxa
+          </Typography>
+          <ShinyText sx={{ fontSize: '0.68rem', letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 600 }}>
+            Personal finance, Pakistan
+          </ShinyText>
         </Box>
-        {/* Form centered on page */}
-        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, zIndex: 2, width: '100%', maxWidth: 368, px: 0 }}>
+        <Box sx={{ position: 'relative', zIndex: 2, width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
           {formCard}
-          {/* PWA Install Prompt — mobile only */}
-          <AnimatePresence>
-            {showInstall && (
-              <motion.div
-                initial={{ opacity: 0, y: 18 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 18 }}
-                transition={{ delay: 0.4, duration: 0.35 }}
-                style={{ width: '100%' }}
-              >
-                <Box sx={{
-                  display: 'flex', alignItems: 'center', gap: 1.5,
-                  p: 1.75, pl: 2,
-                  borderRadius: '14px',
-                  bgcolor: 'rgba(255,255,255,0.08)',
-                  backdropFilter: 'blur(16px)',
-                  WebkitBackdropFilter: 'blur(16px)',
-                  border: '1px solid rgba(255,255,255,0.15)',
-                  position: 'relative',
-                }}>
-                  <IconButton
-                    onClick={() => setInstallDismissed(true)}
-                    size="small"
-                    sx={{ position: 'absolute', top: 6, right: 6, color: 'rgba(255,255,255,0.4)', p: '3px' }}
-                  >
-                    <CloseIcon sx={{ fontSize: 14 }} />
-                  </IconButton>
-                  <Box sx={{
-                    width: 38, height: 38, borderRadius: '10px', flexShrink: 0,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    bgcolor: 'rgba(255,255,255,0.1)',
-                    border: '1px solid rgba(255,255,255,0.12)',
-                  }}>
-                    <PhoneIcon sx={{ fontSize: 20, color: '#fff' }} />
-                  </Box>
-                  <Box sx={{ flex: 1, minWidth: 0, pr: 1 }}>
-                    <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, color: '#fff', lineHeight: 1.3 }}>
-                      Install as App
-                    </Typography>
-                    {isIOS ? (
-                      <Typography sx={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.55)', lineHeight: 1.4, mt: 0.25 }}>
-                        Tap <ShareIcon sx={{ fontSize: 12, verticalAlign: 'middle', mx: 0.25 }} /> then <strong>&quot;Add to Home Screen&quot;</strong>
-                      </Typography>
-                    ) : deferredPrompt ? (
-                      <Typography sx={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.5)', lineHeight: 1.35 }}>
-                        Get the full native experience
-                      </Typography>
-                    ) : (
-                      <Typography sx={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.5)', lineHeight: 1.35 }}>
-                        Use browser menu &gt; &quot;Install app&quot; or &quot;Add to Home Screen&quot;
-                      </Typography>
-                    )}
-                  </Box>
-                  {!isIOS && deferredPrompt && (
-                    <Button
-                      onClick={handleInstallClick}
-                      size="small"
-                      startIcon={<GetAppIcon sx={{ fontSize: '15px !important' }} />}
-                      sx={{
-                        borderRadius: '10px', px: 1.75, py: 0.7,
-                        fontSize: '0.7rem', fontWeight: 700, textTransform: 'none',
-                        bgcolor: '#fff', color: '#000', flexShrink: 0,
-                        minWidth: 'auto',
-                        '&:hover': { bgcolor: 'rgba(240,240,240,1)' },
-                      }}
-                    >
-                      Install
-                    </Button>
-                  )}
-                </Box>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {installCard}
         </Box>
       </Box>
     );
   }
 
+  /* ─── Desktop: one background plate, glass brand panel left, form right ─── */
   return (
-    <Box sx={{ minHeight: '100dvh', display: 'flex' }}>
-      {/* Left: Pure black branding panel */}
+    <Box component="main" sx={{
+      minHeight: '100dvh', display: 'flex', position: 'relative', overflow: 'hidden',
+      ...backdrop,
+      '&::before': {
+        content: '""', position: 'absolute', inset: 0, zIndex: 0,
+        background: 'linear-gradient(100deg, rgba(3,6,9,0.9) 0%, rgba(3,6,9,0.62) 42%, rgba(3,6,9,0.42) 100%)',
+      },
+    }}>
+      {/* Left — Apple-style liquid-glass brand panel */}
       <Box sx={{
-        width: '42%', flexShrink: 0,
-        bgcolor: '#000',
-        display: 'flex', flexDirection: 'column', justifyContent: 'center',
-        px: 7, py: 6,
-        borderRight: '1px solid #1a1a1a',
-        position: 'relative', overflow: 'hidden',
+        width: { md: '46%', lg: '42%' }, flexShrink: 0, zIndex: 1,
+        display: 'flex', alignItems: 'center', p: { md: 3.5, lg: 5 },
       }}>
-        <motion.div initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2.5 }}>
-            <FintraxaLogo size={44} />
-            <Typography sx={{ fontSize: '1.6rem', fontWeight: 800, letterSpacing: '-0.04em', color: '#fff' }}>Fintraxa</Typography>
-          </Box>
-          <Typography sx={{ fontSize: '0.95rem', fontWeight: 300, color: 'rgba(255,255,255,0.4)', mb: 5, lineHeight: 1.6, maxWidth: 320 }}>
-            Your all-in-one personal finance platform for Pakistan.
-          </Typography>
-        </motion.div>
-
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-          {features.map((f, i) => (
-            <motion.div key={i}
-              initial={{ opacity: 0, x: -24 }} animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.15 + i * 0.1, duration: 0.35 }}
-            >
-              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
-                <Box sx={{
-                  width: 44, height: 44, borderRadius: 2.5, flexShrink: 0,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  bgcolor: 'rgba(255,255,255,0.05)',
-                  border: '1px solid rgba(255,255,255,0.07)',
-                  color: 'rgba(255,255,255,0.75)',
-                }}>
-                  {f.icon}
-                </Box>
-                <Box>
-                  <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: '#fff', mb: 0.25 }}>{f.title}</Typography>
-                  <Typography sx={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.35)', lineHeight: 1.5 }}>{f.desc}</Typography>
-                </Box>
+        <GlassPanel
+          radius={30}
+          blur={34}
+          /* `overflow: hidden` clipped the last feature and the footer on any
+             laptop under ~900px tall. The panel scrolls instead, with the bar
+             hidden so the glass edge stays clean, and the vertical rhythm is
+             tightened so scrolling is rarely needed at all. */
+          sx={{
+            width: '100%', maxHeight: '92dvh',
+            overflowY: 'auto', overscrollBehavior: 'contain',
+            '&::-webkit-scrollbar': { display: 'none' },
+            scrollbarWidth: 'none',
+            px: { md: 3.5, lg: 4.5 }, py: { md: 3.5, lg: 4.5 },
+          }}
+        >
+          <Reveal distance={-14} duration={0.5}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
+              <FintraxaLogo size={46} />
+              <Box>
+                <Typography sx={{ fontSize: '1.55rem', fontWeight: 800, letterSpacing: '-0.045em', color: '#fff', lineHeight: 1.05 }}>
+                  Fintraxa
+                </Typography>
+                <ShinyText sx={{ fontSize: '0.6rem', letterSpacing: '0.17em', textTransform: 'uppercase', fontWeight: 700 }}>
+                  Wealth, tracked
+                </ShinyText>
               </Box>
-            </motion.div>
-          ))}
-        </Box>
+            </Box>
+            <Typography sx={{
+              fontSize: '0.92rem', fontWeight: 300, color: 'rgba(255,255,255,0.56)',
+              mb: 3, lineHeight: 1.6, maxWidth: 340,
+            }}>
+              One ledger for your spending, your MUFAP funds and your PSX
+              holdings — valued off live market data, not guesswork.
+            </Typography>
+          </Reveal>
 
-        <Box sx={{ mt: 'auto', pt: 5 }}>
-          <Typography sx={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.2)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-            Fintraxa &copy; {new Date().getFullYear()} &nbsp;&middot;&nbsp; Secure &amp; Encrypted
-          </Typography>
-        </Box>
+          <Box component="ul" sx={{ display: 'flex', flexDirection: 'column', gap: 1.85, listStyle: 'none', p: 0, m: 0 }}>
+            {features.map((f, i) => (
+              <Reveal key={f.title} direction="horizontal" reverse distance={20}
+                duration={0.4} delay={0.12 + i * 0.07}>
+                <Box component="li" sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, listStyle: 'none' }}>
+                  <Box sx={{
+                    width: 42, height: 42, borderRadius: '13px', flexShrink: 0,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: '#5eead4',
+                    bgcolor: 'rgba(255,255,255,0.055)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.12)',
+                  }}>
+                    <f.Icon size={19} strokeWidth={1.75} />
+                  </Box>
+                  <Box>
+                    <Typography sx={{ fontSize: '0.86rem', fontWeight: 600, color: '#fff', mb: 0.3 }}>{f.title}</Typography>
+                    <Typography sx={{ fontSize: '0.73rem', color: 'rgba(255,255,255,0.45)', lineHeight: 1.55 }}>{f.desc}</Typography>
+                  </Box>
+                </Box>
+              </Reveal>
+            ))}
+          </Box>
+
+          <Box sx={{ mt: 3, pt: 2, borderTop: '1px solid rgba(255,255,255,0.09)' }}>
+            <Typography sx={{ fontSize: '0.64rem', color: 'rgba(255,255,255,0.3)', letterSpacing: '0.09em', textTransform: 'uppercase' }}>
+              Fintraxa &copy; {new Date().getFullYear()} &nbsp;&middot;&nbsp; Encrypted &amp; row-level secured
+            </Typography>
+          </Box>
+        </GlassPanel>
       </Box>
 
-      {/* Right: background image + glassmorphism form */}
+      {/* Right — the form */}
       <Box sx={{
-        flex: 1, position: 'relative',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        p: 4,
-        backgroundImage: 'url(/background.jpg)',
-        backgroundSize: 'cover', backgroundPosition: 'center',
-        '&::before': { content: '""', position: 'absolute', inset: 0, bgcolor: 'rgba(0,0,0,0.48)', zIndex: 1 },
+        flex: 1, zIndex: 1, position: 'relative',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', p: 4,
       }}>
         {formCard}
       </Box>

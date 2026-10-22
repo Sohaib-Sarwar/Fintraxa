@@ -53,13 +53,20 @@ body {
   }
 }
 
-/* Recharts — suppress focus outlines & borders on chart containers */
+/* Recharts draws a focus ring on its own surface as the pointer moves over it,
+   which looks like a stray border. Suppressing it is fine — suppressing
+   :focus-visible with it was not: Recharts 3 charts are keyboard-navigable
+   (rootTabIndex 0), so this removed the only indication of where the keyboard
+   was. The ring is kept for keyboard focus and dropped for the rest. */
 .recharts-wrapper,
 .recharts-wrapper svg,
-.recharts-surface,
-.recharts-wrapper *:focus,
+.recharts-surface {
+  outline: none;
+}
+.recharts-wrapper:focus-visible,
 .recharts-wrapper *:focus-visible {
-  outline: none !important;
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
 }
 
 /* Hide scrollbars inside all dialogs, drawers, and modals */
@@ -115,3 +122,27 @@ body {
   transition: background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease !important;
 }
 
+
+/* A visible focus indicator on anything focusable that does not define its
+   own. Several nav surfaces are styled boxes rather than buttons, and until
+   now none of them showed where the keyboard was. */
+:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+/* Respect the OS "reduce motion" setting across the whole app, including the
+   library animations this stylesheet does not otherwise reach. Motion is not
+   removed — it is collapsed to near-instant, which keeps transitions that
+   carry meaning (a dialog opening, a page sliding in) from simply vanishing
+   and leaving the UI looking broken. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,4 +1,4 @@
-﻿import { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Box, TextField, Button, Typography, Card, CardContent,
   Select, FormControl, InputLabel, MenuItem,
@@ -15,6 +15,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useAppStore } from '../../store/appStore';
 import { useNavigate } from 'react-router-dom';
 import { formatCurrency } from '../../lib/formatters';
+import { dbErrorHandler, validatePositiveNumber } from '../../lib/dbErrors';
 import { format } from 'date-fns';
 import CategoryIcon from '../../lib/categoryIcons';
 import { DEFAULT_CATEGORIES } from '../../lib/defaultCategories';
@@ -84,7 +85,11 @@ export default function AddTransaction() {
       const isMF = selectedCat.name.includes('Mutual Funds');
 
       // Find ALL matching investment category IDs (same logic as MF/PSX sections)
+      // Scoped to the signed-in user. RLS already restricts the rows, but an
+      // account that can see more than its own (an admin policy) would other-
+      // wise fold other people's category ids into this user's free-cash sum.
       const { data: cats } = await supabase.from('categories').select('id')
+        .eq('user_id', user.id)
         .ilike('name', isMF ? '%Investment - Mutual Funds%' : '%Investment - Stocks%');
       const catIds = (cats || []).map((c) => c.id);
 
@@ -141,12 +146,22 @@ export default function AddTransaction() {
       setDate(format(new Date(), 'yyyy-MM-dd'));
       setShowConfirmDialog(false);
     },
-    onError: (err) => { showSnackbar(err.message, 'error'); setShowConfirmDialog(false); },
+    // Was `err.message`, which put raw PostgREST text in front of the user —
+    // 'new row ... violates check constraint "..._amount_check"'. `dbErrors`
+    // exists to translate exactly these.
+    onError: (err) => { dbErrorHandler(showSnackbar, 'Could not save')(err); setShowConfirmDialog(false); },
   });
 
   const handleSubmit = () => {
-    if (!categoryId || !amount) {
-      showSnackbar('Please select category and enter amount', 'error');
+    if (!categoryId) {
+      showSnackbar('Please select a category', 'error');
+      return;
+    }
+    // `!amount` let the string "0" through — it is truthy — so a zero or a
+    // negative reached the server and came back as a CHECK violation.
+    const invalid = validatePositiveNumber(amount, 'Amount');
+    if (invalid) {
+      showSnackbar(invalid, 'error');
       return;
     }
     setShowConfirmDialog(true);
@@ -306,9 +321,14 @@ export default function AddTransaction() {
           </AnimatePresence>
 
           {/* Date */}
+          {/* Capped at today: a future-dated entry silently skews the current
+              month's balance and the free-cash figure the investment screens read. */}
           <TextField fullWidth label="Date" type="date" value={date}
             onChange={(e) => setDate(e.target.value)} sx={{ mb: isMobile ? 2.5 : 2 }}
-            InputLabelProps={{ shrink: true }} />
+            slotProps={{
+              inputLabel: { shrink: true },
+              htmlInput: { max: format(new Date(), 'yyyy-MM-dd') },
+            }} />
 
           {/* Notes */}
           <TextField fullWidth label="Notes (optional)" value={notes}
@@ -321,7 +341,7 @@ export default function AddTransaction() {
 
       {/* Submit */}
       <Button fullWidth variant="contained" size="large" onClick={handleSubmit}
-        disabled={saveMutation.isPending || !categoryId || !amount}
+        disabled={saveMutation.isPending || !categoryId || !(Number(amount) > 0)}
         sx={{
           py: 1.75, borderRadius: 3, fontSize: '0.88rem', fontWeight: 700,
           bgcolor: accentColor,

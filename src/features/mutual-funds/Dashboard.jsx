@@ -4,7 +4,7 @@ import {
   ShowChartRounded,
   TrendingUpRounded, TrendingDownRounded, SavingsRounded, PieChartRounded,
 } from '@mui/icons-material';
-import { PieChart, Pie, Cell, Sector, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip } from 'recharts';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
@@ -12,50 +12,13 @@ import { mufapFundsQuery, fundPriceMap } from '../../lib/marketQueries';
 import { useAuthStore } from '../../store/authStore';
 import { formatCurrency, formatPercent, getPnLColor, formatNumber, shortFundName } from '../../lib/formatters';
 import { subMonths, format } from 'date-fns';
+import { CountUp } from '../../components/motion';
+import { pieSector, makeOuterLabel, DonutCenter } from '../../components/charts';
 /* Profit / Loss color palettes for pie chart */
 const profitColors = ['#22c55e', '#4ade80', '#86efac', '#bbf7d0'];
 const lossColors = ['#ef4444', '#f87171', '#fca5a5', '#fecaca'];
 
-/* Active shape — colorful donut style */
-const renderActive = (props) => {
-  const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill, payload, percent, value } = props;
-  return (
-    <g>
-      <text x={cx} y={cy - 14} textAnchor="middle" fontSize={11} fontWeight={600} fill={fill}>
-        {payload.shortName || payload.name}
-      </text>
-      <text x={cx} y={cy + 3} textAnchor="middle" fontSize={13} fontWeight={800} fill={fill}>
-        {formatCurrency(value)}
-      </text>
-      <text x={cx} y={cy + 18} textAnchor="middle" fontSize={10} fill="#888">
-        {`${(percent * 100).toFixed(1)}%`}
-      </text>
-      <Sector cx={cx} cy={cy} innerRadius={innerRadius - 3} outerRadius={outerRadius + 6}
-        startAngle={startAngle} endAngle={endAngle} fill={fill} />
-    </g>
-  );
-};
 
-/* Outer labels with percentage + short name (responsive) */
-const RADIAN = Math.PI / 180;
-const renderOuterLabel = ({ cx, cy, midAngle, outerRadius, percent, payload, fill, viewBox }) => {
-  if (percent < 0.03) return null;
-  const isSm = (viewBox?.width || 400) < 380;
-  const radius = outerRadius + (isSm ? 18 : 24);
-  const x = cx + radius * Math.cos(-midAngle * RADIAN);
-  const y = cy + radius * Math.sin(-midAngle * RADIAN);
-  const anchor = x > cx ? 'start' : 'end';
-  return (
-    <g>
-      <text x={x} y={y - 6} textAnchor={anchor} fontSize={isSm ? 12 : 13} fontWeight={800} fill={fill}>
-        {`${(percent * 100).toFixed(0)}%`}
-      </text>
-      <text x={x} y={y + (isSm ? 7 : 9)} textAnchor={anchor} fontSize={isSm ? 9 : 10} fontWeight={500} fill="#888">
-        {payload.shortName || payload.name}
-      </text>
-    </g>
-  );
-};
 
 /* Minimal tooltip for growth chart */
 function GrowthTooltip({ active, payload, label }) {
@@ -74,6 +37,9 @@ function GrowthTooltip({ active, payload, label }) {
     </Box>
   );
 }
+
+/* Percentage + name, drawn around the ring while nothing is hovered. */
+const renderOuterLabel = makeOuterLabel((p) => p.shortName || p.name);
 
 export default function MFDashboard() {
   const user = useAuthStore((s) => s.user);
@@ -211,10 +177,10 @@ export default function MFDashboard() {
 
   const pnlColor = totals.gainLoss >= 0 ? '#15803d' : '#b91c1c';
   const statCards = [
-    { label: 'Invested', value: formatCurrency(totals.invested), icon: SavingsRounded },
-    { label: 'Current Value', value: formatCurrency(totals.currentValue), icon: PieChartRounded, highlight: true },
-    { label: 'P&L', value: formatCurrency(totals.gainLoss), icon: totals.gainLoss >= 0 ? TrendingUpRounded : TrendingDownRounded, color: pnlColor },
-    { label: 'Return', value: formatPercent(totals.gainPct), icon: ShowChartRounded, color: pnlColor },
+    { label: 'Invested', amount: totals.invested, icon: SavingsRounded },
+    { label: 'Current Value', amount: totals.currentValue, icon: PieChartRounded, highlight: true },
+    { label: 'P&L', amount: totals.gainLoss, icon: totals.gainLoss >= 0 ? TrendingUpRounded : TrendingDownRounded, color: pnlColor },
+    { label: 'Return', amount: totals.gainPct, format: formatPercent, icon: ShowChartRounded, color: pnlColor },
   ];
 
   if (isLoading) {
@@ -263,7 +229,7 @@ export default function MFDashboard() {
                         fontSize: s.highlight ? '1.1rem' : '0.95rem',
                         fontWeight: 700, color: s.color || 'text.primary', fontFeatureSettings: '"tnum"',
                       }} className="currency">
-                        {s.value}
+                        <CountUp to={s.amount} format={s.format || formatCurrency} delay={i * 0.05} />
                       </Typography>
                     </Box>
                   );
@@ -314,7 +280,7 @@ export default function MFDashboard() {
                         fontWeight: 700, color: s.color || 'text.primary', lineHeight: 1.1,
                         fontFeatureSettings: '"tnum"',
                       }} className="currency">
-                        {s.value}
+                        <CountUp to={s.amount} format={s.format || formatCurrency} delay={i * 0.05} />
                       </Typography>
                     </CardContent>
                   </Card>
@@ -341,7 +307,7 @@ export default function MFDashboard() {
                       <Pie data={pieData} dataKey="value" cx="50%" cy="50%"
                         innerRadius={isMobile ? 55 : 68} outerRadius={isMobile ? 78 : 96}
                         paddingAngle={4} strokeWidth={0}
-                        activeIndex={activeIdx} activeShape={renderActive}
+                        shape={pieSector}
                         label={activeIdx < 0 ? renderOuterLabel : false}
                         labelLine={false}
                         onMouseEnter={(_, i) => setActiveIdx(i)}
@@ -350,12 +316,15 @@ export default function MFDashboard() {
                       </Pie>
                     </PieChart>
                   </ResponsiveContainer>
-                  {activeIdx < 0 && (
-                    <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center', pointerEvents: 'none', width: isMobile ? 90 : 115 }}>
-                      <Typography sx={{ fontSize: isMobile ? '0.85rem' : '1.1rem', fontWeight: 700, color: 'text.primary', lineHeight: 1.2 }}>{formatCurrency(totals.currentValue)}</Typography>
-                      <Typography sx={{ fontSize: '0.55rem', color: 'text.secondary', mt: 0.25 }}>portfolio value</Typography>
-                    </Box>
-                  )}
+                  <DonutCenter
+                    data={pieData}
+                    activeIndex={activeIdx}
+                    restingValue={formatCurrency(totals.currentValue)}
+                    restingLabel="portfolio value"
+                    format={formatCurrency}
+                    width={isMobile ? 90 : 115}
+                    compact={isMobile}
+                  />
                 </Box>
               </CardContent>
             </Card>

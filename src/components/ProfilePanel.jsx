@@ -20,7 +20,7 @@ import {
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { describeDbError } from '../lib/dbErrors';
+import { describeDbError, dbErrorHandler } from '../lib/dbErrors';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/authStore';
 import { useAppStore, CURRENCIES } from '../store/appStore';
@@ -45,6 +45,7 @@ export default function ProfilePanel({ open, onClose }) {
   const toggleTheme = useAppStore((s) => s.toggleTheme);
   const currency = useAppStore((s) => s.currency);
   const setCurrency = useAppStore((s) => s.setCurrency);
+  const showConfirm = useAppStore((s) => s.showConfirm);
   const [pendingCurrency, setPendingCurrency] = useState(null);
   const [saving, setSaving] = useState(false);
 
@@ -82,14 +83,20 @@ export default function ProfilePanel({ open, onClose }) {
       setCatDialogOpen(false);
       useAppStore.getState().showSnackbar(editCat ? 'Category updated' : 'Category added', 'success');
     },
-    onError: (e) => useAppStore.getState().showSnackbar(e.message, 'error'),
+    // Raw `e.message` put the driver's unique-violation text on screen; the
+    // translation for `categories_user_id_name_unique` already exists.
+    onError: dbErrorHandler(useAppStore.getState().showSnackbar, 'Could not save category'),
   });
 
   const deleteCatMutation = useMutation({
     mutationFn: async (id) => {
       // Check if category is used by any transactions
-      const { count } = await supabase.from('income_expense_transactions')
+      const { count, error: countErr } = await supabase.from('income_expense_transactions')
         .select('id', { count: 'exact', head: true }).eq('category_id', id);
+      // A failed count returns null, and `null > 0` is false — so the guard
+      // used to wave the delete through and let it fail on the foreign key.
+      if (countErr) throw countErr;
+      if (count === null) throw new Error('Could not check whether this category is in use. Please try again.');
       if (count > 0) throw new Error(`Cannot delete — ${count} transaction(s) use this category. Reassign them first.`);
       const { error } = await supabase.from('categories').delete().eq('id', id);
       if (error) throw error;
@@ -98,8 +105,32 @@ export default function ProfilePanel({ open, onClose }) {
       queryClient.invalidateQueries({ queryKey: ['categories'] });
       useAppStore.getState().showSnackbar('Category deleted', 'success');
     },
-    onError: (e) => useAppStore.getState().showSnackbar(e.message, 'error'),
+    onError: (e) => useAppStore.getState().showSnackbar(describeDbError(e), 'error'),
   });
+
+  /* Deleting a category was immediate and irreversible on a single tap, while
+     deleting a *transaction* — far less destructive, since a category can take
+     its whole history with it — already asked. Both ask now. */
+  const confirmDeleteCat = (cat) => showConfirm(
+    'Delete category',
+    `"${cat.name}" will be removed. This cannot be undone.`,
+    () => deleteCatMutation.mutate(cat.id),
+  );
+
+  /* `signOut()` rejects when the server-side revocation fails. It was called
+     without `await` and without a catch, so that became an unhandled promise
+     rejection and the user was told nothing. */
+  const handleSignOut = async () => {
+    onClose();
+    try {
+      await signOut();
+    } catch (err) {
+      console.error('[Fintraxa] sign out failed', err);
+      useAppStore.getState().showSnackbar(
+        'Signed out on this device, but the server could not be reached.', 'warning',
+      );
+    }
+  };
 
   const openAddCat = () => {
     setEditCat(null); setCatName(''); setCatType('expense'); setCatIcon('Category'); setCatDialogOpen(true);
@@ -393,11 +424,11 @@ export default function ProfilePanel({ open, onClose }) {
                     <IconComp sx={{ fontSize: 15 }} />
                   </Box>
                   <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, flex: 1 }}>{cat.name}</Typography>
-                  <IconButton size="small" onClick={() => openEditCat(cat)} sx={{ width: 24, height: 24 }}>
+                  <IconButton size="small" aria-label={`Edit ${cat.name}`} onClick={() => openEditCat(cat)} sx={{ width: 24, height: 24 }}>
                     <Edit sx={{ fontSize: 12, color: 'text.secondary' }} />
                   </IconButton>
                   {!cat.name?.startsWith('Investment -') && (
-                    <IconButton size="small" onClick={() => deleteCatMutation.mutate(cat.id)} sx={{ width: 24, height: 24 }}>
+                    <IconButton size="small" aria-label={`Delete ${cat.name}`} onClick={() => confirmDeleteCat(cat)} sx={{ width: 24, height: 24 }}>
                       <DeleteOutline sx={{ fontSize: 13, color: '#b91c1c' }} />
                     </IconButton>
                   )}
@@ -435,11 +466,11 @@ export default function ProfilePanel({ open, onClose }) {
                     <IconComp sx={{ fontSize: 15 }} />
                   </Box>
                   <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, flex: 1 }}>{cat.name}</Typography>
-                  <IconButton size="small" onClick={() => openEditCat(cat)} sx={{ width: 24, height: 24 }}>
+                  <IconButton size="small" aria-label={`Edit ${cat.name}`} onClick={() => openEditCat(cat)} sx={{ width: 24, height: 24 }}>
                     <Edit sx={{ fontSize: 12, color: 'text.secondary' }} />
                   </IconButton>
                   {!cat.name?.startsWith('Investment -') && (
-                    <IconButton size="small" onClick={() => deleteCatMutation.mutate(cat.id)} sx={{ width: 24, height: 24 }}>
+                    <IconButton size="small" aria-label={`Delete ${cat.name}`} onClick={() => confirmDeleteCat(cat)} sx={{ width: 24, height: 24 }}>
                       <DeleteOutline sx={{ fontSize: 13, color: '#b91c1c' }} />
                     </IconButton>
                   )}
@@ -453,7 +484,7 @@ export default function ProfilePanel({ open, onClose }) {
         <Box sx={{ px: 2.5, py: 2, borderTop: `1px solid ${isDark ? '#1c1c1c' : '#f0f0f0'}` }}>
           <Button
             fullWidth
-            onClick={() => { signOut(); onClose(); }}
+            onClick={handleSignOut}
             startIcon={<LogoutIcon sx={{ fontSize: 16 }} />}
             sx={{
               py: 1, borderRadius: 2.5,

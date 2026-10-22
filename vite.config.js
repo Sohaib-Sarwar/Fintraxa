@@ -7,7 +7,13 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icons/*.png', 'favicon.svg'],
+      // Was `icons/*.png`, which swept two byte-identical 690 kB copies of the
+      // logo into the precache. Only the files the manifest and the shell
+      // actually reference are listed now.
+      includeAssets: [
+        'icons/favicon.ico', 'icons/icon-32.png', 'apple-touch-icon.png',
+        'fintraxa-mark.webp', 'login-bg.webp', 'login-bg-mobile.webp',
+      ],
       manifest: {
         name: 'Fintraxa',
         short_name: 'Fintraxa',
@@ -18,10 +24,17 @@ export default defineConfig({
         orientation: 'portrait',
         start_url: '/',
         scope: '/',
+        // These three entries already named icon-192.png and icon-512.png, and
+        // neither file existed. Chrome requires a resolvable 192px and 512px
+        // icon before it will fire `beforeinstallprompt`, so the "Install as
+        // App" button on the login screen could never appear on Android — the
+        // prompt event was never dispatched. The files exist now, and the
+        // maskable one is a separate asset with the mark inside the safe zone
+        // rather than the same square re-declared.
         icons: [
-          { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
-          { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
+          { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: '/icons/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
         ]
       },
       workbox: {

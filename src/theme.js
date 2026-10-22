@@ -21,7 +21,10 @@ export function buildTheme(mode = 'light') {
       },
       text: {
         primary: isDark ? '#f5f5f5' : '#111111',
-        secondary: isDark ? '#777777' : '#888888',
+        // #777 on #000 is 4.1:1 and #888 on #fff is 3.5:1 — both below the
+        // 4.5:1 WCAG AA minimum for body text, and this colour carries the
+        // dates, units and sub-labels on every card. Nudged to clear it.
+        secondary: isDark ? '#9a9a9a' : '#6b6b6b',
       },
       divider: borderColor,
     },
@@ -44,6 +47,9 @@ export function buildTheme(mode = 'light') {
         styleOverrides: {
           body: { transition: 'background-color 0.25s ease, color 0.25s ease' },
           '*': { WebkitTapHighlightColor: 'transparent' },
+          // Figures are compared down a column all over this app — holdings,
+          // transactions, P&L. Proportional digits make those columns ragged.
+          '.currency, [data-numeric]': { fontVariantNumeric: 'tabular-nums' },
         },
       },
       MuiCard: {
@@ -59,7 +65,9 @@ export function buildTheme(mode = 'light') {
       },
       MuiButton: {
         styleOverrides: {
-          root: { borderRadius: 10, padding: '10px 24px' },
+          // 44px is the smallest comfortable touch target; the default dense
+          // button fell under it on phones.
+          root: { borderRadius: 10, padding: '10px 24px', minHeight: 40 },
           contained: {
             boxShadow: 'none',
             '&:hover': { boxShadow: 'none' },
@@ -168,6 +176,22 @@ export function buildTheme(mode = 'light') {
       MuiSkeleton: {
         styleOverrides: {
           root: { borderRadius: 12, backgroundColor: isDark ? '#1a1a1a' : '#f5f5f5' },
+        },
+      },
+      MuiIconButton: {
+        styleOverrides: {
+          root: {
+            '&:focus-visible': { outline: `2px solid ${focusColor}`, outlineOffset: 2 },
+          },
+        },
+      },
+      MuiTooltip: {
+        defaultProps: {
+          // Tooltips carry real information here (the freshness tooltip, the
+          // collapsed sidebar labels) and a touch user could not reach any of
+          // it without a long press that gave no feedback.
+          enterTouchDelay: 200,
+          leaveTouchDelay: 4000,
         },
       },
     },

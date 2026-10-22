@@ -16,7 +16,10 @@ const CHECK_CONSTRAINTS = {
   stock_transactions_quantity_check: 'Quantity must be greater than zero.',
   mutual_fund_transactions_investment_amount_check:
     'Investment amount must be greater than zero.',
-  income_expense_transactions_type_check: 'Transaction type must be income or expense.',
+  // The column is 'credit'/'debit' live, not 'income'/'expense' — that is the
+  // vocabulary `categories.type` uses. Saying the wrong one sent anyone who
+  // hit this looking for a value the constraint does not accept.
+  income_expense_transactions_type_check: 'Transaction type must be credit or debit.',
   categories_type_check: 'Category type must be income or expense.',
   stock_transactions_type_check: 'Trade type must be buy or sell.',
   mutual_fund_transactions_type_check: 'Trade type must be buy or sell.',

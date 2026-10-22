@@ -12,7 +12,8 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
-import { mufapAPI } from '../../lib/api';
+import { mufapFundsQuery } from '../../lib/marketQueries';
+import { dbErrorHandler, validatePositiveNumber } from '../../lib/dbErrors';
 import { useAuthStore } from '../../store/authStore';
 import { useAppStore } from '../../store/appStore';
 import { formatCurrency, formatNumber, shortFundName } from '../../lib/formatters';
@@ -35,7 +36,8 @@ export default function AddFund() {
   const { data: freeCashData } = useQuery({
     queryKey: ['mf-free-cash', user?.id],
     queryFn: async () => {
-      const { data: cats } = await supabase.from('categories').select('id').ilike('name', '%Investment - Mutual Funds%');
+      const { data: cats } = await supabase.from('categories').select('id')
+        .eq('user_id', user.id).ilike('name', '%Investment - Mutual Funds%');
       const catIds = (cats || []).map((c) => c.id);
       let deposited = 0;
       if (catIds.length > 0) {
@@ -53,12 +55,13 @@ export default function AddFund() {
   });
   const freeCash = freeCashData?.freeCash ?? 0;
 
-  /* Preload all funds once, then filter client-side for instant search */
-  const { data: allFundsData, isLoading: loadingAllFunds } = useQuery({
-    queryKey: ['mufap-funds'],
-    queryFn: () => mufapAPI.getFunds({ limit: 5000 }),
-    staleTime: 24 * 60 * 60 * 1000,
-  });
+  /* Preload all funds once, then filter client-side for instant search.
+     This was its own `['mufap-funds']` key calling `mufapAPI.getFunds({ limit:
+     5000 })` directly — the one call site left bypassing `marketQueries`. The
+     same 553-fund dataset was therefore fetched and cached twice, under two
+     keys with two different limits, and the two copies could disagree about a
+     fund's NAV. `mufapFundsQuery()` is the shared, unpaginated definition. */
+  const { data: allFundsData, isLoading: loadingAllFunds } = useQuery(mufapFundsQuery());
 
   const fundOptions = useMemo(() => {
     if (!allFundsData?.data) return [];
@@ -107,10 +110,11 @@ export default function AddFund() {
       setSearch('');
       setConfirmOpen(false);
     },
-    onError: (e) => showSnackbar(e.message, 'error'),
+    onError: dbErrorHandler(showSnackbar, 'Could not record purchase'),
   });
 
-  const canSubmit = selectedFund && numAmount > 0 && !overBudget && date;
+  const amountError = amount === '' ? null : validatePositiveNumber(amount, 'Amount');
+  const canSubmit = selectedFund && numAmount > 0 && !overBudget && !amountError && date;
   const handleSubmit = () => { if (canSubmit) setConfirmOpen(true); };
 
   return (

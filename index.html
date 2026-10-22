@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
     <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="color-scheme" content="dark light" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -13,19 +14,38 @@
     <meta property="og:title" content="Fintraxa" />
     <meta property="og:description" content="Personal Finance & Investment Management" />
     <meta property="og:type" content="website" />
-    <meta property="og:image" content="/fintraxalogo.png" />
+    <meta property="og:image" content="/og-image.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
 
-    <!-- Browser Tab Icon (Primary Favicon) -->
-    <link rel="icon" type="image/x-icon" href="/icons/favicon.ico" />
-
-    <!-- Additional Icons -->
-    <link rel="icon" type="image/png" sizes="32x32" href="/fintraxalogo.png" />
-    <link rel="icon" type="image/png" sizes="192x192" href="/fintraxalogo.png" />
-    <link rel="apple-touch-icon" href="/fintraxalogo.png" />
+    <!-- Icons. These all pointed at one 690 kB PNG, including as a 32x32
+         favicon; they are now size-matched files. -->
+    <link rel="icon" type="image/x-icon" href="/icons/favicon.ico" sizes="48x48" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-32.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+    <!-- The font is render-blocking as a plain stylesheet, and the shell shows
+         a logo and a spinner before any of it is read. Loaded asynchronously,
+         with a <noscript> copy so it still arrives without JavaScript. -->
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700;800&display=swap"
+      media="print"
+      onload="this.media='all'"
+    />
+    <noscript>
+      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+    </noscript>
+
+    <!-- The login plate is the largest paint on the first screen an unknown
+         visitor sees, so it is fetched alongside the bundle rather than after
+         it. 19 kB / 14 kB; the matching one only. -->
+    <link rel="preload" as="image" href="/login-bg.webp" type="image/webp" media="(min-width: 901px)" />
+    <link rel="preload" as="image" href="/login-bg-mobile.webp" type="image/webp" media="(max-width: 900px)" />
 
     <title>Fintraxa</title>
   </head>

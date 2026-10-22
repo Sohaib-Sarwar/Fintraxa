@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  Box, Card, CardContent, Typography, Grid, Skeleton,
+  Box, Card, CardContent, Typography, Grid, Skeleton, Alert,
   useMediaQuery, useTheme,
 } from '@mui/material';
 import {
@@ -8,59 +8,23 @@ import {
   SavingsRounded,
   ShowChartRounded,
   PieChartRounded,
+  InfoOutlined,
 } from '@mui/icons-material';
 import {
-  PieChart, Pie, Cell, ResponsiveContainer, Sector,
+  PieChart, Pie, Cell, ResponsiveContainer, 
   LineChart, Line, XAxis, YAxis, Tooltip as RTooltip,
   CartesianGrid,
 } from 'recharts';
 import { motion } from 'framer-motion';
 import { useAggregatedAssets } from './useAggregatedAssets';
 import { formatCurrency } from '../../lib/formatters';
+import { CountUp, Reveal } from '../../components/motion';
+import { pieSector, makeOuterLabel, DonutCenter } from '../../components/charts';
 
 const PIE_COLORS = ['#333333', '#666666', '#999999'];
 const PIE_COLORS_DARK = ['#e5e5e5', '#a3a3a3', '#6b6b6b'];
 
-/* Active donut shape */
-const renderActiveShape = (props) => {
-  const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill, payload, percent, value } = props;
-  return (
-    <g>
-      <text x={cx} y={cy - 14} textAnchor="middle" fontSize={11} fontWeight={600} fill={fill}>
-        {payload.name}
-      </text>
-      <text x={cx} y={cy + 3} textAnchor="middle" fontSize={13} fontWeight={800} fill={fill}>
-        {formatCurrency(value)}
-      </text>
-      <text x={cx} y={cy + 18} textAnchor="middle" fontSize={10} fill="#888">
-        {`${(percent * 100).toFixed(1)}%`}
-      </text>
-      <Sector cx={cx} cy={cy} innerRadius={innerRadius - 2} outerRadius={outerRadius + 5}
-        startAngle={startAngle} endAngle={endAngle} fill={fill} />
-    </g>
-  );
-};
 
-/* Outer labels with percentage (responsive for mobile) */
-const RADIAN = Math.PI / 180;
-const renderOuterLabel = ({ cx, cy, midAngle, outerRadius, percent, payload, fill, viewBox }) => {
-  if (percent < 0.03) return null;
-  const isSm = (viewBox?.width || 400) < 380;
-  const radius = outerRadius + (isSm ? 18 : 24);
-  const x = cx + radius * Math.cos(-midAngle * RADIAN);
-  const y = cy + radius * Math.sin(-midAngle * RADIAN);
-  const anchor = x > cx ? 'start' : 'end';
-  return (
-    <g>
-      <text x={x} y={y - 6} textAnchor={anchor} fontSize={isSm ? 12 : 13} fontWeight={800} fill={fill}>
-        {`${(percent * 100).toFixed(0)}%`}
-      </text>
-      <text x={x} y={y + (isSm ? 7 : 9)} textAnchor={anchor} fontSize={isSm ? 9 : 10} fontWeight={500} fill="#888">
-        {payload.name}
-      </text>
-    </g>
-  );
-};
 
 /* Minimal custom tooltip for Growth charts */
 function ChartTooltip({ active, payload, label }) {
@@ -80,6 +44,9 @@ function ChartTooltip({ active, payload, label }) {
   );
 }
 
+/* Percentage + name, drawn around the ring while nothing is hovered. */
+const renderOuterLabel = makeOuterLabel((p) => p.name);
+
 export default function HomeDashboard() {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
@@ -89,18 +56,32 @@ export default function HomeDashboard() {
   const {
     totalAssets, financeBalance, mfValue, stocksValue,
     pieData, growthData, isLoading,
+    marketDataFailed, holdingsAtCost, fundsAtCost,
   } = useAggregatedAssets();
+
+  /* `useAggregatedAssets` has always reported how trustworthy its valuation
+     is — whether the market feed answered, and how many positions had to fall
+     back to their purchase price. Nothing read it, so the dashboard presented
+     a cost basis as a market value with no qualification. A holding priced at
+     cost is not wrong, but it is not a valuation either, and in a finance app
+     the difference belongs on screen. */
+  const atCost = (holdingsAtCost || 0) + (fundsAtCost || 0);
+  const valuationNote = marketDataFailed
+    ? 'Live prices are unavailable right now — positions are valued at what you paid for them.'
+    : atCost > 0
+      ? `${atCost} position${atCost === 1 ? '' : 's'} had no published price today and ${atCost === 1 ? 'is' : 'are'} valued at cost.`
+      : null;
 
   const colors = isDark ? PIE_COLORS_DARK : PIE_COLORS;
 
+  /* `amount` is the raw number so the figure can spring up to it rather than
+     appearing fully formed; `formatCurrency` still owns the display, including
+     the conversion out of PKR. */
   const statCards = [
-    {
-      label: 'Total Assets', value: formatCurrency(totalAssets),
-      icon: AccountBalanceWalletRounded, highlight: true,
-    },
-    { label: 'Finance', value: formatCurrency(financeBalance), icon: SavingsRounded },
-    { label: 'Mutual Funds', value: formatCurrency(mfValue), icon: PieChartRounded },
-    { label: 'Stocks', value: formatCurrency(stocksValue), icon: ShowChartRounded },
+    { label: 'Total Assets', amount: totalAssets, icon: AccountBalanceWalletRounded, highlight: true },
+    { label: 'Finance', amount: financeBalance, icon: SavingsRounded },
+    { label: 'Mutual Funds', amount: mfValue, icon: PieChartRounded },
+    { label: 'Stocks', amount: stocksValue, icon: ShowChartRounded },
   ];
 
   const lineColor = isDark ? '#e5e5e5' : '#222222';
@@ -135,6 +116,18 @@ export default function HomeDashboard() {
         </Typography>
       )}
 
+      {valuationNote && (
+        <Reveal distance={8} duration={0.3}>
+          <Alert
+            severity={marketDataFailed ? 'warning' : 'info'}
+            icon={<InfoOutlined sx={{ fontSize: 18 }} />}
+            sx={{ mb: 1.5, borderRadius: 2.5, fontSize: '0.74rem', py: 0.25, alignItems: 'center' }}
+          >
+            {valuationNote}
+          </Alert>
+        </Reveal>
+      )}
+
       {/* ── Asset Summary Cards ── */}
       {isMobile ? (
         /* Mobile: merged 2×2 card */
@@ -167,7 +160,7 @@ export default function HomeDashboard() {
                         fontWeight: 700, color: 'text.primary', fontFeatureSettings: '"tnum"',
                         letterSpacing: '-0.02em',
                       }} className="currency">
-                        {s.value}
+                        <CountUp to={s.amount} format={formatCurrency} delay={i * 0.05} />
                       </Typography>
                     </Box>
                   );
@@ -219,7 +212,7 @@ export default function HomeDashboard() {
                         fontWeight: 700, color: 'text.primary', lineHeight: 1.1,
                         fontFeatureSettings: '"tnum"',
                       }} className="currency">
-                        {s.value}
+                        <CountUp to={s.amount} format={formatCurrency} delay={i * 0.05} />
                       </Typography>
                     </CardContent>
                   </Card>
@@ -247,7 +240,7 @@ export default function HomeDashboard() {
                         data={pieData} dataKey="value" cx="50%" cy="50%"
                         innerRadius={isMobile ? 55 : 68} outerRadius={isMobile ? 78 : 96}
                         paddingAngle={3} strokeWidth={0}
-                        activeIndex={activeIdx} activeShape={renderActiveShape}
+                        shape={pieSector}
                         label={activeIdx < 0 ? renderOuterLabel : false}
                         labelLine={false}
                         onMouseEnter={(_, i) => setActiveIdx(i)}
@@ -259,19 +252,15 @@ export default function HomeDashboard() {
                       </Pie>
                     </PieChart>
                   </ResponsiveContainer>
-                  {activeIdx < 0 && (
-                    <Box sx={{
-                      position: 'absolute', top: '50%', left: '50%',
-                      transform: 'translate(-50%, -50%)',
-                      textAlign: 'center', pointerEvents: 'none',
-                      width: isMobile ? 90 : 110,
-                    }}>
-                      <Typography sx={{ fontSize: isMobile ? '0.85rem' : '1.1rem', fontWeight: 700, color: 'text.primary', lineHeight: 1.2 }}>
-                        {formatCurrency(totalAssets)}
-                      </Typography>
-                      <Typography sx={{ fontSize: '0.55rem', color: 'text.secondary', mt: 0.25 }}>total assets</Typography>
-                    </Box>
-                  )}
+                  <DonutCenter
+                    data={pieData}
+                    activeIndex={activeIdx}
+                    restingValue={formatCurrency(totalAssets)}
+                    restingLabel="total assets"
+                    format={formatCurrency}
+                    width={isMobile ? 90 : 110}
+                    compact={isMobile}
+                  />
                 </Box>
               ) : (
                 <Box sx={{ height: 260, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

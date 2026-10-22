@@ -16,15 +16,12 @@ const IEDashboard = lazy(() => import('./features/income-expense/Dashboard'));
 const HomeDashboard = lazy(() => import('./features/home/Dashboard'));
 const AddTransaction = lazy(() => import('./features/income-expense/AddTransaction'));
 const Transactions = lazy(() => import('./features/income-expense/Transactions'));
+/* The Funds and Stocks sub-pages are no longer routed to their leaf
+   components. Each section wrapper owns its own paths so that the URL and the
+   mobile carousel stay in step — see MFSection / PSXSection. The wrappers lazy
+   load the leaves themselves, so the chunking is unchanged. */
 const MFSection = lazy(() => import('./features/mutual-funds/MFSection'));
-const AddFund = lazy(() => import('./features/mutual-funds/AddFund'));
-const FundAnalytics = lazy(() => import('./features/mutual-funds/Analytics'));
 const PSXSection = lazy(() => import('./features/psx-stocks/PSXSection'));
-const SharesPage = lazy(() => import('./features/psx-stocks/SharesPage'));
-const StockTransactions = lazy(() => import('./features/psx-stocks/StockTransactions'));
-const StockAnalytics = lazy(() => import('./features/psx-stocks/Analytics'));
-const StockResearch = lazy(() => import('./features/psx-stocks/Research'));
-const StockTools = lazy(() => import('./features/psx-stocks/Tools'));
 
 const Loader = () => <InfiniteSpinner size={80} minHeight="50vh" />;
 
@@ -81,17 +78,17 @@ export default function App() {
           {/* Income/Expense (Finance) — keep "/" paths for backward compatibility */}
           <Route path="add-transaction" element={page(AddTransaction)} />
           <Route path="transactions" element={page(Transactions)} />
-          {/* Mutual Funds */}
+          {/* Mutual Funds — every path renders the section, which picks the page */}
           <Route path="funds" element={page(MFSection)} />
-          <Route path="funds/add" element={page(AddFund)} />
-          <Route path="funds/analytics" element={page(FundAnalytics)} />
-          {/* PSX Stocks */}
+          <Route path="funds/add" element={page(MFSection)} />
+          <Route path="funds/analytics" element={page(MFSection)} />
+          {/* PSX Stocks — same */}
           <Route path="stocks" element={page(PSXSection)} />
-          <Route path="stocks/shares" element={page(SharesPage)} />
-          <Route path="stocks/transactions" element={page(StockTransactions)} />
-          <Route path="stocks/analytics" element={page(StockAnalytics)} />
-          <Route path="stocks/research" element={page(StockResearch)} />
-          <Route path="stocks/tools" element={page(StockTools)} />
+          <Route path="stocks/shares" element={page(PSXSection)} />
+          <Route path="stocks/transactions" element={page(PSXSection)} />
+          <Route path="stocks/analytics" element={page(PSXSection)} />
+          <Route path="stocks/research" element={page(PSXSection)} />
+          <Route path="stocks/tools" element={page(PSXSection)} />
         </Route>
         {/* Anything else — a stale bookmark, a typo, a link from an older
             version — lands on the dashboard rather than a blank screen. */}

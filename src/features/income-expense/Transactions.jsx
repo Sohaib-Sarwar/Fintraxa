@@ -11,7 +11,6 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSwipeable } from 'react-swipeable';
 import { motion, AnimatePresence } from 'framer-motion';
-import html2canvas from 'html2canvas';
 import { supabase } from '../../lib/supabase';
 import { dbErrorHandler, validatePositiveNumber } from '../../lib/dbErrors';
 import { useAuthStore } from '../../store/authStore';
@@ -200,7 +199,10 @@ export default function Transactions() {
     return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
   }, [transactions]);
 
-  const filtered = transactions.filter((t) => {
+  /* Memoised: this re-filtered the entire history on every render, and the
+     search box re-renders on each keystroke while the swipe handler below
+     re-renders on each touch-move frame. */
+  const filtered = useMemo(() => transactions.filter((t) => {
     const q = search.toLowerCase();
     const matchText = !q || t.categories?.name?.toLowerCase().includes(q)
       || t.notes?.toLowerCase().includes(q) || String(t.amount).includes(q);
@@ -208,7 +210,7 @@ export default function Transactions() {
     const matchCategory = filterCategory === 'all' || t.categories?.name === filterCategory;
     const matchDate = (!dateFrom || t.date >= dateFrom) && (!dateTo || t.date <= dateTo);
     return matchText && matchType && matchCategory && matchDate;
-  });
+  }), [transactions, search, filterType, filterCategory, dateFrom, dateTo]);
 
   const activeFilterCount = [filterType !== 'all', filterCategory !== 'all', !!dateFrom, !!dateTo].filter(Boolean).length;
 
@@ -262,7 +264,11 @@ export default function Transactions() {
   const downloadSlip = async () => {
     if (!slipRef.current) return;
     try {
-      const canvas = await html2canvas(slipRef.current, { scale: 2, backgroundColor: '#ffffff' });
+      // html2canvas is 201 kB and is only ever needed when someone taps
+      // Download. Imported statically it was pulled in with this route for
+      // every visit; loaded here it costs nothing until the button is used.
+      const { default: html2canvas } = await import('html2canvas');
+      const canvas = await html2canvas(slipRef.current, { scale: 2, backgroundColor: isDark ? '#1a1a1a' : '#ffffff' });
       const link = document.createElement('a');
       link.download = 'transaction-' + (viewTxn?.id?.slice(0, 8) || 'receipt') + '.png';
       link.href = canvas.toDataURL();

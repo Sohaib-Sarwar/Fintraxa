@@ -1,5 +1,6 @@
-import { Suspense, lazy } from 'react';
+import { Suspense, lazy, useMemo } from 'react';
 import { useMediaQuery } from '@mui/material';
+import { useLocation } from 'react-router-dom';
 import SwipeablePages from '../../components/SwipeablePages';
 import InfiniteSpinner from '../../components/InfiniteSpinner';
 
@@ -11,28 +12,31 @@ const Research = lazy(() => import('./Research'));
 const Tools = lazy(() => import('./Tools'));
 
 const Loader = () => <InfiniteSpinner size={64} minHeight="40vh" />;
+const wrap = (El) => <Suspense fallback={<Loader />}><El /></Suspense>;
+
+/* See MFSection: every `/stocks/*` path routes here so the phone carousel and
+   the address bar agree. Research and Tools were previously unreachable on
+   mobile — the bottom tab only goes to `/stocks`, and nothing on that screen
+   linked any deeper. */
+const PAGES = [
+  { label: 'Portfolio', path: '/stocks', component: wrap(Dashboard) },
+  { label: 'Shares', path: '/stocks/shares', component: wrap(SharesPage) },
+  { label: 'Trades', path: '/stocks/transactions', component: wrap(StockTransactions) },
+  { label: 'Analytics', path: '/stocks/analytics', component: wrap(Analytics) },
+  { label: 'Research', path: '/stocks/research', component: wrap(Research) },
+  { label: 'Tools', path: '/stocks/tools', component: wrap(Tools) },
+];
 
 export default function PSXSection() {
   const isMobile = useMediaQuery('(max-width:768px)');
+  const { pathname } = useLocation();
 
-  /* Desktop — show Dashboard only (sidebar handles sub-page nav) */
-  if (!isMobile) {
-    return (
-      <Suspense fallback={<Loader />}>
-        <Dashboard />
-      </Suspense>
-    );
-  }
+  const current = useMemo(
+    () => PAGES.find((p) => p.path === pathname) ?? PAGES[0],
+    [pathname],
+  );
 
-  /* Mobile — all pages in a swipeable carousel */
-  const pages = [
-    { label: 'Portfolio', component: <Suspense fallback={<Loader />}><Dashboard /></Suspense> },
-    { label: 'Shares', component: <Suspense fallback={<Loader />}><SharesPage /></Suspense> },
-    { label: 'Trades', component: <Suspense fallback={<Loader />}><StockTransactions /></Suspense> },
-    { label: 'Analytics', component: <Suspense fallback={<Loader />}><Analytics /></Suspense> },
-    { label: 'Research', component: <Suspense fallback={<Loader />}><Research /></Suspense> },
-    { label: 'Tools', component: <Suspense fallback={<Loader />}><Tools /></Suspense> },
-  ];
+  if (!isMobile) return current.component;
 
-  return <SwipeablePages pages={pages} />;
+  return <SwipeablePages pages={PAGES} />;
 }

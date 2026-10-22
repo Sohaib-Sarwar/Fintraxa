@@ -8,7 +8,7 @@ import {
   ChevronLeft, ChevronRight, AccountBalanceWallet, TrendingUp,
   TrendingDown, ShowChart, ArrowForward, Add,
 } from '@mui/icons-material';
-import { PieChart, Pie, Cell, ResponsiveContainer, Sector } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { useQuery } from '@tanstack/react-query';
 import { useSwipeable } from 'react-swipeable';
 import { useNavigate } from 'react-router-dom';
@@ -18,52 +18,15 @@ import { useAuthStore } from '../../store/authStore';
 import { formatCurrency, formatDate } from '../../lib/formatters';
 import { startOfMonth, endOfMonth, subMonths, addMonths, format } from 'date-fns';
 import CategoryIcon from '../../lib/categoryIcons';
+import { CountUp } from '../../components/motion';
+import { pieSector, makeOuterLabel, DonutCenter } from '../../components/charts';
 
 /* Colorful pie palette (similar to the shared design) */
 const PIE_COLORS = ['#f472b6', '#fbbf24', '#60a5fa', '#a78bfa', '#34d399', '#fb923c', '#f87171', '#818cf8'];
 const INCOME_COLOR = '#059669';
 const EXPENSE_COLOR = '#dc2626';
 
-/* ── Hover active shape ── */
-const renderActiveShape = (props) => {
-  const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill, payload, percent, value } = props;
-  return (
-    <g>
-      <text x={cx} y={cy - 14} textAnchor="middle" fontSize={11} fontWeight={600} fill={fill}>
-        {payload.shortName || payload.name}
-      </text>
-      <text x={cx} y={cy + 3} textAnchor="middle" fontSize={13} fontWeight={800} fill={fill}>
-        {formatCurrency(value)}
-      </text>
-      <text x={cx} y={cy + 18} textAnchor="middle" fontSize={10} fill="#888">
-        {`${(percent * 100).toFixed(1)}%`}
-      </text>
-      <Sector cx={cx} cy={cy} innerRadius={innerRadius - 3} outerRadius={outerRadius + 6}
-        startAngle={startAngle} endAngle={endAngle} fill={fill} />
-    </g>
-  );
-};
 
-/* Outer labels with percentage + short name (responsive) */
-const RADIAN = Math.PI / 180;
-const renderOuterLabel = ({ cx, cy, midAngle, outerRadius, percent, payload, fill, viewBox }) => {
-  if (percent < 0.03) return null;
-  const isSm = (viewBox?.width || 400) < 380;
-  const radius = outerRadius + (isSm ? 18 : 24);
-  const x = cx + radius * Math.cos(-midAngle * RADIAN);
-  const y = cy + radius * Math.sin(-midAngle * RADIAN);
-  const anchor = x > cx ? 'start' : 'end';
-  return (
-    <g>
-      <text x={x} y={y - 6} textAnchor={anchor} fontSize={isSm ? 12 : 13} fontWeight={800} fill={fill}>
-        {`${(percent * 100).toFixed(0)}%`}
-      </text>
-      <text x={x} y={y + (isSm ? 7 : 9)} textAnchor={anchor} fontSize={isSm ? 9 : 10} fontWeight={500} fill="#888">
-        {payload.shortName || payload.name}
-      </text>
-    </g>
-  );
-};
 
 /** Short category name: take first letter of each word, max 5 chars */
 function shortCatName(name) {
@@ -76,6 +39,9 @@ function shortCatName(name) {
   // Single word: truncate to 5 chars
   return name.slice(0, 5);
 }
+
+/* Percentage + name, drawn around the ring while nothing is hovered. */
+const renderOuterLabel = makeOuterLabel((p) => p.shortName || p.name);
 
 export default function IEDashboard() {
   const user = useAuthStore((s) => s.user);
@@ -91,7 +57,17 @@ export default function IEDashboard() {
   const prevMonthStart = startOfMonth(subMonths(currentDate, 1));
   const prevMonthEnd = endOfMonth(subMonths(currentDate, 1));
 
-  const goNext = useCallback(() => setCurrentDate((d) => addMonths(d, 1)), []);
+  /* Forward navigation was unbounded — you could page into months that
+     cannot contain a transaction and stare at an empty dashboard wondering
+     whether the data had failed to load. */
+  const atCurrentMonth = useMemo(
+    () => format(currentDate, 'yyyy-MM') >= format(new Date(), 'yyyy-MM'),
+    [currentDate],
+  );
+  const goNext = useCallback(
+    () => setCurrentDate((d) => (format(d, 'yyyy-MM') >= format(new Date(), 'yyyy-MM') ? d : addMonths(d, 1))),
+    [],
+  );
   const goPrev = useCallback(() => setCurrentDate((d) => subMonths(d, 1)), []);
   const handlers = useSwipeable({ onSwipedLeft: goNext, onSwipedRight: goPrev, preventScrollOnSwipe: true });
 
@@ -135,7 +111,11 @@ export default function IEDashboard() {
     const prevExpense = prevTransactions.filter((t) => t.type === 'debit').reduce((s, t) => s + Number(t.amount), 0);
     const balance = income - expense;
     const prevBalance = prevIncome - prevExpense;
-    const pnlChange = prevBalance !== 0 ? ((balance - prevBalance) / Math.abs(prevBalance)) * 100 : 0;
+    // null, not 0: "no previous month to compare with" and "exactly flat" are
+    // different answers, and showing the second for the first is a lie.
+    const pnlChange = prevTransactions.length === 0 || prevBalance === 0
+      ? null
+      : ((balance - prevBalance) / Math.abs(prevBalance)) * 100;
     return { income, expense, balance, prevIncome, prevExpense, pnlChange };
   }, [transactions, prevTransactions]);
 
@@ -161,12 +141,22 @@ export default function IEDashboard() {
   const recentTransactions = transactions.slice(0, 5);
 
   /* ── Stat card definitions (Home Dashboard style) ── */
-  const pnlColor = stats.balance >= 0 ? '#15803d' : '#b91c1c';
+  const pnlColor = (stats.pnlChange ?? 0) >= 0 ? '#15803d' : '#b91c1c';
   const statCards = [
-    { label: 'Balance', value: formatCurrency(stats.balance), icon: AccountBalanceWallet, highlight: true },
-    { label: 'Income', value: formatCurrency(stats.income), icon: TrendingUp },
-    { label: 'Expense', value: formatCurrency(stats.expense), icon: TrendingDown },
-    { label: 'PNL', value: `${stats.pnlChange >= 0 ? '+' : ''}${stats.pnlChange.toFixed(1)}%`, icon: ShowChart, color: pnlColor },
+    { label: 'Balance', amount: stats.balance, icon: AccountBalanceWallet, highlight: true },
+    { label: 'Income', amount: stats.income, icon: TrendingUp },
+    { label: 'Expense', amount: stats.expense, icon: TrendingDown },
+    // A month with no prior month to compare against is not a 0% change; the
+    // card said "+0.0%" where the honest answer is that there is no basis yet.
+    stats.pnlChange === null
+      ? { label: 'PNL', value: '—', icon: ShowChart }
+      : {
+        label: 'PNL',
+        amount: stats.pnlChange,
+        format: (v) => `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`,
+        icon: ShowChart,
+        color: pnlColor,
+      },
   ];
 
   if (isLoading) {
@@ -194,6 +184,7 @@ export default function IEDashboard() {
         mb: isMobile ? 2 : 3.5, mt: 1, py: isMobile ? 0.75 : 1.5,
       }}>
         <IconButton onClick={goPrev}
+          aria-label="Previous month"
           sx={{
             width: { xs: 40, md: 44 }, height: { xs: 40, md: 44 },
             borderRadius: '50%',
@@ -242,7 +233,8 @@ export default function IEDashboard() {
           </motion.div>
         </AnimatePresence>
 
-        <IconButton onClick={goNext}
+        <IconButton onClick={goNext} disabled={atCurrentMonth}
+          aria-label="Next month"
           sx={{
             width: { xs: 40, md: 44 }, height: { xs: 40, md: 44 },
             borderRadius: '50%',
@@ -289,7 +281,9 @@ export default function IEDashboard() {
                         fontSize: s.highlight ? '1.1rem' : '0.95rem',
                         fontWeight: 700, color: s.color || 'text.primary', fontFeatureSettings: '"tnum"',
                       }} className="currency">
-                        {s.value}
+                        {s.amount === undefined
+                          ? s.value
+                          : <CountUp to={s.amount} format={s.format || formatCurrency} delay={i * 0.05} />}
                       </Typography>
                     </Box>
                   );
@@ -340,7 +334,9 @@ export default function IEDashboard() {
                         fontWeight: 700, color: s.color || 'text.primary', lineHeight: 1.1,
                         fontFeatureSettings: '"tnum"',
                       }} className="currency">
-                        {s.value}
+                        {s.amount === undefined
+                          ? s.value
+                          : <CountUp to={s.amount} format={s.format || formatCurrency} delay={i * 0.05} />}
                       </Typography>
                     </CardContent>
                   </Card>
@@ -364,7 +360,7 @@ export default function IEDashboard() {
                   <Pie data={expensePieData} dataKey="value" cx="50%" cy="50%"
                     innerRadius={isMobile ? 55 : 68} outerRadius={isMobile ? 78 : 96}
                     paddingAngle={3} strokeWidth={0}
-                    activeIndex={activeIdx} activeShape={renderActiveShape}
+                    shape={pieSector}
                     label={activeIdx < 0 ? renderOuterLabel : false}
                     labelLine={false}
                     onMouseEnter={(_, i) => setActiveIdx(i)}
@@ -373,20 +369,15 @@ export default function IEDashboard() {
                   </Pie>
                 </PieChart>
               </ResponsiveContainer>
-              {activeIdx < 0 && (
-                <Box sx={{
-                  position: 'absolute', top: '50%', left: '50%',
-                  transform: 'translate(-50%, -50%)', textAlign: 'center', pointerEvents: 'none',
-                  width: isMobile ? 90 : 110,
-                }}>
-                  <Typography sx={{ fontSize: '0.55rem', color: 'text.secondary', mb: 0.2, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-                    Expense
-                  </Typography>
-                  <Typography sx={{ fontSize: isMobile ? '0.95rem' : '1.1rem', fontWeight: 700, color: 'text.primary', lineHeight: 1.2 }}>
-                    {formatCurrency(stats.expense)}
-                  </Typography>
-                </Box>
-              )}
+              <DonutCenter
+                data={expensePieData}
+                activeIndex={activeIdx}
+                restingValue={formatCurrency(stats.expense)}
+                restingLabel="total expense"
+                format={formatCurrency}
+                width={isMobile ? 90 : 110}
+                compact={isMobile}
+              />
             </Box>
           ) : (
             <Box sx={{ height: 260, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
