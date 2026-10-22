@@ -610,8 +610,8 @@ export default function AuthPage() {
               fontSize: '0.92rem', fontWeight: 300, color: 'rgba(255,255,255,0.56)',
               mb: 3, lineHeight: 1.6, maxWidth: 340,
             }}>
-              One ledger for your spending, your MUFAP funds and your PSX
-              holdings — valued off live market data, not guesswork.
+              One ledger for spending, MUFAP funds and PSX holdings.
+              Valued on live market data, never guesswork.
             </Typography>
           </Reveal>
 
