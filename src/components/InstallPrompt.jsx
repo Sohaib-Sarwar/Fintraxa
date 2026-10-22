@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Box, Button, Typography, IconButton, useTheme } from '@mui/material';
+import { Box, Button, Typography, IconButton, useTheme, useMediaQuery } from '@mui/material';
 import { GetAppRounded, CloseRounded } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -9,19 +9,30 @@ export default function InstallPrompt() {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
 
-  useEffect(() => {
-    // Don't show if already installed as PWA
-    if (window.matchMedia('(display-mode: standalone)').matches) return;
+  /* Same breakpoint as AuthPage. This banner is a bottom sheet sized for a
+     phone, and desktop Chrome already offers Install from the omnibox, so on
+     desktop we never register the listener at all — calling preventDefault()
+     there would only suppress a prompt we then never replace. */
+  const isMobile = useMediaQuery('(max-width:900px)');
 
+  useEffect(() => {
+    if (!isMobile) return undefined;
+    // Don't show if already installed as PWA
+    if (window.matchMedia('(display-mode: standalone)').matches) return undefined;
+
+    let timer;
     const handler = (e) => {
       e.preventDefault();
       setDeferredPrompt(e);
       // Show banner after a short delay so it doesn't interrupt initial load
-      setTimeout(() => setShowBanner(true), 3000);
+      timer = setTimeout(() => setShowBanner(true), 3000);
     };
     window.addEventListener('beforeinstallprompt', handler);
-    return () => window.removeEventListener('beforeinstallprompt', handler);
-  }, []);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handler);
+      clearTimeout(timer);
+    };
+  }, [isMobile]);
 
   const handleInstall = async () => {
     if (!deferredPrompt) return;
@@ -41,7 +52,7 @@ export default function InstallPrompt() {
 
   return (
     <AnimatePresence>
-      {showBanner && (
+      {showBanner && isMobile && (
         <motion.div
           initial={{ opacity: 0, y: 80 }}
           animate={{ opacity: 1, y: 0 }}
