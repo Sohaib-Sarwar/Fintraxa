@@ -94,6 +94,17 @@ and every push to `main` deploys on its own.
 
 - **SPA rewrites** — every path that is not a file serves `index.html`, so a
   deep link like `/stocks/analytics` works on a cold load instead of 404ing.
+
+  The source is the blunt `/(.*)`, deliberately. Vercel applies `rewrites`
+  *after* the filesystem check, so real files — `/assets/*`, `/icons/*`,
+  `sw.js`, the manifest — are served before the rewrite is ever consulted;
+  excluding them in the pattern is work the router already does. An earlier
+  version tried to be precise with a negative lookahead
+  (`/((?!assets/|icons/|.*\.[a-zA-Z0-9]+$).*)`) alongside `cleanUrls: true`,
+  and the combination silently failed to match: `/` returned 200 while
+  `/auth` returned `X-Vercel-Error: NOT_FOUND`. `cleanUrls` is also gone —
+  it maps `/auth` onto a non-existent `auth.html` and redirects
+  `/index.html`, neither of which a single-HTML-file SPA wants.
 - **Immutable asset caching** — `/assets/*` is content-hashed by Vite, so it is
   cached for a year. `index.html`, `sw.js` and the manifest are explicitly *not*
   cached, or a deploy would never reach anyone.
