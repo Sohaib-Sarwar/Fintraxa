@@ -11,6 +11,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
+import { fetchMfCashFlows } from '../../lib/mf/useMfPortfolio';
 import { useAuthStore } from '../../store/authStore';
 import { useAppStore } from '../../store/appStore';
 import { useNavigate } from 'react-router-dom';
@@ -101,13 +102,8 @@ export default function AddTransaction() {
       }
 
       if (isMF) {
-        const { data: mfTxns } = await supabase.from('mutual_fund_transactions')
-          .select('investment_amount, type').eq('user_id', user.id);
-        let bought = 0, sold = 0;
-        (mfTxns || []).forEach((t) => {
-          if (t.type === 'buy') bought += Number(t.investment_amount);
-          else sold += Number(t.investment_amount);
-        });
+        // Ledger cash flows: purchases paid in, redemptions and payouts received.
+        const { bought, sold } = await fetchMfCashFlows(user.id);
         return { deposited, bought, sold, freeCash: deposited - bought + sold };
       } else {
         const { data: stTxns } = await supabase.from('stock_transactions')

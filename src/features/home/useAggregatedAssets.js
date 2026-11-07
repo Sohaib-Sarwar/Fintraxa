@@ -5,6 +5,7 @@ import { useAuthStore } from '../../store/authStore';
 import {
   mufapFundsQuery, psxStocksQuery, fundPriceMap, stockPriceMap,
 } from '../../lib/marketQueries';
+import { mfLedgerQuery, toLegacyRows } from '../../lib/mf/useMfPortfolio';
 import { startOfMonth, endOfMonth, format, subMonths } from 'date-fns';
 
 /**
@@ -53,21 +54,9 @@ export function useAggregatedAssets() {
     staleTime: 2 * 60 * 1000,
   });
 
-  /* ─── MF transactions ─── */
-  const { data: mfTxns = [], isLoading: mfLoading } = useQuery({
-    queryKey: ['home-mf-txns', user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('mutual_fund_transactions')
-        .select('fund_id, fund_name, nav, investment_amount, units, type, date')
-        .eq('user_id', user.id)
-        .order('date', { ascending: true });
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!user,
-    staleTime: 2 * 60 * 1000,
-  });
+  /* ─── MF holdings: from the approved statement ledger ─── */
+  const { data: mfLedger, isLoading: mfLoading } = useQuery(mfLedgerQuery(user?.id));
+  const mfTxns = useMemo(() => toLegacyRows(mfLedger), [mfLedger]);
 
   /* ─── MF live NAVs ─── */
   const { data: mfApiData, isError: mfApiFailed } = useQuery(mufapFundsQuery());

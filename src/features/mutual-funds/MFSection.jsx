@@ -7,6 +7,8 @@ import InfiniteSpinner from '../../components/InfiniteSpinner';
 const Dashboard = lazy(() => import('./Dashboard'));
 const AddFund = lazy(() => import('./AddFund'));
 const Analytics = lazy(() => import('./Analytics'));
+const Imports = lazy(() => import('./Imports'));
+const MFTransactions = lazy(() => import('./MFTransactions'));
 
 const Loader = () => <InfiniteSpinner size={64} minHeight="40vh" />;
 const wrap = (El) => <Suspense fallback={<Loader />}><El /></Suspense>;
@@ -19,6 +21,8 @@ const PAGES = [
   { label: 'Portfolio', path: '/funds', component: wrap(Dashboard) },
   { label: 'Add Fund', path: '/funds/add', component: wrap(AddFund) },
   { label: 'Analytics', path: '/funds/analytics', component: wrap(Analytics) },
+  { label: 'Transactions', path: '/funds/transactions', component: wrap(MFTransactions) },
+  { label: 'Imports', path: '/funds/imports', component: wrap(Imports) },
 ];
 
 export default function MFSection() {

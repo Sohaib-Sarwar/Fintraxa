@@ -11,7 +11,10 @@ import {
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
+import Decimal from 'decimal.js';
+import { uuid } from '../../lib/mf/hash';
 import { supabase } from '../../lib/supabase';
+import { fetchMfCashFlows, MF_LEDGER_KEY } from '../../lib/mf/useMfPortfolio';
 import { mufapFundsQuery } from '../../lib/marketQueries';
 import { dbErrorHandler, validatePositiveNumber } from '../../lib/dbErrors';
 import { useAuthStore } from '../../store/authStore';
@@ -31,6 +34,8 @@ export default function AddFund() {
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [search, setSearch] = useState('');
   const [confirmOpen, setConfirmOpen] = useState(false);
+  // One key per intended purchase: a double tap or a retry cannot book twice.
+  const [idempotencyKey, setIdempotencyKey] = useState(() => uuid());
 
   /* Free cash query */
   const { data: freeCashData } = useQuery({
@@ -45,10 +50,7 @@ export default function AddFund() {
           .select('amount').eq('user_id', user.id).eq('type', 'debit').in('category_id', catIds);
         deposited = (txns || []).reduce((s, t) => s + Number(t.amount), 0);
       }
-      const { data: mfTxns } = await supabase.from('mutual_fund_transactions')
-        .select('investment_amount, type').eq('user_id', user.id);
-      let bought = 0, sold = 0;
-      (mfTxns || []).forEach((t) => { if (t.type === 'buy') bought += Number(t.investment_amount); else sold += Number(t.investment_amount); });
+      const { bought, sold } = await fetchMfCashFlows(user.id);
       return { deposited, bought, sold, freeCash: deposited - bought + sold };
     },
     enabled: !!user,
@@ -77,31 +79,40 @@ export default function AddFund() {
   }, [allFundsData, search]);
 
   const offerPrice = selectedFund?.offer_price || selectedFund?.nav || 0;
-  const units = offerPrice > 0 && Number(amount) > 0 ? Number(amount) / offerPrice : 0;
+  // Exact decimal division; the float is only for display.
+  const unitsExact = offerPrice > 0 && Number(amount) > 0 && /^\d+(\.\d+)?$/.test(String(amount).trim())
+    ? new Decimal(String(amount).trim()).dividedBy(String(offerPrice)).toDecimalPlaces(4, Decimal.ROUND_DOWN)
+    : null;
+  const units = unitsExact ? Number(unitsExact.toString()) : 0;
   const numAmount = Number(amount) || 0;
   const overBudget = numAmount > freeCash;
 
   /* Save mutation */
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from('mutual_fund_transactions').insert({
-        user_id: user.id,
-        // `slug` is the service's stable identifier and the path segment that
-        // addresses the fund's own endpoint — keep it, not the display name,
-        // so a later MUFAP rename does not orphan the holding.
-        fund_id: selectedFund.slug || selectedFund.fund_name,
-        fund_name: selectedFund.fund_name,
-        fund_category: selectedFund.category || 'Uncategorized',
-        investment_amount: numAmount,
-        nav: selectedFund.nav,
-        units,
-        type: 'buy',
-        date,
+      if (!unitsExact || unitsExact.lte(0)) throw new Error('Units could not be calculated.');
+      // Written to the ledger through a validated RPC. The slug (not the
+      // display name) identifies the fund, so a MUFAP rename cannot orphan it.
+      const { error } = await supabase.rpc('mf_record_manual_entry', {
+        p_fund: {
+          fund_name: selectedFund.fund_name,
+          amc: selectedFund.amc || 'Unknown AMC',
+          slug: selectedFund.slug || null,
+          category: selectedFund.category || null,
+        },
+        p_entry_type: 'purchase',
+        p_trade_date: date,
+        p_gross: String(amount).trim(),
+        p_nav: String(offerPrice),
+        p_units: unitsExact.toString(),
+        p_idempotency_key: idempotencyKey,
       });
       if (error) throw error;
     },
     onSuccess: () => {
       showSnackbar('Fund purchased successfully', 'success');
+      setIdempotencyKey(uuid());
+      queryClient.invalidateQueries({ queryKey: [MF_LEDGER_KEY] });
       queryClient.invalidateQueries({ queryKey: ['mf-transactions'] });
       queryClient.invalidateQueries({ queryKey: ['mf-free-cash'] });
       queryClient.invalidateQueries({ queryKey: ['home-mf-txns'] });

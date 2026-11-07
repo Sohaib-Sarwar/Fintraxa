@@ -104,9 +104,28 @@ so ship a small WebP, not a 1024px PNG. The PWA manifest's 192px and 512px
 icons must actually exist — Chrome will not fire `beforeinstallprompt` without
 them, which silently disables the "Install as app" flow on Android.
 
+## Mutual funds
+
+Holdings come from the append-only ledger (`mf_ledger_entries` + `mf_ledger_components`),
+never from `mutual_fund_transactions` (legacy, read-only, mirrored into the ledger by a trigger).
+Read through `src/lib/mf/useMfPortfolio.js`; every figure comes from `src/lib/mf/engine.js`
+(FIFO, exact decimals via decimal.js — never JS floats for money).
+
+- Statements: upload → `mf-statements` bucket → Edge Function `mf-import` → per-AMC parser
+  (`supabase/functions/_shared/mf/parsers/`) → staging → duplicate check (SQL) → auto-approve
+  clean, reconciled fund sections. Add an AMC by adding a parser + fixture test, not an LLM.
+- Writes only via RPCs (`mf_approve_staged`, `mf_edit_staged`, `mf_reverse_entry`,
+  `mf_record_manual_entry` …). Corrections are reversals; nothing is updated or deleted.
+- CGT shown as charged/refunded is what statements report. The 15% figure is an estimate on
+  unrealized gains and must stay labelled as one.
+- Redeploy the function from disk: `npm run deploy:edge` (needs `supabase login`).
+- AMC logos: `node scripts/build-amc-logos.mjs <dir>` → `public/amc-logos/<code>.webp`.
+
 ## Before pushing
 
 ```
 npm run verify        # lint + unit tests + build
 npm run test:contract # 24 checks against the live market API
+npm run test:private  # real statements (gitignored, local only)
+npm run test:integration # live, as the QA account
 ```

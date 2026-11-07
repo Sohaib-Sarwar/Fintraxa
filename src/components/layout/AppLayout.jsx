@@ -6,7 +6,7 @@ import {
 } from '@mui/material';
 import {
   Home, LayoutDashboard, CandlestickChart, PieChart, Plus,
-  ReceiptText, TrendingUp, Compass, Wallet, FlaskConical, Wrench,
+  ReceiptText, TrendingUp, Compass, Wallet, FlaskConical, Wrench, FileUp,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
@@ -60,6 +60,8 @@ const sections = [
       { label: 'Portfolio', path: '/funds', icon: pageIcon(PieChart) },
       { label: 'Add Fund', path: '/funds/add', icon: pageIcon(Plus) },
       { label: 'Analytics', path: '/funds/analytics', icon: pageIcon(TrendingUp) },
+      { label: 'Transactions', path: '/funds/transactions', icon: pageIcon(ReceiptText) },
+      { label: 'Imports', path: '/funds/imports', icon: pageIcon(FileUp) },
     ],
   },
   {

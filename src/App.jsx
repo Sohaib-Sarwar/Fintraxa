@@ -21,6 +21,7 @@ const Transactions = lazy(() => import('./features/income-expense/Transactions')
    mobile carousel stay in step — see MFSection / PSXSection. The wrappers lazy
    load the leaves themselves, so the chunking is unchanged. */
 const MFSection = lazy(() => import('./features/mutual-funds/MFSection'));
+const MFImportReview = lazy(() => import('./features/mutual-funds/ImportReview'));
 const PSXSection = lazy(() => import('./features/psx-stocks/PSXSection'));
 
 const Loader = () => <InfiniteSpinner size={80} minHeight="50vh" />;
@@ -82,6 +83,9 @@ export default function App() {
           <Route path="funds" element={page(MFSection)} />
           <Route path="funds/add" element={page(MFSection)} />
           <Route path="funds/analytics" element={page(MFSection)} />
+          <Route path="funds/transactions" element={page(MFSection)} />
+          <Route path="funds/imports" element={page(MFSection)} />
+          <Route path="funds/imports/:id" element={page(MFImportReview)} />
           {/* PSX Stocks — same */}
           <Route path="stocks" element={page(PSXSection)} />
           <Route path="stocks/shares" element={page(PSXSection)} />

@@ -7,11 +7,8 @@ import {
   TrendingUpRounded, TrendingDownRounded,
 } from '@mui/icons-material';
 import { PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip } from 'recharts';
-import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { supabase } from '../../lib/supabase';
-import { mufapFundsQuery, fundPriceMap } from '../../lib/marketQueries';
-import { useAuthStore } from '../../store/authStore';
+import { useMfPortfolio, toLegacyRows } from '../../lib/mf/useMfPortfolio';
 import { formatCurrency, formatPercent, shortFundName } from '../../lib/formatters';
 import { subMonths, format } from 'date-fns';
 import { pieSector, makeOuterLabel, DonutCenter } from '../../components/charts';
@@ -44,58 +41,33 @@ function GrowthTooltip({ active, payload, label }) {
 const renderOuterLabel = makeOuterLabel((p) => p.shortName || p.name);
 
 export default function MFAnalytics() {
-  const user = useAuthStore((s) => s.user);
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
   const isMobile = useMediaQuery('(max-width:768px)');
   const [activeIdx, setActiveIdx] = useState(-1);
   const [catActiveIdx, setCatActiveIdx] = useState(-1);
 
-  /* Transactions */
-  const { data: transactions = [], isLoading } = useQuery({
-    queryKey: ['mf-transactions', user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('mutual_fund_transactions').select('*')
-        .eq('user_id', user.id).order('date', { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!user,
-  });
-
-  /* API prices */
-  const { data: apiFundsData } = useQuery(mufapFundsQuery());
+  /* Holdings come from the shared FIFO engine, so Analytics and the
+     Portfolio page can never disagree. Chart values are converted to
+     numbers only at the point of drawing. */
+  const { portfolio, ledger, isLoading } = useMfPortfolio();
+  const transactions = useMemo(() => toLegacyRows(ledger), [ledger]);
 
   const { allocationData, gainLossData, categoryData, totals } = useMemo(() => {
-    const priceMap = fundPriceMap(apiFundsData);
-
-    const fundMap = {};
-    transactions.forEach((t) => {
-      if (!fundMap[t.fund_id]) fundMap[t.fund_id] = { fundId: t.fund_id, fundName: t.fund_name, fundCategory: t.fund_category, totalUnits: 0, totalInvested: 0, latestNav: t.nav };
-      const f = fundMap[t.fund_id];
-      if (t.type === 'buy') { f.totalUnits += Number(t.units); f.totalInvested += Number(t.investment_amount); }
-      else {
-        const units = Number(t.units);
-        const costBasis = f.totalUnits > 0 ? (f.totalInvested / f.totalUnits) * units : 0;
-        f.totalUnits -= units; f.totalInvested -= costBasis;
-      }
-    });
-
-    const holdings = Object.values(fundMap).filter((f) => f.totalUnits > 0);
-    let totalInvested = 0, totalCurrentValue = 0;
-    holdings.forEach((f) => {
-      const rp = priceMap[f.fundName] || f.latestNav;
-      totalInvested += f.totalInvested;
-      totalCurrentValue += f.totalUnits * rp;
-    });
+    const n = (d) => (d === null || d === undefined ? 0 : Number(d.toString()));
+    const holdings = (portfolio?.positions ?? []).filter((p) => p.isOpen).map((p) => ({
+      fundName: p.fundName ?? 'Fund',
+      fundCategory: p.category,
+      currentValue: n(p.marketValue),
+      cost: n(p.costOpen),
+    }));
+    const totalInvested = holdings.reduce((s, f) => s + f.cost, 0);
+    const totalCurrentValue = holdings.reduce((s, f) => s + f.currentValue, 0);
 
     /* Fund allocation — assign green gradient for profit, red for loss */
     const allocationRaw = holdings.map((f) => {
-      const rp = priceMap[f.fundName] || f.latestNav;
-      const currentValue = f.totalUnits * rp;
-      const gl = currentValue - f.totalInvested;
-      return { name: f.fundName, shortName: shortFundName(f.fundName), value: Math.round(currentValue), gainLoss: gl };
+      const gl = f.currentValue - f.cost;
+      return { name: f.fundName, shortName: shortFundName(f.fundName), value: Math.round(f.currentValue), gainLoss: gl };
     }).sort((a, b) => b.value - a.value);
 
     let profitIdx = 0, lossIdx = 0;
@@ -108,10 +80,8 @@ export default function MFAnalytics() {
 
     /* Gain/Loss bar */
     const gainLossData = holdings.map((f) => {
-      const rp = priceMap[f.fundName] || f.latestNav;
-      const currentValue = f.totalUnits * rp;
-      const gl = currentValue - f.totalInvested;
-      const pct = f.totalInvested > 0 ? (gl / f.totalInvested) * 100 : 0;
+      const gl = f.currentValue - f.cost;
+      const pct = f.cost > 0 ? (gl / f.cost) * 100 : 0;
       return {
         name: shortFundName(f.fundName),
         fullName: f.fundName,
@@ -125,9 +95,8 @@ export default function MFAnalytics() {
     const catMap = {};
     holdings.forEach((f) => {
       const cat = f.fundCategory || 'Other';
-      const rp = priceMap[f.fundName] || f.latestNav;
-      const val = Math.round(f.totalUnits * rp);
-      const gl = val - f.totalInvested;
+      const val = Math.round(f.currentValue);
+      const gl = val - f.cost;
       if (!catMap[cat]) catMap[cat] = { name: cat, value: 0, gainLoss: 0 };
       catMap[cat].value += val;
       catMap[cat].gainLoss += gl;
@@ -149,7 +118,7 @@ export default function MFAnalytics() {
         gainPct: totalInvested > 0 ? ((totalCurrentValue - totalInvested) / totalInvested) * 100 : 0,
       },
     };
-  }, [transactions, apiFundsData]);
+  }, [portfolio]);
 
   /* ── Monthly growth data (last 6 months) ── */
   const growthData = useMemo(() => {

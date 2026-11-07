@@ -39,3 +39,6 @@ Stock Analyzer/
 .github/
 # Vercel
 .vercel/
+
+# Real statements and figures never enter git
+tests/private/
