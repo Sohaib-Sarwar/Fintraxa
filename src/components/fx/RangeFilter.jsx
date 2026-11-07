@@ -110,14 +110,15 @@ function Picker({ value, onApply, onClose, mobile }) {
               borderRadius: `${rowStart && !isS ? 999 : 0}px ${rowEnd && !isE ? 999 : 0}px ${rowEnd && !isE ? 999 : 0}px ${rowStart && !isS ? 999 : 0}px`,
               display: isS && isE ? 'none' : 'block',
             } : {},
-            '& > span': {
+            // Target the number by class: ButtonBase adds its own ripple <span> as a child.
+            '& > .day': {
               position: 'relative', zIndex: 1, width: 32, height: 32, display: 'grid', placeItems: 'center', borderRadius: '50%',
               bgcolor: isS || isE ? t.inv : 'transparent', color: isS || isE ? t.invInk : undefined, fontWeight: isS || isE ? 700 : 500,
               boxShadow: iso === today && !(isS || isE) ? `inset 0 0 0 1.5px ${t.net}` : 'none', transition: 'background-color .15s',
             },
-            '&:hover > span': isS || isE ? {} : { bgcolor: t.hover },
+            '&:hover > .day': isS || isE ? {} : { bgcolor: t.hover },
           }}>
-          <span>{d}</span>
+          <span className="day">{d}</span>
         </ButtonBase>,
       );
     }

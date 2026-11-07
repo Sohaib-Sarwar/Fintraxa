@@ -47,3 +47,13 @@ export function useFx() {
 
 /** Text colour for a signed amount. */
 export const signColor = (t, v) => (v > 0 ? t.pos : v < 0 ? t.neg : t.ink2);
+
+/**
+ * Earnings chart colours (after the "line chart UI" reference): violet for
+ * gross, cyan for net, a muted blue-grey axis and a navy hover card. Dark mode
+ * lifts both lines so they keep contrast on near-black. Red stays reserved
+ * for a loss.
+ */
+export const earningsColors = (mode) => (mode === 'dark'
+  ? { gross: '#9c8cff', net: '#5fdcef', axis: '#7d8699', tip: '#1a2140', grossOnTip: '#b7acff', loss: '#ff7a70' }
+  : { gross: '#4f3fa6', net: '#3fc8de', axis: '#8a98b2', tip: '#0d1530', grossOnTip: '#b7acff', loss: '#c4302b' });

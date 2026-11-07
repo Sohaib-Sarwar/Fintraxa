@@ -4,7 +4,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { analyzeFunds } from '../../src/lib/mf/profit.js';
+import { analyzeFunds, groupByFiscalYear } from '../../src/lib/mf/profit.js';
 
 let n = 0;
 const E = (o) => ({ id: `e${++n}`, account_id: 'A', fund_id: o.fund ?? 'F', unit_class: '', seq: n, created_at: String(n).padStart(6, '0'), cash_direction: 'none', ...o });
@@ -128,4 +128,46 @@ test('cash dividends are realized income and money received', () => {
   const a = analyzeFunds({ entries: [b, d], prices: [P(10, '2026-10-31')], ...FY });
   assert.equal(a.totals.realized.gross, 50);
   assert.equal(a.totals.withdrawals, 50);
+});
+
+test('fiscal-year view: June belongs to the year that started the July before; sums are exact', () => {
+  const y = groupByFiscalYear([
+    { month: '2026-02', gross: 22.65, cgt: 3, net: 19.65 },
+    { month: '2026-06', gross: 0.1, cgt: 0, net: 0.1 },
+    { month: '2026-07', gross: 0.2, cgt: 0, net: 0.2 },
+    { month: '2027-06', gross: 0.1, cgt: 0.05, net: 0.05 },
+  ]);
+  assert.deepEqual(y.map((r) => [r.title, r.gross, r.cgt, r.net]), [
+    ['FY 2025-26', 22.75, 3, 19.75],
+    ['FY 2026-27', 0.3, 0.05, 0.25],
+  ]);
+  assert.equal(y[1].tick, 'FY 26-27');
+});
+
+test('month-end closing value vs invested uses the NAV known at each month end', () => {
+  const b = buy('2026-07-01', 100, 10);
+  const s1 = sell('2026-09-10', 50, 11, 550, 550);
+  const a = analyzeFunds({ entries: [b, s1], prices: [P(10.5, '2026-07-31'), P(11.2, '2026-08-31')], start: '2026-07-01', end: '2027-06-30', today: '2026-10-15' });
+  assert.deepEqual(a.series.map((x) => [x.month, x.invested, x.value]), [
+    ['2026-07', 1000, 1050],   // 100 × 10.50
+    ['2026-08', 1000, 1120],   // 100 × 11.20
+    ['2026-09', 500, 550],     // 50 left × 11 (the NAV on the 10 Sep sale is the latest known)
+    ['2026-10', 500, 550],     // nothing newer by 15 Oct
+  ]);
+});
+
+test('active in range: a fund bought before the range and still held is shown and counted; one fully redeemed before it is not', () => {
+  const held = [buy('2026-02-01', 100, 10, 'Held')];                                            // bought last FY, never sold
+  const gone = [buy('2026-01-01', 10, 100, 'Gone'), sell('2026-03-01', 10, 110, 1100, 1100, 'Gone')]; // closed last FY
+  const later = [buy('2026-08-01', 50, 10)];                                                      // bought inside the range
+  const prices = [P(11, '2026-10-31', 'Held'), P(11, '2026-10-31')];
+  const a = analyzeFunds({ entries: [...held, ...gone, ...later], prices, ...FY });
+  assert.deepEqual(a.positions.map((p) => p.fundId).sort(), ['F', 'Held']);
+  assert.equal(a.totals.invested, 1500, '1,000 Held + 500 F');
+  assert.equal(a.totals.value, 1650, '100 × 11 + 50 × 11');
+  assert.deepEqual(a.series.map((x) => x.invested), [1000, 1500, 1500, 1500], 'Jul holds only Held; F joins in Aug');
+  assert.equal(a.allPositions.length, 3);
+  // A range that ends before the first purchase shows nothing of it.
+  const early = analyzeFunds({ entries: held, prices, start: '2025-07-01', end: '2025-12-31', today: '2026-10-31' });
+  assert.equal(early.positions.length, 0);
 });

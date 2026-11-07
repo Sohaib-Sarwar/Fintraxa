@@ -1,516 +1,123 @@
-import { useState, useRef, useMemo } from 'react';
-import {
-  Box, Card, CardContent, Typography, TextField, IconButton, Grid, Chip,
-  Dialog, DialogTitle, DialogContent, DialogActions, Button, MenuItem,
-  Select, FormControl, InputLabel, InputAdornment, Skeleton, useMediaQuery, useTheme,
-} from '@mui/material';
-import {
-  Search, Edit, Delete, FilterList, Download,
-  Close, ReceiptLong, DeleteOutline, EditOutlined,
-} from '@mui/icons-material';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useSwipeable } from 'react-swipeable';
-import { motion, AnimatePresence } from 'framer-motion';
-import { supabase } from '../../lib/supabase';
-import { dbErrorHandler, validatePositiveNumber } from '../../lib/dbErrors';
-import { useAuthStore } from '../../store/authStore';
-import { useAppStore } from '../../store/appStore';
-import { formatCurrency, formatDate } from '../../lib/formatters';
-import FintraxaLogo from '../../components/FintraxaLogo';
-import CategoryIcon from '../../lib/categoryIcons';
+import { useMemo, useState } from 'react';
+import { Box, Typography, InputBase, Skeleton, ButtonBase, useMediaQuery } from '@mui/material';
+import { SearchRounded, CloseRounded, EditRounded } from '@mui/icons-material';
+import { formatCurrency } from '../../lib/formatters';
+import { useFinanceTransactions } from '../../lib/finance/useFinance';
+import { useDateRange, inRange, rangeLabel } from '../../lib/dateRange';
+import { useFx, PageHeader, Seg, PillSelect, FitPage, FONT_NUM } from '../../components/fx';
+import CategoryBadge from './CategoryBadge';
+import TransactionEditor from './TransactionEditor';
 
-const INCOME_COLOR = '#059669';
-const EXPENSE_COLOR = '#dc2626';
+const fmtDate = (d) => (d ? new Date(`${d}T00:00:00`).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
 
-/*  TransactionRow with swipe gestures  */
-function TransactionRow({ txn, onEdit, onDelete, onView, isMobile, isDark }) {
-  const [offset, setOffset] = useState(0);
-  const [swiping, setSwiping] = useState(false);
+/** Every income and expense in the selected range: filter, review, correct. */
+export default function Transactions() {
+  const t = useFx();
+  const isMobile = useMediaQuery('(max-width:900px)');
+  const { range } = useDateRange();
+  const { data: txns = [], isLoading } = useFinanceTransactions();
+  const [type, setType] = useState('all');
+  const [catPick, setCat] = useState('all');
+  const [q, setQ] = useState('');
+  const [editing, setEditing] = useState(null);
 
-  const handlers = useSwipeable({
-    onSwiping: (e) => {
-      if (!isMobile) return;
-      setSwiping(true);
-      const clamp = Math.max(-80, Math.min(80, e.deltaX));
-      setOffset(clamp);
-    },
-    onSwipedLeft: () => {
-      if (!isMobile) return;
-      if (offset < -40) onEdit(txn);
-      setOffset(0);
-      setTimeout(() => setSwiping(false), 300);
-    },
-    onSwipedRight: () => {
-      if (!isMobile) return;
-      if (offset > 40) onDelete(txn.id);
-      setOffset(0);
-      setTimeout(() => setSwiping(false), 300);
-    },
-    onTouchEndOrOnMouseUp: () => { setOffset(0); setTimeout(() => setSwiping(false), 300); },
-    preventScrollOnSwipe: true,
-    trackMouse: false,
-  });
+  const inPeriod = useMemo(() => txns.filter((x) => inRange(x.date, range)), [txns, range]);
+  const cats = useMemo(() => {
+    const m = new Map();
+    for (const x of inPeriod) if (x.categories?.name && !m.has(x.categories.name)) m.set(x.categories.name, x.categories.icon);
+    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([name, icon]) => ({ value: name, label: name, icon: <CategoryBadge icon={icon} name={name} size={20} /> }));
+  }, [inPeriod]);
+  // A category no longer in the range falls back to "all" instead of showing nothing.
+  const cat = cats.some((c) => c.value === catPick) ? catPick : 'all';
 
-  const isCredit = txn.type === 'credit';
-  const color = isCredit ? INCOME_COLOR : EXPENSE_COLOR;
+  const rows = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return inPeriod
+      .filter((x) => type === 'all' || x.type === type)
+      .filter((x) => cat === 'all' || x.categories?.name === cat)
+      .filter((x) => !needle || `${x.categories?.name ?? ''} ${x.notes ?? ''} ${x.amount}`.toLowerCase().includes(needle));
+  }, [inPeriod, type, cat, q]);
 
-  /* Swipe progress 0→1 for each direction */
-  const deleteProgress = Math.min(Math.max(offset / 80, 0), 1);
-  const editProgress = Math.min(Math.max(-offset / 80, 0), 1);
+  const sums = rows.reduce((s, x) => { if (x.type === 'credit') s.in += Number(x.amount); else s.out += Number(x.amount); return s; }, { in: 0, out: 0 });
+  const filtered = type !== 'all' || cat !== 'all' || q;
 
   return (
-    <Box sx={{ position: 'relative', mb: 0.75, overflow: 'hidden', borderRadius: 3 }}>
-      {/* Swipe backgrounds (mobile) */}
-      {isMobile && (
-        <>
-          {/* Delete - right swipe - red */}
-          <Box sx={{
-            position: 'absolute', inset: 0, display: 'flex', alignItems: 'center',
-            justifyContent: 'flex-start', px: 2.5,
-            bgcolor: `rgba(220,38,38,${0.08 + deleteProgress * 0.92})`,
-            borderRadius: 3,
-          }}>
-            <DeleteOutline sx={{
-              color: '#dc2626',
-              fontSize: 22,
-              opacity: 0.4 + deleteProgress * 0.6,
-              transform: `scale(${0.8 + deleteProgress * 0.2})`,
-              transition: swiping ? 'none' : 'all 0.3s ease',
-            }} />
-          </Box>
-          {/* Edit - left swipe - green */}
-          <Box sx={{
-            position: 'absolute', inset: 0, display: 'flex', alignItems: 'center',
-            justifyContent: 'flex-end', px: 2.5,
-            bgcolor: `rgba(5,150,105,${0.06 + editProgress * 0.14})`,
-            borderRadius: 3,
-          }}>
-            <EditOutlined sx={{
-              color: '#059669',
-              fontSize: 20,
-              opacity: 0.4 + editProgress * 0.6,
-              transform: `scale(${0.8 + editProgress * 0.2})`,
-              transition: swiping ? 'none' : 'all 0.3s ease',
-            }} />
-          </Box>
-        </>
-      )}
+    <FitPage>
+      <PageHeader title="Transactions" />
 
-      {/* Card */}
-      <Card {...handlers} onClick={() => isMobile && onView(txn)}
-        sx={{
-          transform: `translateX(${offset}px)`,
-          transition: offset === 0 ? 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)' : 'none',
-          cursor: isMobile ? 'pointer' : 'default',
-          boxShadow: 'none',
-        }}>
-        <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 }, display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          {/* Category Icon */}
-          <Box sx={{
-            width: 38, height: 38, borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            bgcolor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
-            flexShrink: 0,
-          }}>
-            <CategoryIcon name={txn.categories?.icon} categoryName={txn.categories?.name} sx={{ fontSize: 18, color: isDark ? '#e5e5e5' : '#333', opacity: 0.85 }} />
+      <Box sx={{ display: 'flex', gap: 0.75, mb: 1.25, flexWrap: 'wrap', alignItems: 'center', flexShrink: 0 }}>
+        <Seg size="sm" label="Type" value={type} onChange={setType} options={[{ value: 'all', label: 'All' }, { value: 'credit', label: 'Income' }, { value: 'debit', label: 'Expense' }]} />
+        <PillSelect value={cat} onChange={setCat} label="Category" width={isMobile ? 160 : 200} items={[{ value: 'all', label: 'All categories' }, ...cats]} />
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, height: 34, px: 1.25, borderRadius: 999, border: `1px solid ${t.border}`, bgcolor: t.surface, flex: isMobile ? '1 1 160px' : '0 1 220px' }}>
+          <SearchRounded sx={{ fontSize: 16, color: t.muted }} />
+          <InputBase value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" inputProps={{ 'aria-label': 'Search transactions' }} sx={{ fontSize: '0.76rem', flex: 1 }} />
+        </Box>
+        {filtered && (
+          <ButtonBase onClick={() => { setType('all'); setCat('all'); setQ(''); }} sx={{ height: 34, px: 1.25, borderRadius: 999, fontSize: '0.74rem', fontWeight: 600, color: t.muted, gap: 0.5, fontFamily: 'inherit' }}>
+            <CloseRounded sx={{ fontSize: 15 }} />Clear
+          </ButtonBase>
+        )}
+      </Box>
+
+      <Box sx={{ bgcolor: t.surface, border: `1px solid ${t.border}`, borderRadius: '20px', boxShadow: t.shadow, display: 'flex', flexDirection: 'column', minHeight: 0, flex: isMobile ? 'none' : '1 1 0', height: isMobile ? '68dvh' : 'auto', overflow: 'hidden' }}>
+        <Box sx={{ display: 'flex', gap: 2.5, flexWrap: 'wrap', px: 2.25, pt: 1.5, pb: 1, fontSize: '0.74rem', color: t.muted, flexShrink: 0 }}>
+          <span><b style={{ color: t.ink }}>{rows.length}</b> in {rangeLabel(range)}</span>
+          <span>Income <Box component="b" sx={{ color: t.pos, fontFamily: FONT_NUM }}>{formatCurrency(sums.in)}</Box></span>
+          <span>Expense <Box component="b" sx={{ color: t.ink, fontFamily: FONT_NUM }}>{formatCurrency(sums.out)}</Box></span>
+          <span>Net <Box component="b" sx={{ color: sums.in - sums.out < 0 ? t.neg : t.ink, fontFamily: FONT_NUM }}>{formatCurrency(sums.in - sums.out)}</Box></span>
+        </Box>
+        {!isMobile && (
+          <Box sx={{ display: 'grid', gridTemplateColumns: COLS, columnGap: 2, px: 2.25, pb: 0.9, borderBottom: `1px solid ${t.hairline}`, flexShrink: 0 }}>
+            {['Date', 'Category', 'Note', 'Amount', ''].map((h, i) => (
+              <Typography key={h || i} sx={{ fontSize: '0.68rem', fontWeight: 600, color: t.muted, textAlign: i === 3 ? 'right' : 'left' }}>{h}</Typography>
+            ))}
           </Box>
-          <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, lineHeight: 1.2 }} noWrap>
-              {txn.categories?.name || 'Uncategorized'}
-            </Typography>
-            <Typography sx={{ fontSize: '0.62rem', color: 'text.secondary', mt: 0.15 }} noWrap>
-              {formatDate(txn.date)}{txn.notes ? ' \u00b7 ' + txn.notes : ''}
-            </Typography>
-          </Box>
-          <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
-            <Typography sx={{
-              fontSize: '0.85rem', fontWeight: 700, fontFeatureSettings: '"tnum"', color,
-            }} className="currency">
-              {isCredit ? '+' : '-'}{formatCurrency(txn.amount)}
-            </Typography>
-          </Box>
-          {/* Desktop action icons */}
-          {!isMobile && (
-            <Box sx={{ display: 'flex', gap: 0.25, ml: 0.5 }}>
-              <IconButton size="small" onClick={(e) => { e.stopPropagation(); onView(txn); }}
-                sx={{ color: 'text.secondary', '&:hover': { color: 'text.primary' } }}>
-                <ReceiptLong sx={{ fontSize: 16 }} />
-              </IconButton>
-              <IconButton size="small" onClick={(e) => { e.stopPropagation(); onEdit(txn); }}
-                sx={{ color: 'text.secondary', '&:hover': { color: '#059669' } }}>
-                <Edit sx={{ fontSize: 16 }} />
-              </IconButton>
-              <IconButton size="small" onClick={(e) => { e.stopPropagation(); onDelete(txn.id); }}
-                sx={{ color: 'text.secondary', '&:hover': { color: 'error.main' } }}>
-                <Delete sx={{ fontSize: 16 }} />
-              </IconButton>
-            </Box>
-          )}
-        </CardContent>
-      </Card>
-    </Box>
+        )}
+        <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', px: { xs: 1, md: 1.25 }, py: 0.5, scrollbarWidth: 'thin', scrollbarColor: `${t.border} transparent` }}>
+          {isLoading ? Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} height={50} sx={{ mx: 1 }} />)
+            : rows.length === 0 ? <Typography sx={{ textAlign: 'center', color: t.muted, fontSize: '0.82rem', py: 6 }}>Nothing in {rangeLabel(range)}.</Typography>
+              : rows.map((x) => <Row key={x.id} x={x} mobile={isMobile} onOpen={() => setEditing(x)} />)}
+        </Box>
+      </Box>
+
+      {editing && <TransactionEditor txn={editing} onClose={() => setEditing(null)} />}
+    </FitPage>
   );
 }
 
-export default function Transactions() {
-  const user = useAuthStore((s) => s.user);
-  const showSnackbar = useAppStore((s) => s.showSnackbar);
-  const showConfirm = useAppStore((s) => s.showConfirm);
-  const queryClient = useQueryClient();
-  const isMobile = useMediaQuery('(max-width:768px)');
-  const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
-  const slipRef = useRef(null);
+const COLS = '100px minmax(0, 1.4fr) minmax(0, 2fr) 140px 24px';
 
-  const [search, setSearch] = useState('');
-  const [filterType, setFilterType] = useState('all');
-  const [filterCategory, setFilterCategory] = useState('all');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [showFilters, setShowFilters] = useState(false);
-
-  const [editTxn, setEditTxn] = useState(null);
-  const [editAmount, setEditAmount] = useState('');
-  const [editNotes, setEditNotes] = useState('');
-  const [viewTxn, setViewTxn] = useState(null);
-
-  const { data: transactions = [], isLoading } = useQuery({
-    queryKey: ['ie-all-transactions', user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('income_expense_transactions')
-        .select('*, categories(name, icon)')
-        .eq('user_id', user.id)
-        .order('date', { ascending: false })
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!user,
-  });
-
-  /* Build category list with icon info for filter dropdown */
-  const categoryList = useMemo(() => {
-    const map = new Map();
-    transactions.forEach((t) => {
-      if (t.categories?.name && !map.has(t.categories.name)) {
-        map.set(t.categories.name, { name: t.categories.name, icon: t.categories.icon });
-      }
-    });
-    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
-  }, [transactions]);
-
-  /* Memoised: this re-filtered the entire history on every render, and the
-     search box re-renders on each keystroke while the swipe handler below
-     re-renders on each touch-move frame. */
-  const filtered = useMemo(() => transactions.filter((t) => {
-    const q = search.toLowerCase();
-    const matchText = !q || t.categories?.name?.toLowerCase().includes(q)
-      || t.notes?.toLowerCase().includes(q) || String(t.amount).includes(q);
-    const matchType = filterType === 'all' || t.type === filterType;
-    const matchCategory = filterCategory === 'all' || t.categories?.name === filterCategory;
-    const matchDate = (!dateFrom || t.date >= dateFrom) && (!dateTo || t.date <= dateTo);
-    return matchText && matchType && matchCategory && matchDate;
-  }), [transactions, search, filterType, filterCategory, dateFrom, dateTo]);
-
-  const activeFilterCount = [filterType !== 'all', filterCategory !== 'all', !!dateFrom, !!dateTo].filter(Boolean).length;
-
-  const deleteMutation = useMutation({
-    mutationFn: async (id) => {
-      const { error } = await supabase.from('income_expense_transactions').delete().eq('id', id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['ie-all-transactions'] });
-      queryClient.invalidateQueries({ queryKey: ['ie-transactions'] });
-      queryClient.invalidateQueries({ queryKey: ['ie-free-cash'] });
-      queryClient.invalidateQueries({ queryKey: ['mf-free-cash'] });
-      queryClient.invalidateQueries({ queryKey: ['stock-free-cash'] });
-      queryClient.invalidateQueries({ queryKey: ['home-ie-txns'] });
-      queryClient.invalidateQueries({ queryKey: ['home-ie-txns-all'] });
-      showSnackbar('Deleted', 'success');
-    },
-    onError: dbErrorHandler(showSnackbar, 'Could not delete'),
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: async ({ id, amount, notes }) => {
-      // Guard before the round-trip: `amount` has a CHECK (> 0), and an empty
-      // field parses to NaN, which PostgREST sends as null and the NOT NULL
-      // constraint then rejects. Both used to fail invisibly.
-      const invalid = validatePositiveNumber(amount, 'Amount');
-      if (invalid) throw new Error(invalid);
-      const { error } = await supabase.from('income_expense_transactions')
-        .update({ amount: Number(amount), notes: notes?.trim() || null }).eq('id', id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['ie-all-transactions'] });
-      queryClient.invalidateQueries({ queryKey: ['ie-transactions'] });
-      queryClient.invalidateQueries({ queryKey: ['ie-free-cash'] });
-      queryClient.invalidateQueries({ queryKey: ['mf-free-cash'] });
-      queryClient.invalidateQueries({ queryKey: ['stock-free-cash'] });
-      queryClient.invalidateQueries({ queryKey: ['home-ie-txns'] });
-      queryClient.invalidateQueries({ queryKey: ['home-ie-txns-all'] });
-      setEditTxn(null);
-      showSnackbar('Updated', 'success');
-    },
-    onError: dbErrorHandler(showSnackbar, 'Could not save'),
-  });
-
-  const handleDelete = (id) =>
-    showConfirm('Delete Transaction', 'This action cannot be undone. Are you sure?', () => deleteMutation.mutate(id));
-  const handleEdit = (txn) => { setEditTxn(txn); setEditAmount(String(txn.amount)); setEditNotes(txn.notes || ''); };
-
-  const downloadSlip = async () => {
-    if (!slipRef.current) return;
-    try {
-      // html2canvas is 201 kB and is only ever needed when someone taps
-      // Download. Imported statically it was pulled in with this route for
-      // every visit; loaded here it costs nothing until the button is used.
-      const { default: html2canvas } = await import('html2canvas');
-      const canvas = await html2canvas(slipRef.current, { scale: 2, backgroundColor: isDark ? '#1a1a1a' : '#ffffff' });
-      const link = document.createElement('a');
-      link.download = 'transaction-' + (viewTxn?.id?.slice(0, 8) || 'receipt') + '.png';
-      link.href = canvas.toDataURL();
-      link.click();
-      showSnackbar('Receipt downloaded', 'success');
-    } catch (err) {
-      console.error('[Fintraxa] receipt download failed', err);
-      showSnackbar('Download failed', 'error');
-    }
-  };
-
-  const clearFilters = () => {
-    setFilterType('all');
-    setFilterCategory('all');
-    setDateFrom('');
-    setDateTo('');
-  };
-
+function Row({ x, mobile, onOpen }) {
+  const t = useFx();
+  const income = x.type === 'credit';
+  const amount = <Typography data-numeric noWrap sx={{ fontFamily: FONT_NUM, fontSize: '0.84rem', fontWeight: 650, letterSpacing: '-0.02em', textAlign: 'right', color: income ? t.pos : t.ink }}>{income ? '+' : '−'}{formatCurrency(Number(x.amount))}</Typography>;
+  if (mobile) {
+    return (
+      <ButtonBase onClick={onOpen} sx={{ display: 'flex', width: '100%', alignItems: 'center', gap: 1.25, py: 1, px: 0.75, borderBottom: `1px solid ${t.hairline}`, textAlign: 'left', fontFamily: 'inherit' }}>
+        <CategoryBadge icon={x.categories?.icon} name={x.categories?.name} size={34} />
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Typography noWrap sx={{ fontSize: '0.84rem', fontWeight: 650 }}>{x.categories?.name ?? 'Uncategorized'}</Typography>
+          <Typography noWrap sx={{ fontSize: '0.68rem', color: t.muted }}>{fmtDate(x.date)}{x.notes ? `, ${x.notes}` : ''}</Typography>
+        </Box>
+        {amount}
+      </ButtonBase>
+    );
+  }
   return (
-    <Box>
-      <Typography variant="h5" fontWeight={700} sx={{ mb: 2, letterSpacing: '-0.01em' }}>
-        Transactions
-      </Typography>
-
-      {/* Search + Filter Toggle */}
-      <Box sx={{ display: 'flex', gap: 1, mb: 1.5 }}>
-        <TextField fullWidth size="small" placeholder="Search by category, notes, amount..."
-          value={search} onChange={(e) => setSearch(e.target.value)}
-          InputProps={{
-            startAdornment: <InputAdornment position="start"><Search sx={{ fontSize: 18, color: 'text.secondary' }} /></InputAdornment>,
-          }}
-        />
-        <IconButton onClick={() => setShowFilters(!showFilters)}
-          sx={{
-            border: 1, borderColor: showFilters ? (isDark ? '#fff' : '#111') : 'divider',
-            borderRadius: 2.5, width: 40, height: 40,
-            bgcolor: showFilters ? (isDark ? '#fff' : '#111') : 'transparent',
-            color: showFilters ? (isDark ? '#000' : '#fff') : 'text.secondary',
-            '&:hover': { bgcolor: showFilters ? (isDark ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.85)') : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)') },
-            position: 'relative',
-          }}>
-          <FilterList sx={{ fontSize: 18 }} />
-          {activeFilterCount > 0 && !showFilters && (
-            <Box sx={{
-              position: 'absolute', top: -4, right: -4, width: 16, height: 16,
-              borderRadius: '50%', bgcolor: isDark ? '#fff' : '#111', color: isDark ? '#000' : '#fff',
-              fontSize: '0.55rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              {activeFilterCount}
-            </Box>
-          )}
-        </IconButton>
+    <ButtonBase component="div" onClick={onOpen} aria-label={`${x.categories?.name ?? 'Transaction'} on ${x.date}: edit`} sx={{
+      display: 'grid', gridTemplateColumns: COLS, columnGap: 2, alignItems: 'center', width: '100%', px: 1, py: 0.9,
+      borderBottom: `1px solid ${t.hairline}`, borderRadius: '10px', textAlign: 'left', fontFamily: 'inherit',
+      '@media (hover: hover)': { '&:hover': { bgcolor: t.surface2 }, '&:hover .edit': { opacity: 1 } }, '&:focus-visible': { outline: `2px solid ${t.ink}`, outlineOffset: -2 },
+    }}>
+      <Typography sx={{ fontFamily: FONT_NUM, fontSize: '0.78rem', color: t.ink2, letterSpacing: '-0.02em' }}>{fmtDate(x.date)}</Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.1, minWidth: 0 }}>
+        <CategoryBadge icon={x.categories?.icon} name={x.categories?.name} size={28} />
+        <Typography noWrap sx={{ fontSize: '0.8rem', fontWeight: 650 }}>{x.categories?.name ?? 'Uncategorized'}</Typography>
       </Box>
-
-      {/* Filters */}
-      <AnimatePresence>
-        {showFilters && (
-          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.2 }}>
-            <Card sx={{ p: 2, mb: 1.5 }}>
-              <Grid container spacing={1.5}>
-                <Grid size={{ xs: 6, md: 3 }}>
-                  <FormControl fullWidth size="small">
-                    <InputLabel>Type</InputLabel>
-                    <Select value={filterType} label="Type" onChange={(e) => setFilterType(e.target.value)}>
-                      <MenuItem value="all">All</MenuItem>
-                      <MenuItem value="credit">Income</MenuItem>
-                      <MenuItem value="debit">Expense</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Grid>
-                <Grid size={{ xs: 6, md: 3 }}>
-                  <FormControl fullWidth size="small">
-                    <InputLabel>Category</InputLabel>
-                    <Select value={filterCategory} label="Category" onChange={(e) => setFilterCategory(e.target.value)}>
-                      <MenuItem value="all">All Categories</MenuItem>
-                      {categoryList.map((c) => (
-                        <MenuItem key={c.name} value={c.name}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <CategoryIcon name={c.icon} categoryName={c.name} sx={{ fontSize: 15, color: 'text.secondary', opacity: 0.7 }} />
-                            <span>{c.name}</span>
-                          </Box>
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
-                <Grid size={{ xs: 6, md: 3 }}>
-                  <TextField fullWidth size="small" label="From" type="date" value={dateFrom}
-                    onChange={(e) => setDateFrom(e.target.value)} InputLabelProps={{ shrink: true }} />
-                </Grid>
-                <Grid size={{ xs: 6, md: 3 }}>
-                  <TextField fullWidth size="small" label="To" type="date" value={dateTo}
-                    onChange={(e) => setDateTo(e.target.value)} InputLabelProps={{ shrink: true }} />
-                </Grid>
-              </Grid>
-              {activeFilterCount > 0 && (
-                <Box sx={{ mt: 1.5, display: 'flex', justifyContent: 'flex-end' }}>
-                  <Chip label="Clear filters" size="small" onClick={clearFilters}
-                    sx={{ fontSize: '0.65rem', height: 24 }} />
-                </Box>
-              )}
-            </Card>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <Typography sx={{ fontSize: '0.7rem', color: 'text.secondary', mb: 1 }}>
-        {filtered.length} transaction{filtered.length !== 1 ? 's' : ''}
-      </Typography>
-
-      {isLoading ? (
-        Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} variant="rounded" height={60} sx={{ mb: 0.75 }} />)
-      ) : filtered.length === 0 ? (
-        <Card sx={{ p: 4, textAlign: 'center' }}>
-          <Typography sx={{ fontSize: '0.8rem', color: 'text.secondary' }}>No transactions found</Typography>
-        </Card>
-      ) : (
-        filtered.map((txn) => (
-          <TransactionRow key={txn.id} txn={txn} onEdit={handleEdit} onDelete={handleDelete}
-            onView={setViewTxn} isMobile={isMobile} isDark={isDark} />
-        ))
-      )}
-
-      {/*  View / Receipt Dialog  */}
-      <Dialog open={Boolean(viewTxn)} onClose={() => setViewTxn(null)} maxWidth="xs" fullWidth
-        PaperProps={{ sx: { borderRadius: 4 } }}>
-        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 600, fontSize: '0.9rem' }}>
-          Transaction Receipt
-          <IconButton onClick={() => setViewTxn(null)} size="small"><Close sx={{ fontSize: 18 }} /></IconButton>
-        </DialogTitle>
-        <DialogContent>
-          {viewTxn && (
-            <Box ref={slipRef} sx={{
-              p: 3, borderRadius: 3,
-              bgcolor: isDark ? '#1a1a1a' : '#fff',
-              border: '1px solid',
-              borderColor: isDark ? '#2a2a2a' : '#f0f0f0',
-            }}>
-              {/* Header */}
-              <Box sx={{ textAlign: 'center', mb: 2.5, pb: 2, borderBottom: '2px dashed', borderColor: isDark ? '#333' : '#e2e8f0' }}>
-                <FintraxaLogo size={28} sx={{ mx: 'auto', mb: 0.5 }} />
-                <Typography sx={{ fontSize: '0.85rem', fontWeight: 700, color: 'text.primary' }}>Fintraxa</Typography>
-                <Typography sx={{ fontSize: '0.55rem', color: 'text.secondary', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                  Transaction Receipt
-                </Typography>
-              </Box>
-
-              {/* Icon + Amount */}
-              <Box sx={{ textAlign: 'center', mb: 2.5, py: 1 }}>
-                <Box sx={{
-                  width: 44, height: 44, borderRadius: '12px', mx: 'auto', mb: 1.5,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  bgcolor: viewTxn.type === 'credit'
-                    ? (isDark ? 'rgba(5,150,105,0.15)' : 'rgba(5,150,105,0.08)')
-                    : (isDark ? 'rgba(220,38,38,0.15)' : 'rgba(220,38,38,0.08)'),
-                }}>
-                  <CategoryIcon name={viewTxn.categories?.icon} categoryName={viewTxn.categories?.name}
-                    sx={{ fontSize: 22, color: viewTxn.type === 'credit' ? INCOME_COLOR : EXPENSE_COLOR }} />
-                </Box>
-                <Typography sx={{ fontSize: '0.6rem', color: 'text.secondary', mb: 0.5, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                  {viewTxn.type === 'credit' ? 'Income' : 'Expense'}
-                </Typography>
-                <Typography sx={{
-                  fontSize: '1.5rem', fontWeight: 800,
-                  color: viewTxn.type === 'credit' ? INCOME_COLOR : EXPENSE_COLOR,
-                }}>
-                  {viewTxn.type === 'credit' ? '+' : '-'}{formatCurrency(viewTxn.amount)}
-                </Typography>
-              </Box>
-
-              {/* Details rows */}
-              {[
-                ['Category', viewTxn.categories?.name || 'Uncategorized'],
-                ['Date', formatDate(viewTxn.date)],
-                ...(viewTxn.notes ? [['Notes', viewTxn.notes]] : []),
-              ].map(([k, v]) => (
-                <Box key={k} sx={{ display: 'flex', justifyContent: 'space-between', py: 0.75 }}>
-                  <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary' }}>{k}</Typography>
-                  <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: 'text.primary', maxWidth: 200, textAlign: 'right' }}>
-                    {v}
-                  </Typography>
-                </Box>
-              ))}
-
-              {/* Footer */}
-              <Box sx={{ mt: 2, pt: 1.5, borderTop: '2px dashed', borderColor: isDark ? '#333' : '#e2e8f0', textAlign: 'center' }}>
-                <Typography sx={{ fontSize: '0.52rem', color: 'text.secondary', letterSpacing: '0.04em' }}>
-                  ID: {viewTxn.id.slice(0, 8).toUpperCase()}
-                </Typography>
-              </Box>
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2.5 }}>
-          <Button onClick={downloadSlip} variant="outlined" size="small"
-            startIcon={<Download sx={{ fontSize: 16 }} />}
-            sx={{ borderRadius: 2, fontSize: '0.75rem', color: isDark ? '#fff' : '#111', borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)', '&:hover': { borderColor: isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.3)', bgcolor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)' } }}>
-            Download
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/*  Edit Dialog  */}
-      <Dialog open={Boolean(editTxn)} onClose={() => setEditTxn(null)} maxWidth="xs" fullWidth
-        PaperProps={{ sx: { borderRadius: 4 } }}>
-        <DialogTitle sx={{ fontWeight: 600, fontSize: '0.9rem' }}>Edit Transaction</DialogTitle>
-        <DialogContent>
-          {editTxn && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2, mt: 1, p: 1.5, borderRadius: 2, bgcolor: isDark ? 'rgba(255,255,255,0.04)' : '#f8f9fa' }}>
-              <Box sx={{
-                width: 34, height: 34, borderRadius: '10px', display: 'flex',
-                alignItems: 'center', justifyContent: 'center',
-                bgcolor: editTxn.type === 'credit'
-                  ? (isDark ? 'rgba(5,150,105,0.12)' : 'rgba(5,150,105,0.08)')
-                  : (isDark ? 'rgba(220,38,38,0.12)' : 'rgba(220,38,38,0.08)'),
-              }}>
-                <CategoryIcon name={editTxn.categories?.icon} categoryName={editTxn.categories?.name}
-                  sx={{ fontSize: 16, color: editTxn.type === 'credit' ? INCOME_COLOR : EXPENSE_COLOR }} />
-              </Box>
-              <Box>
-                <Typography sx={{ fontSize: '0.78rem', fontWeight: 600 }}>{editTxn.categories?.name || 'Uncategorized'}</Typography>
-                <Typography sx={{ fontSize: '0.62rem', color: 'text.secondary' }}>{formatDate(editTxn.date)}</Typography>
-              </Box>
-            </Box>
-          )}
-          <TextField fullWidth label="Amount" type="number" value={editAmount}
-            onChange={(e) => setEditAmount(e.target.value)} sx={{ mb: 2 }}
-            InputProps={{ startAdornment: <InputAdornment position="start">Rs</InputAdornment> }} />
-          <TextField fullWidth label="Notes" value={editNotes}
-            onChange={(e) => setEditNotes(e.target.value)} multiline rows={2} />
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
-          <Button onClick={() => setEditTxn(null)} color="inherit"
-            sx={{ flex: 1, fontSize: '0.8rem', borderRadius: 2.5, py: 1.1, fontWeight: 600, bgcolor: isDark ? 'rgba(255,255,255,0.06)' : '#f5f5f5' }}>
-            Cancel
-          </Button>
-          <Button variant="contained" sx={{ flex: 1, fontSize: '0.8rem', borderRadius: 2.5, py: 1.1, fontWeight: 600, bgcolor: isDark ? '#fff' : '#111', color: isDark ? '#000' : '#fff', '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.85)' } }} onClick={() =>
-            updateMutation.mutate({ id: editTxn.id, amount: editAmount, notes: editNotes })
-          }>Save Changes</Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
+      <Typography noWrap sx={{ fontSize: '0.76rem', color: t.muted }}>{x.notes || '—'}</Typography>
+      {amount}
+      <EditRounded className="edit" sx={{ fontSize: 15, color: t.muted, opacity: 0, transition: 'opacity .16s' }} />
+    </ButtonBase>
   );
 }

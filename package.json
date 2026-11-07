@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint .",
-    "test": "node --test scripts/unit-test.mjs \"scripts/mf/*.test.mjs\"",
+    "test": "node --test scripts/unit-test.mjs \"scripts/mf/*.test.mjs\" \"scripts/psx/*.test.mjs\"",
     "test:contract": "node scripts/contract-test.mjs",
     "verify": "npm run lint && npm run test && npm run build",
     "test:private": "node --test \"tests/private/*.test.mjs\"",

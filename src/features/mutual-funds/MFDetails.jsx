@@ -2,11 +2,10 @@ import { useState } from 'react';
 import { Box, Dialog, DialogContent, Typography, IconButton, useMediaQuery } from '@mui/material';
 import { CloseRounded, EditRounded } from '@mui/icons-material';
 import { formatCurrency, formatNumber } from '../../lib/formatters';
-import { useFx, FONT_NUM, signColor } from '../../components/fx';
+import { useFx, FONT_NUM, signColor, GainCard } from '../../components/fx';
 import { TYPE_LABEL, fmtDate } from './mfLabels';
 import AmcLogo from './AmcLogo';
 import EntryEditor from './EntryEditor';
-import { GainCard } from './GainCard';
 
 const signed = (v) => (v === null || v === undefined ? '—' : `${v > 0 ? '+' : v < 0 ? '−' : ''}${formatCurrency(Math.abs(v), 2)}`);
 

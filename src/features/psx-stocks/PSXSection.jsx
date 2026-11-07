@@ -7,6 +7,7 @@ import InfiniteSpinner from '../../components/InfiniteSpinner';
 const Dashboard = lazy(() => import('./Dashboard'));
 const SharesPage = lazy(() => import('./SharesPage'));
 const StockTransactions = lazy(() => import('./StockTransactions'));
+const Dividends = lazy(() => import('./Dividends'));
 const Analytics = lazy(() => import('./Analytics'));
 const Research = lazy(() => import('./Research'));
 const Tools = lazy(() => import('./Tools'));
@@ -22,6 +23,7 @@ const PAGES = [
   { label: 'Portfolio', path: '/stocks', component: wrap(Dashboard) },
   { label: 'Shares', path: '/stocks/shares', component: wrap(SharesPage) },
   { label: 'Trades', path: '/stocks/transactions', component: wrap(StockTransactions) },
+  { label: 'Dividends', path: '/stocks/dividends', component: wrap(Dividends) },
   { label: 'Analytics', path: '/stocks/analytics', component: wrap(Analytics) },
   { label: 'Research', path: '/stocks/research', component: wrap(Research) },
   { label: 'Tools', path: '/stocks/tools', component: wrap(Tools) },

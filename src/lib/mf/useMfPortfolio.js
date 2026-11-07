@@ -40,15 +40,21 @@ export function mfLedgerQuery(userId) {
     enabled: !!userId,
     staleTime: 60_000,
     queryFn: async () => {
-      const [entries, components, funds, amcs, accounts, navs] = await Promise.all([
+      const [entries, components, funds, amcs, accounts] = await Promise.all([
         fetchAll(() => supabase.from('mf_ledger_entries').select(ENTRY_COLS).eq('user_id', userId).order('trade_date').order('seq')),
         fetchAll(() => supabase.from('mf_ledger_components').select('entry_id, component_type, amount::text').eq('user_id', userId)),
         fetchAll(() => supabase.from('mf_funds').select('id, name, amc_id, mufap_slug, category')),
         fetchAll(() => supabase.from('mf_amcs').select('id, code, name, cost_method_evidence, cost_method_note')),
         fetchAll(() => supabase.from('mf_accounts').select('id, amc_id, account_ref_masked, label').eq('user_id', userId)),
-        fetchAll(() => supabase.from('mf_nav_history').select('fund_id, nav_date, price::text, price_kind, source')
-          .order('nav_date', { ascending: false }).limit(5000)),
       ]);
+      // Prices for this user's funds only, every page: the daily MUFAP capture
+      // adds a row per fund per day, so a fixed row cap would silently drop
+      // the oldest prices (and with them past month-end values).
+      const fundIds = [...new Set(entries.map((e) => e.fund_id))];
+      const navs = fundIds.length
+        ? await fetchAll(() => supabase.from('mf_nav_history').select('id, fund_id, nav_date, price::text, price_kind, source')
+          .in('fund_id', fundIds).order('nav_date').order('id'))
+        : [];
       return { entries, components, funds, amcs, accounts, navs };
     },
   };

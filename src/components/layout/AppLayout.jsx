@@ -6,7 +6,7 @@ import {
 } from '@mui/material';
 import {
   Home, LayoutDashboard, CandlestickChart, PieChart, Plus,
-  ReceiptText, TrendingUp, Compass, Wallet, FlaskConical, Wrench, FileUp,
+  ReceiptText, TrendingUp, Compass, Wallet, FlaskConical, Wrench, FileUp, HandCoins,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
@@ -74,6 +74,7 @@ const sections = [
       { label: 'Portfolio', path: '/stocks', icon: pageIcon(CandlestickChart) },
       { label: 'Shares', path: '/stocks/shares', icon: pageIcon(Compass) },
       { label: 'Trades', path: '/stocks/transactions', icon: pageIcon(ReceiptText) },
+      { label: 'Dividends', path: '/stocks/dividends', icon: pageIcon(HandCoins) },
       { label: 'Analytics', path: '/stocks/analytics', icon: pageIcon(TrendingUp) },
       { label: 'Research', path: '/stocks/research', icon: pageIcon(FlaskConical) },
       { label: 'Tools', path: '/stocks/tools', icon: pageIcon(Wrench) },

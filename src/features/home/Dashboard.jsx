@@ -1,349 +1,173 @@
-import { useState } from 'react';
-import {
-  Box, Card, CardContent, Typography, Grid, Skeleton, Alert,
-  useMediaQuery, useTheme,
-} from '@mui/material';
-import {
-  AccountBalanceWalletRounded,
-  SavingsRounded,
-  ShowChartRounded,
-  PieChartRounded,
-  InfoOutlined,
-} from '@mui/icons-material';
-import {
-  PieChart, Pie, Cell, ResponsiveContainer, 
-  LineChart, Line, XAxis, YAxis, Tooltip as RTooltip,
-  CartesianGrid,
-} from 'recharts';
-import { motion } from 'framer-motion';
-import { useAggregatedAssets } from './useAggregatedAssets';
+import { useMemo, useState } from 'react';
+import { Box, Skeleton, Typography, Button, useMediaQuery } from '@mui/material';
+import { useNavigate } from 'react-router-dom';
+import { useAuthStore } from '../../store/authStore';
+import { useMfAnalysis } from '../../lib/mf/useMfPortfolio';
+import { usePsxPortfolio } from '../../lib/psx/usePsxPortfolio';
+import { fiscalYearEnds } from '../../lib/psx/portfolio';
+import { mergeSeries, combineTotals } from '../../lib/home/combine';
+import { useDateRange, rangeLabel } from '../../lib/dateRange';
 import { formatCurrency } from '../../lib/formatters';
-import { CountUp, Reveal } from '../../components/motion';
-import { pieSector, makeOuterLabel, DonutCenter } from '../../components/charts';
+import {
+  useFx, PageHeader, Panel, PanelHeader, SummaryCard, GrowthChart, AllocationDonut, AnimatedValue, Seg, FitPage, FONT_NUM, signColor,
+} from '../../components/fx';
+import AmcLogo from '../mutual-funds/AmcLogo';
+import { FundDetailsDialog } from '../mutual-funds/MFDetails';
+import StockDetailsDialog from '../psx-stocks/StockDetailsDialog';
+import StockLogo from '../../components/StockLogo';
 
-const PIE_COLORS = ['#333333', '#666666', '#999999'];
-const PIE_COLORS_DARK = ['#e5e5e5', '#a3a3a3', '#6b6b6b'];
+const AMC_SHORT = { atlas: 'Atlas', mcb: 'MCB', meezan: 'Meezan', nbp: 'NBP', ubl: 'UBL' };
+const ART = { light: '/hero/networth-light.webp', dark: '/hero/networth-dark.webp' };
+const SIGNED = (n) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${formatCurrency(Math.abs(n))}`;
 
-
-
-/* Minimal custom tooltip for Growth charts */
-function ChartTooltip({ active, payload, label }) {
-  if (!active || !payload?.length) return null;
-  return (
-    <Box sx={{
-      bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider',
-      borderRadius: 2, px: 1.5, py: 1, boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-    }}>
-      <Typography sx={{ fontSize: '0.65rem', color: 'text.secondary', mb: 0.25 }}>{label}</Typography>
-      {payload.map((p, i) => (
-        <Typography key={i} sx={{ fontSize: '0.72rem', fontWeight: 600, color: p.color }}>
-          {p.name}: {formatCurrency(p.value)}
-        </Typography>
-      ))}
-    </Box>
-  );
+function greeting(user) {
+  const h = new Date().getHours();
+  const part = h < 5 ? 'Good evening' : h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+  const full = user?.user_metadata?.full_name || user?.user_metadata?.name || '';
+  const first = String(full).trim().split(/\s+/)[0]
+    || String(user?.email ?? '').split('@')[0].replace(/[._\d]+/g, ' ').trim().split(' ')[0];
+  const name = first ? first.charAt(0).toUpperCase() + first.slice(1) : '';
+  return name ? `${part}, ${name}` : part;
 }
 
-/* Percentage + name, drawn around the ring while nothing is hovered. */
-const renderOuterLabel = makeOuterLabel((p) => p.name);
-
+/**
+ * Home: net worth across mutual funds and PSX stocks for the selected range,
+ * month-end closing value against what was invested, and where the money is.
+ * Desktop fits one screen; phones scroll normally.
+ */
 export default function HomeDashboard() {
-  const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
-  const isMobile = useMediaQuery('(max-width:768px)');
-  const [activeIdx, setActiveIdx] = useState(-1);
+  const t = useFx();
+  const isMobile = useMediaQuery('(max-width:900px)');
+  const navigate = useNavigate();
+  const user = useAuthStore((s) => s.user);
+  const { range } = useDateRange();
+  const label = rangeLabel(range);
+  const { analysis: mf, isLoading: mfLoading } = useMfAnalysis(range);
+  const { portfolio: psx, isLoading: psxLoading, pricesLoading } = usePsxPortfolio(range);
+  const [view, setView] = useState('month');
+  const [tab, setTab] = useState('all');
+  const [fund, setFund] = useState(null);
+  const [stock, setStock] = useState(null);
 
-  const {
-    totalAssets, financeBalance, mfValue, stocksValue,
-    pieData, growthData, isLoading,
-    marketDataFailed, holdingsAtCost, fundsAtCost,
-  } = useAggregatedAssets();
+  const data = useMemo(() => {
+    if (!mf || !psx) return null;
+    const funds = mf.positions.filter((p) => p.isOpen && (p.value ?? 0) > 0).map((p) => ({
+      key: `f-${p.key}`, label: p.fundName ?? 'Fund', sub: AMC_SHORT[p.amcCode] ?? p.amcName ?? 'Fund', value: p.value,
+      logo: <AmcLogo code={p.amcCode} name={p.amcName} size={28} />, onClick: () => setFund(p),
+    }));
+    const stocks = psx.positions.filter((p) => p.isOpen && (p.value ?? 0) > 0).map((p) => ({
+      key: `s-${p.symbol}`, label: p.symbol, sub: 'Stock', value: p.value,
+      logo: <StockLogo symbol={p.symbol} size="sm" />, onClick: () => setStock(p),
+    }));
+    return {
+      totals: combineTotals(mf.totals, psx.totals),
+      series: mergeSeries(mf.series, psx.series),
+      funds, stocks, all: [...funds, ...stocks],
+    };
+  }, [mf, psx]);
 
-  /* `useAggregatedAssets` has always reported how trustworthy its valuation
-     is — whether the market feed answered, and how many positions had to fall
-     back to their purchase price. Nothing read it, so the dashboard presented
-     a cost basis as a market value with no qualification. A holding priced at
-     cost is not wrong, but it is not a valuation either, and in a finance app
-     the difference belongs on screen. */
-  const atCost = (holdingsAtCost || 0) + (fundsAtCost || 0);
-  const valuationNote = marketDataFailed
-    ? 'Live prices are unavailable right now — positions are valued at what you paid for them.'
-    : atCost > 0
-      ? `${atCost} position${atCost === 1 ? '' : 's'} had no published price today and ${atCost === 1 ? 'is' : 'are'} valued at cost.`
-      : null;
+  const header = <PageHeader title={greeting(user)} sub={false} />;
 
-  const colors = isDark ? PIE_COLORS_DARK : PIE_COLORS;
+  if (mfLoading || psxLoading || !data) {
+    return (
+      <FitPage>
+        {header}
+        <Skeleton variant="rounded" height={isMobile ? 240 : 176} sx={{ borderRadius: '20px', mb: 2, flexShrink: 0 }} />
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '7fr 5fr' }, gap: 2, flex: 1, minHeight: 0 }}>
+          <Skeleton variant="rounded" sx={{ borderRadius: '20px', height: isMobile ? 300 : '100%' }} />
+          <Skeleton variant="rounded" sx={{ borderRadius: '20px', height: isMobile ? 300 : '100%' }} />
+        </Box>
+      </FitPage>
+    );
+  }
 
-  /* `amount` is the raw number so the figure can spring up to it rather than
-     appearing fully formed; `formatCurrency` still owns the display, including
-     the conversion out of PKR. */
-  const statCards = [
-    { label: 'Total Assets', amount: totalAssets, icon: AccountBalanceWalletRounded, highlight: true },
-    { label: 'Finance', amount: financeBalance, icon: SavingsRounded },
-    { label: 'Mutual Funds', amount: mfValue, icon: PieChartRounded },
-    { label: 'Stocks', amount: stocksValue, icon: ShowChartRounded },
-  ];
-
-  const lineColor = isDark ? '#e5e5e5' : '#222222';
-  const gridColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
-  const axisColor = isDark ? '#555' : '#aaa';
-
-  if (isLoading) {
+  const tt = data.totals;
+  if (!mf.allPositions.length && !psx.allPositions.length) {
     return (
       <Box>
-        <Skeleton variant="rounded" height={32} width={200} sx={{ mb: 3 }} />
-        <Grid container spacing={1.5} sx={{ mb: 3 }}>
-          {[1, 2, 3, 4].map((i) => (
-            <Grid size={{ xs: 6, md: 3 }} key={i}>
-              <Skeleton variant="rounded" height={100} />
-            </Grid>
-          ))}
-        </Grid>
-        <Skeleton variant="rounded" height={260} sx={{ mb: 3 }} />
-        <Skeleton variant="rounded" height={220} />
+        {header}
+        <Panel sx={{ alignItems: 'center', textAlign: 'center', py: 7 }}>
+          <Typography sx={{ fontSize: '1.05rem', fontWeight: 700, mb: 0.5 }}>Start tracking your investments</Typography>
+          <Typography sx={{ fontSize: '0.84rem', color: t.muted, mb: 2.5 }}>Add a mutual fund statement or record a PSX trade.</Typography>
+          <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center', flexWrap: 'wrap' }}>
+            <Button variant="contained" disableElevation onClick={() => navigate('/funds/add')} sx={{ borderRadius: 999, px: 2.5 }}>Add fund</Button>
+            <Button variant="outlined" onClick={() => navigate('/stocks/shares')} sx={{ borderRadius: 999, px: 2.5 }}>Buy shares</Button>
+          </Box>
+        </Panel>
       </Box>
     );
   }
 
+  const rows = tab === 'funds' ? data.funds : tab === 'stocks' ? data.stocks : data.all;
+
   return (
-    <Box sx={{ pb: isMobile ? 2 : 0 }}>
-      {/* Title - only on desktop (mobile has logo in header) */}
-      {!isMobile && (
-        <Typography sx={{
-          fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.03em', mb: 3,
-        }}>
-          Dashboard
-        </Typography>
-      )}
+    <FitPage>
+      {header}
 
-      {valuationNote && (
-        <Reveal distance={8} duration={0.3}>
-          <Alert
-            severity={marketDataFailed ? 'warning' : 'info'}
-            icon={<InfoOutlined sx={{ fontSize: 18 }} />}
-            sx={{ mb: 1.5, borderRadius: 2.5, fontSize: '0.74rem', py: 0.25, alignItems: 'center' }}
-          >
-            {valuationNote}
-          </Alert>
-        </Reveal>
-      )}
+      <SummaryCard
+        label="Net worth"
+        background={ART}
+        value={pricesLoading && !tt.value ? null : tt.value}
+        extra={<Split funds={tt.split.funds} stocks={tt.split.stocks} onFunds={() => navigate('/funds')} onStocks={() => navigate('/stocks')} />}
+        metrics={[
+          { label: 'Invested', amount: tt.invested, note: 'cost of holdings' },
+          { label: 'Unrealized', amount: tt.unrealizedNet, format: SIGNED, color: signColor(t, tt.unrealizedNet), note: 'after 15% est.' },
+          { label: 'Realized', amount: tt.realized, format: SIGNED, color: signColor(t, tt.realized), note: label },
+        ]}
+      />
 
-      {/* ── Asset Summary Cards ── */}
-      {isMobile ? (
-        /* Mobile: merged 2×2 card */
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-          <Card sx={{ mb: 1.5, overflow: 'hidden', borderRadius: 3 }}>
-            <CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}>
-              <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
-                {statCards.map((s, i) => {
-                  const Icon = s.icon;
-                  return (
-                    <Box key={i} sx={{
-                      px: 1.75, py: 1.5,
-                      borderRight: i % 2 === 0 ? `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}` : 'none',
-                      borderBottom: i < 2 ? `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}` : 'none',
-                      ...(s.highlight && {
-                        bgcolor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.015)',
-                      }),
-                    }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, mb: 0.4 }}>
-                        <Icon sx={{ fontSize: 13, color: 'text.secondary', opacity: 0.6 }} />
-                        <Typography sx={{
-                          fontSize: '0.58rem', color: 'text.secondary',
-                          fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase',
-                        }}>
-                          {s.label}
-                        </Typography>
-                      </Box>
-                      <Typography sx={{
-                        fontSize: s.highlight ? '1.15rem' : '1rem',
-                        fontWeight: 700, color: 'text.primary', fontFeatureSettings: '"tnum"',
-                        letterSpacing: '-0.02em',
-                      }} className="currency">
-                        <CountUp to={s.amount} format={formatCurrency} delay={i * 0.05} />
-                      </Typography>
-                    </Box>
-                  );
-                })}
-              </Box>
-            </CardContent>
-          </Card>
-        </motion.div>
-      ) : (
-        /* Desktop: 4 separate cards */
-        <Grid container spacing={1.5} sx={{ mb: 3 }}>
-          {statCards.map((s, i) => {
-            const Icon = s.icon;
-            return (
-              <Grid size={{ xs: 6, md: 3 }} key={i}>
-                <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
-                  <Card sx={{
-                    position: 'relative', overflow: 'hidden',
-                    transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-                    '&:hover': {
-                      transform: 'translateY(-2px)',
-                      boxShadow: isDark
-                        ? '0 8px 24px rgba(255,255,255,0.04)'
-                        : '0 8px 24px rgba(0,0,0,0.08)',
-                    },
-                    ...(s.highlight && {
-                      bgcolor: isDark ? '#111' : '#fafafa',
-                      border: `1.5px solid ${isDark ? '#333' : '#d4d4d4'}`,
-                    }),
-                  }}>
-                    <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-                        <Typography sx={{
-                          fontSize: '0.68rem', color: 'text.secondary', fontWeight: 500,
-                          letterSpacing: '0.04em', textTransform: 'uppercase',
-                        }}>
-                          {s.label}
-                        </Typography>
-                        <Box sx={{
-                          width: 32, height: 32, borderRadius: '10px',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          bgcolor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
-                        }}>
-                          <Icon sx={{ fontSize: 16, color: 'text.secondary' }} />
-                        </Box>
-                      </Box>
-                      <Typography sx={{
-                        fontSize: s.highlight ? '1.4rem' : '1.2rem',
-                        fontWeight: 700, color: 'text.primary', lineHeight: 1.1,
-                        fontFeatureSettings: '"tnum"',
-                      }} className="currency">
-                        <CountUp to={s.amount} format={formatCurrency} delay={i * 0.05} />
-                      </Typography>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              </Grid>
-            );
-          })}
-        </Grid>
-      )}
+      <Box sx={{
+        display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 7fr) minmax(0, 5fr)' }, gap: 2,
+        flex: isMobile ? 'none' : '1 1 0', minHeight: isMobile ? 'auto' : 280,
+      }}>
+        <Panel sx={{ minHeight: 0 }}>
+          <PanelHeader title={view === 'month' ? 'Value by month' : 'Value by fiscal year'}
+            right={<Seg size="sm" label="Chart period" value={view} onChange={setView} options={[{ value: 'month', label: 'Monthly' }, { value: 'year', label: 'Yearly' }]} />} />
+          <Box sx={{ flex: 1, minHeight: isMobile ? 240 : 0, position: 'relative' }}>
+            <Box sx={{ position: isMobile ? 'relative' : 'absolute', inset: 0, height: isMobile ? 240 : '100%' }}>
+              <GrowthChart points={view === 'month' ? data.series : fiscalYearEnds(data.series)} height="100%" />
+            </Box>
+          </Box>
+        </Panel>
 
-      {/* ── Charts Row ── */}
-      <Grid container spacing={1.5} sx={{ mb: 2 }}>
-        {/* Pie Chart - Asset Distribution */}
-        <Grid size={{ xs: 12, md: 6 }}>
-          <Card sx={{ overflow: 'visible', height: '100%', borderRadius: 3 }}>
-            <CardContent sx={{ p: isMobile ? 1.75 : 2.5 }}>
-              <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.03em', mb: 0.5, textTransform: 'uppercase', color: 'text.secondary' }}>
-                Asset Distribution
-              </Typography>
-              {pieData.length > 0 ? (
-                <Box sx={{ position: 'relative' }}>
-                  <ResponsiveContainer width="100%" height={isMobile ? 280 : 300}>
-                    <PieChart>
-                      <Pie
-                        data={pieData} dataKey="value" cx="50%" cy="50%"
-                        innerRadius={isMobile ? 55 : 68} outerRadius={isMobile ? 78 : 96}
-                        paddingAngle={3} strokeWidth={0}
-                        shape={pieSector}
-                        label={activeIdx < 0 ? renderOuterLabel : false}
-                        labelLine={false}
-                        onMouseEnter={(_, i) => setActiveIdx(i)}
-                        onMouseLeave={() => setActiveIdx(-1)}
-                      >
-                        {pieData.map((_, i) => (
-                          <Cell key={i} fill={colors[i % colors.length]} />
-                        ))}
-                      </Pie>
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <DonutCenter
-                    data={pieData}
-                    activeIndex={activeIdx}
-                    restingValue={formatCurrency(totalAssets)}
-                    restingLabel="total assets"
-                    format={formatCurrency}
-                    width={isMobile ? 90 : 110}
-                    compact={isMobile}
-                  />
-                </Box>
-              ) : (
-                <Box sx={{ height: 260, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>No data yet</Typography>
-                </Box>
-              )}
-            </CardContent>
-          </Card>
-        </Grid>
+        <Panel sx={{ minHeight: isMobile ? 420 : 0 }}>
+          <PanelHeader title="Allocation"
+            right={<Seg size="sm" label="Allocation" value={tab} onChange={setTab}
+              options={[{ value: 'all', label: 'All' }, { value: 'funds', label: 'Funds' }, { value: 'stocks', label: 'Stocks' }]} />} />
+          <AllocationDonut key={tab} items={rows} centerLabel={tab === 'funds' ? 'Mutual funds' : tab === 'stocks' ? 'Stocks' : 'Net worth'} />
+        </Panel>
+      </Box>
 
-        {/* Growth Line Chart */}
-        <Grid size={{ xs: 12, md: 6 }}>
-          <Card sx={{ height: '100%', borderRadius: 3 }}>
-            <CardContent sx={{ p: isMobile ? 1.75 : 2.5 }}>
-              <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.03em', mb: 0.5, textTransform: 'uppercase', color: 'text.secondary' }}>
-                Growth Over Time
-              </Typography>
-              {growthData.some((d) => d.total > 0) ? (
-                <ResponsiveContainer width="100%" height={isMobile ? 260 : 275}>
-                  <LineChart data={growthData} margin={{ top: 5, right: 10, left: -15, bottom: 0 }}>
-                    <CartesianGrid stroke={gridColor} strokeDasharray="3 3" vertical={false} />
-                    <XAxis
-                      dataKey="label" tick={{ fontSize: 10, fill: axisColor }}
-                      axisLine={false} tickLine={false}
-                    />
-                    <YAxis
-                      tick={{ fontSize: 10, fill: axisColor }}
-                      axisLine={false} tickLine={false}
-                      tickFormatter={(v) => {
-                        if (v >= 1e6) return `${(v / 1e6).toFixed(1)}M`;
-                        if (v >= 1e3) return `${(v / 1e3).toFixed(0)}K`;
-                        return v;
-                      }}
-                    />
-                    <RTooltip content={<ChartTooltip />} />
-                    <Line
-                      type="monotone" dataKey="total" name="Total"
-                      stroke={lineColor} strokeWidth={2.5}
-                      dot={{ r: 3, fill: lineColor }}
-                      activeDot={{ r: 5, fill: lineColor }}
-                    />
-                    <Line
-                      type="monotone" dataKey="finance" name="Finance"
-                      stroke={isDark ? '#aaa' : '#555'} strokeWidth={1.5}
-                      strokeDasharray="4 4" dot={false}
-                    />
-                    <Line
-                      type="monotone" dataKey="mf" name="Mutual Funds"
-                      stroke={isDark ? '#777' : '#888'} strokeWidth={1.5}
-                      strokeDasharray="6 3" dot={false}
-                    />
-                    <Line
-                      type="monotone" dataKey="stocks" name="Stocks"
-                      stroke={isDark ? '#555' : '#bbb'} strokeWidth={1.5}
-                      strokeDasharray="2 2" dot={false}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              ) : (
-                <Box sx={{ height: 260, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>
-                    Add transactions to see growth trends
-                  </Typography>
-                </Box>
-              )}
-              {/* Chart legend */}
-              <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, mt: 1 }}>
-                {[
-                  { label: 'Total', style: { borderBottom: `2.5px solid ${lineColor}` } },
-                  { label: 'Finance', style: { borderBottom: `1.5px dashed ${isDark ? '#aaa' : '#555'}` } },
-                  { label: 'MF', style: { borderBottom: `1.5px dashed ${isDark ? '#777' : '#888'}` } },
-                  { label: 'Stocks', style: { borderBottom: `1.5px dotted ${isDark ? '#555' : '#bbb'}` } },
-                ].map((l) => (
-                  <Box key={l.label} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <Box sx={{ width: 16, height: 0, ...l.style }} />
-                    <Typography sx={{ fontSize: '0.6rem', color: 'text.secondary' }}>{l.label}</Typography>
-                  </Box>
-                ))}
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+      <FundDetailsDialog open={!!fund} onClose={() => setFund(null)} position={fund} rangeLabel={label} />
+      {stock && <StockDetailsDialog position={stock} onClose={() => setStock(null)} />}
+    </FitPage>
+  );
+}
+
+/** Funds vs stocks: one quiet two-part bar, each side a link to its dashboard. */
+function Split({ funds, stocks, onFunds, onStocks }) {
+  const t = useFx();
+  if (funds.value <= 0 && stocks.value <= 0) return null;
+  const side = (name, s, onClick, align) => (
+    <Box component="button" type="button" onClick={onClick} sx={{
+      all: 'unset', cursor: 'pointer', textAlign: align, minWidth: 0,
+      '&:hover .v': { textDecoration: 'underline', textUnderlineOffset: '3px' }, '&:focus-visible': { outline: `2px solid ${t.ink}`, outlineOffset: 2, borderRadius: '6px' },
+    }}>
+      <Typography sx={{ fontSize: '0.7rem', color: t.muted }}>{name} <Box component="span" sx={{ fontFamily: FONT_NUM }}>{(s.share * 100).toFixed(0)}%</Box></Typography>
+      <Typography className="v" data-numeric noWrap sx={{ fontFamily: FONT_NUM, fontSize: '0.86rem', fontWeight: 600, letterSpacing: '-0.02em', color: t.ink }}><AnimatedValue value={s.value} format={(n) => formatCurrency(n)} /></Typography>
+    </Box>
+  );
+  return (
+    <Box sx={{ mt: 1.75, maxWidth: 420 }}>
+      <Box role="img" aria-label={`Mutual funds ${(funds.share * 100).toFixed(0)}%, stocks ${(stocks.share * 100).toFixed(0)}%`}
+        sx={{ display: 'flex', gap: '3px', height: 6, borderRadius: 999, overflow: 'hidden', bgcolor: t.surface2 }}>
+        {funds.share > 0 && <Box sx={{ flexGrow: funds.share, flexBasis: 0, bgcolor: t.ink, minWidth: 3 }} />}
+        {stocks.share > 0 && <Box sx={{ flexGrow: stocks.share, flexBasis: 0, bgcolor: t.muted, opacity: 0.55, minWidth: 3 }} />}
+      </Box>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, mt: 1 }}>
+        {side('Mutual funds', funds, onFunds, 'left')}
+        {side('Stocks', stocks, onStocks, 'right')}
+      </Box>
     </Box>
   );
 }

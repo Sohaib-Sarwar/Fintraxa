@@ -60,6 +60,26 @@ const SUPABASE_STUBS = `
     $$;
   grant execute on function storage.foldername(text) to anon, authenticated, service_role;
   grant usage on schema public to anon, authenticated, service_role;
+
+  -- pg_net stand-in: http_get records the request and returns its id; a test
+  -- writes the "response" into net._http_response itself.
+  create schema net;
+  create table net.http_request_queue (id bigserial primary key, url text, created timestamptz default now());
+  create table net._http_response (
+    id bigint primary key, status_code integer, content_type text, headers jsonb,
+    content text, timed_out boolean, error_msg text, created timestamptz default now()
+  );
+  create or replace function net.http_get(url text, params jsonb default '{}', headers jsonb default '{}', timeout_milliseconds integer default 5000)
+    returns bigint language sql as $$ insert into net.http_request_queue (url) values (url) returning id $$;
+
+  -- pg_cron stand-in: schedules are rows; nothing runs on its own.
+  create schema cron;
+  create table cron.job (jobid bigserial primary key, jobname text unique, schedule text, command text);
+  create or replace function cron.schedule(job_name text, schedule text, command text) returns bigint language sql as $$
+    insert into cron.job (jobname, schedule, command) values (job_name, schedule, command)
+    on conflict (jobname) do update set schedule = excluded.schedule, command = excluded.command returning jobid $$;
+  create or replace function cron.unschedule(job_id bigint) returns boolean language sql as $$
+    with d as (delete from cron.job where jobid = job_id returning 1) select exists (select 1 from d) $$;
 `;
 
 /** Migrations in apply order. The 2025 file is superseded by the baseline. */
@@ -76,7 +96,10 @@ export async function createDb({ seed } = {}) {
   await db.exec(SUPABASE_STUBS);
   if (seed) await seed(db);
   for (const m of migrationFiles()) {
-    const sql = m.sql.replace(/create extension if not exists "uuid-ossp"[^;]*;/i, '');
+    const sql = m.sql
+      .replace(/create extension if not exists "uuid-ossp"[^;]*;/i, '')
+      .replace(/create extension if not exists pg_net[^;]*;/i, '')
+      .replace(/create extension if not exists pg_cron[^;]*;/i, '');
     try {
       await db.exec(sql);
     } catch (err) {

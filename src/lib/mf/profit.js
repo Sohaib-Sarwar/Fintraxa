@@ -223,9 +223,9 @@ export function analyzeFunds({ entries, components = [], prices = [], funds = {}
     const gross = sales.reduce((s, x) => s.plus(x.gain), ZERO).plus(sumAmounts(r.income, start, endEff));
     const cgt = sumAmounts(r.taxEvents, start, endEff);
     const charges = sales.reduce((s, x) => s.plus(x.deductions), ZERO);
-    const heldAtStart = start > '0000' && list.some((e) => e.trade_date < start)
-      && replayHolding(list.filter((e) => e.trade_date < start), componentsByEntry).units.gt(DUST_UNITS);
     const tradedInRange = list.some((e) => e.trade_date >= start && e.trade_date <= endEff);
+    const before = list.filter((e) => e.trade_date < start);
+    const heldAtStart = before.length > 0 && replayHolding(before, componentsByEntry).units.gt(DUST_UNITS);
     const fund = funds[fundId];
     const allTimeGain = r.realizations.reduce((s, x) => s.plus(x.gain), ZERO).plus(r.income.reduce((s, x) => s.plus(x.amount), ZERO));
     const allTimeCgt = r.taxEvents.reduce((s, x) => s.plus(x.amount), ZERO);
@@ -236,7 +236,9 @@ export function analyzeFunds({ entries, components = [], prices = [], funds = {}
       amcCode: fund ? amcs[fund.amc_id]?.code ?? null : null,
       amcName: fund ? amcs[fund.amc_id]?.name ?? null : null,
       isOpen: atEnd.units.gt(0),
-      inRange: heldAtStart || tradedInRange || atEnd.units.gt(0),
+      // Active in the range: still held when it starts, or traded inside it.
+      // Fully redeemed before the start, or first bought after the end → not part of it.
+      inRange: heldAtStart || tradedInRange,
       units: Number(atEnd.units.toFixed(4)),
       price: atEnd.price ? { value: Number(atEnd.price.price), date: atEnd.price.date, source: atEnd.price.source, stale: Date.parse(endEff) - Date.parse(atEnd.price.date) > 4 * 86_400_000 } : null,
       value: r2(atEnd.value),
@@ -257,6 +259,7 @@ export function analyzeFunds({ entries, components = [], prices = [], funds = {}
   }
 
   const shown = positions.filter((p) => p.inRange);
+  const shownKeys = new Set(shown.map((p) => p.key));
   const sum = (f) => Number(shown.reduce((s, p) => s.plus(f(p) ?? 0), ZERO).toFixed(2));
   const anyNull = (f) => shown.some((p) => f(p) === null);
   const totals = {
@@ -283,7 +286,7 @@ export function analyzeFunds({ entries, components = [], prices = [], funds = {}
       const b = monthEnd(m) < endEff ? monthEnd(m) : endEff;
       let gross = ZERO; let cgt = ZERO; let charges = ZERO;
       for (const [k, list] of groups) {
-        if (!shown.some((p) => p.key === k)) continue;
+        if (!shownKeys.has(k)) continue;
         const r = replayHolding(list.filter((e) => e.trade_date <= b), componentsByEntry);
         const sales = r.realizations.filter((x) => x.date >= a && x.date <= b);
         gross = gross.plus(sales.reduce((s, x) => s.plus(x.gain), ZERO)).plus(sumAmounts(r.income, a, b));
@@ -295,5 +298,50 @@ export function analyzeFunds({ entries, components = [], prices = [], funds = {}
     if (months.length > 12) for (const x of months) x.label = `${x.label} ${x.month.slice(2, 4)}`;
   }
 
-  return { version: PROFIT_VERSION, start, end: endEff, totals, positions: shown, allPositions: positions, months };
+  // Month-end closing value vs invested (FIFO cost of units held) inside the range.
+  // Each month-end uses the latest NAV known on that day (MUFAP captures,
+  // statement valuations, transaction NAVs); a unit with no price at all
+  // counts at cost so the line never drops to zero for a missing quote.
+  const series = [];
+  if (firstData) {
+    const from = start > firstData ? start : firstData;
+    for (let m = from.slice(0, 7); m <= endEff.slice(0, 7) && series.length < 120; m = nextMonth(m)) {
+      const at = monthEnd(m) < endEff ? monthEnd(m) : endEff;
+      let inv = ZERO; let val = ZERO; let old = 0;
+      for (const [k, list] of groups) {
+        if (!shownKeys.has(k)) continue;
+        const fundId = k.split('|')[1];
+        const st = stateAt(list, componentsByEntry, priceAt, fundId, at);
+        if (st.units.isZero()) continue;
+        inv = inv.plus(st.cost);
+        val = val.plus(st.value ?? st.cost);
+        if (!st.price || Date.parse(at) - Date.parse(st.price.date) > 7 * 86_400_000) old += 1;
+      }
+      series.push({ month: m, label: MON[Number(m.slice(5, 7)) - 1], date: at, invested: r2(inv), value: r2(val), live: at === today, priced: old ? 'mixed' : 'close' });
+    }
+    if (series.length > 12) for (const x of series) x.label = `${x.label} ${x.month.slice(2, 4)}`;
+  }
+
+  return { version: PROFIT_VERSION, start, end: endEff, totals, positions: shown, allPositions: positions, months, series };
+}
+
+/**
+ * Months → Pakistan fiscal years (1 Jul – 30 Jun), summed exactly.
+ * Each row keeps the chart's shape: { month (first month of the FY), tick, title, gross, cgt, net }.
+ */
+export function groupByFiscalYear(months) {
+  const years = new Map();
+  for (const m of months) {
+    const [y, mo] = m.month.split('-').map(Number);
+    const fy = mo >= 7 ? y : y - 1;
+    if (!years.has(fy)) years.set(fy, { gross: ZERO, cgt: ZERO, net: ZERO });
+    const acc = years.get(fy);
+    acc.gross = acc.gross.plus(String(m.gross));
+    acc.cgt = acc.cgt.plus(String(m.cgt));
+    acc.net = acc.net.plus(String(m.net));
+  }
+  return [...years.entries()].sort((a, b) => a[0] - b[0]).map(([fy, v]) => {
+    const short = `FY ${String(fy).slice(2)}-${String(fy + 1).slice(2)}`;
+    return { month: `${fy}-07`, label: short, tick: short, title: `FY ${fy}-${String(fy + 1).slice(2)}`, gross: r2(v.gross), cgt: r2(v.cgt), net: r2(v.net) };
+  });
 }

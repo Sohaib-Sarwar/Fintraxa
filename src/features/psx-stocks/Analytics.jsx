@@ -1,736 +1,149 @@
 import { useMemo, useState } from 'react';
-import {
-  Box, Card, CardContent, Typography, Grid, Skeleton, Chip, useTheme, useMediaQuery,
-  TextField, InputAdornment, Menu, MenuItem, } from '@mui/material';
-import {
-  SavingsRounded, PieChartRounded, ShowChartRounded,
-  TrendingUpRounded, TrendingDownRounded, WarningAmberRounded,
-  CategoryRounded, DonutLargeRounded, BarChartRounded,
-  MapRounded, HealthAndSafetyRounded, TimelineRounded,
-  SearchRounded, FilterListRounded, CheckRounded,
-} from '@mui/icons-material';
-import {
-  PieChart, Pie, Cell, ResponsiveContainer,
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip,
-  Treemap,
-} from 'recharts';
-import { useQuery } from '@tanstack/react-query';
-import { motion, AnimatePresence } from 'framer-motion';
-import { supabase } from '../../lib/supabase';
-import { psxStocksQuery, stockPriceMap } from '../../lib/marketQueries';
-import { useAuthStore } from '../../store/authStore';
-import { formatCurrency, getPnLColor, formatPercent } from '../../lib/formatters';
-import { getStockSector, getSectorColor, getAllSectors } from '../../lib/psxSectors';
-import { subMonths, format } from 'date-fns';
-import { getStockName } from '../../lib/stockMeta';
+import { Box, Typography, Skeleton, useMediaQuery } from '@mui/material';
+import { usePsxPortfolio } from '../../lib/psx/usePsxPortfolio';
+import { useDividends } from '../../lib/psx/useDividends';
+import { groupByFiscalYear } from '../../lib/mf/profit';
+import { getStockSector } from '../../lib/psxSectors';
+import { useDateRange, rangeLabel, shortDate } from '../../lib/dateRange';
+import { formatCurrency } from '../../lib/formatters';
+import { useFx, PageHeader, PillSelect, Seg, EarningsChart, GainCard, FONT_NUM, signColor } from '../../components/fx';
 import StockLogo from '../../components/StockLogo';
-import { pieSector, makeOuterLabel, DonutCenter } from '../../components/charts';
+import StockDetailsDialog from './StockDetailsDialog';
 
-/* Section tab config */
-const SECTIONS = [
-  { key: 'allocation', label: 'Allocation', icon: DonutLargeRounded },
-  { key: 'gainloss', label: 'P&L', icon: BarChartRounded },
-  { key: 'sectors', label: 'Sectors', icon: CategoryRounded },
-  { key: 'map', label: 'Map', icon: MapRounded },
-  { key: 'health', label: 'Health', icon: HealthAndSafetyRounded },
-  { key: 'growth', label: 'Growth', icon: TimelineRounded },
-];
+const signed = (v) => (v === null || v === undefined ? '—' : `${v > 0 ? '+' : v < 0 ? '−' : ''}${formatCurrency(Math.abs(v))}`);
 
-/* ─── Profit / Loss color palettes ─── */
-const profitColors = ['#22c55e', '#4ade80', '#86efac', '#bbf7d0'];
-const lossColors = ['#ef4444', '#f87171', '#fca5a5', '#fecaca'];
-
-/* Growth chart tooltip */
-function GrowthTooltip({ active, payload, label }) {
-  if (!active || !payload?.length) return null;
-  return (
-    <Box sx={{
-      bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider',
-      borderRadius: 2, px: 1.5, py: 1, boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-    }}>
-      <Typography sx={{ fontSize: '0.65rem', color: 'text.secondary', mb: 0.25 }}>{label}</Typography>
-      {payload.map((p, i) => (
-        <Typography key={i} sx={{ fontSize: '0.72rem', fontWeight: 600, color: p.color }}>
-          {p.name}: {formatCurrency(p.value)}
-        </Typography>
-      ))}
-    </Box>
-  );
-}
-
-
-/* Gain/Loss bar component (reused for stock & sector) */
-function GainLossBars({ data, isDark }) {
-  const maxAbs = Math.max(...data.map((d) => Math.abs(d.gainLoss)), 1);
-  return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-      {data.map((d, i) => {
-        const isProfit = d.gainLoss >= 0;
-        const accentColor = isProfit ? '#22c55e' : '#ef4444';
-        const bgTint = isProfit
-          ? (isDark ? 'rgba(34,197,94,0.06)' : 'rgba(34,197,94,0.04)')
-          : (isDark ? 'rgba(239,68,68,0.06)' : 'rgba(239,68,68,0.04)');
-        const barWidth = Math.max((Math.abs(d.gainLoss) / maxAbs) * 100, 3);
-        return (
-          <motion.div key={d.name} initial={{ opacity: 0, x: isProfit ? 10 : -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.04 }}>
-            <Box sx={{ p: 1.5, borderRadius: 2.5, bgcolor: bgTint, borderLeft: `3px solid ${accentColor}`, position: 'relative', overflow: 'hidden' }}>
-              <Box sx={{ position: 'absolute', top: 0, left: 0, bottom: 0, width: `${barWidth}%`, bgcolor: isProfit ? (isDark ? 'rgba(34,197,94,0.08)' : 'rgba(34,197,94,0.07)') : (isDark ? 'rgba(239,68,68,0.08)' : 'rgba(239,68,68,0.07)'), borderRadius: 2.5, transition: 'width 0.6s ease' }} />
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, position: 'relative', zIndex: 1 }}>
-                {d.stocks === undefined && <StockLogo symbol={d.name} size="sm" />}
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 600 }} noWrap>{d.name}</Typography>
-                    {d.stocks !== undefined && <Typography sx={{ fontSize: '0.58rem', color: 'text.secondary' }}>({d.stocks})</Typography>}
-                  </Box>
-                  {d.fullName && <Typography sx={{ fontSize: '0.52rem', color: 'text.secondary' }} noWrap>{d.fullName}</Typography>}
-                  <Typography sx={{ fontSize: '0.85rem', fontWeight: 700, color: accentColor, fontFeatureSettings: '"tnum"' }} className="currency">
-                    {isProfit ? '+' : ''}{formatCurrency(d.gainLoss)}
-                  </Typography>
-                </Box>
-                <Chip size="small" label={formatPercent(d.pct)} sx={{ fontWeight: 700, fontSize: '0.62rem', height: 24, bgcolor: `${accentColor}14`, color: accentColor, border: `1px solid ${accentColor}30` }} />
-              </Box>
-            </Box>
-          </motion.div>
-        );
-      })}
-    </Box>
-  );
-}
-
-/* Treemap custom content — vivid colors */
-const TreemapContent = ({ x, y, width, height, name, value, pnl, isDark }) => {
-  if (width < 4 || height < 4) return null;
-  const isProfit = (pnl || 0) >= 0;
-  const bg = isProfit
-    ? (isDark ? 'rgba(34,197,94,0.35)' : 'rgba(34,197,94,0.22)')
-    : (isDark ? 'rgba(239,68,68,0.35)' : 'rgba(239,68,68,0.22)');
-  const border = isProfit ? 'rgba(34,197,94,0.5)' : 'rgba(239,68,68,0.5)';
-  const textColor = isDark ? '#f5f5f5' : '#111';
-  return (
-    <g>
-      <rect x={x + 1} y={y + 1} width={Math.max(width - 2, 0)} height={Math.max(height - 2, 0)} rx={6}
-        fill={bg} stroke={border} strokeWidth={1.5} />
-      {width > 50 && height > 35 && (
-        <>
-          <text x={x + width / 2} y={y + height / 2 - 6} textAnchor="middle"
-            fontSize={Math.min(width / 6, 13)} fontWeight={800} fill={textColor}>{name}</text>
-          <text x={x + width / 2} y={y + height / 2 + 10} textAnchor="middle"
-            fontSize={Math.min(width / 8, 10)} fontWeight={700}
-            fill={isProfit ? '#16a34a' : '#dc2626'}>{formatCurrency(value)}</text>
-        </>
-      )}
-      {width > 30 && width <= 50 && height > 20 && (
-        <text x={x + width / 2} y={y + height / 2 + 3} textAnchor="middle"
-          fontSize={8} fontWeight={700} fill={textColor}>{name}</text>
-      )}
-    </g>
-  );
-};
-
-/* Percentage + name, drawn around the ring while nothing is hovered. */
-const renderOuterLabel = makeOuterLabel((p) => p.name);
-
+/** Realized and unrealized profit and dividends on PSX stocks for the range, by sector or stock. */
 export default function PSXAnalytics() {
-  const user = useAuthStore((s) => s.user);
-  const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
-  const isMobile = useMediaQuery('(max-width:768px)');
-  const [activeIdx, setActiveIdx] = useState(-1);
-  const [activeIdx2, setActiveIdx2] = useState(-1);
-  const [activeSection, setActiveSection] = useState('allocation');
-  const [searchFilter, setSearchFilter] = useState('');
-  const [sectorFilter, setSectorFilter] = useState('');
-  const [sectorMenuAnchor, setSectorMenuAnchor] = useState(null);
-  const [period, setPeriod] = useState('6m');
+  const t = useFx();
+  const isMobile = useMediaQuery('(max-width:900px)');
+  const { range } = useDateRange();
+  const [sectorPick, setSector] = useState('all');
+  const [symbolPick, setSymbol] = useState('all');
+  const [view, setView] = useState('month');
+  const [source, setSource] = useState('trading');
+  const [stock, setStock] = useState(null);
+  const label = rangeLabel(range);
 
-  const { data: transactions = [], isLoading } = useQuery({
-    queryKey: ['stock-transactions', user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('stock_transactions').select('*')
-        .eq('user_id', user.id).order('date', { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!user,
-  });
+  // Options = stocks active in the range (held at its start or traded in it) plus any that paid a dividend in it.
+  const { portfolio: base } = usePsxPortfolio(range);
+  const { summary: baseDivs } = useDividends(range);
+  const options = useMemo(() => {
+    const syms = [...new Set([...(base?.positions ?? []).map((x) => x.symbol), ...(baseDivs ? baseDivs.bySymbol.keys() : [])])].sort();
+    const sectors = [...new Set(syms.map((s) => getStockSector(s)))].sort();
+    return { syms, sectors };
+  }, [base, baseDivs]);
+  const sector = options.sectors.includes(sectorPick) ? sectorPick : 'all';
+  const symbol = options.syms.includes(symbolPick) && (sector === 'all' || getStockSector(symbolPick) === sector) ? symbolPick : 'all';
 
-  const { data: liveStocks } = useQuery(psxStocksQuery());
+  const { portfolio: p, isLoading } = usePsxPortfolio(range, { sector, symbol });
+  // Yearly view spans the whole history: one fiscal year alone would be a single point.
+  const { portfolio: all } = usePsxPortfolio(undefined, { sector, symbol });
+  const years = useMemo(() => groupByFiscalYear(all?.months ?? []), [all]);
+  const { summary: divs } = useDividends(range, { sector, symbol });
+  const { summary: divsAll } = useDividends(undefined, { sector, symbol });
+  const divYears = useMemo(() => groupByFiscalYear(divsAll?.months ?? []), [divsAll]);
 
-  const { allocationData, gainLossData, totals } = useMemo(() => {
-    const live = stockPriceMap(liveStocks);
-    const priceMap = {};
-    for (const [sym, s] of Object.entries(live)) priceMap[sym] = s.current;
+  const filters = (
+    <>
+      <PillSelect value={sector} onChange={(v) => { setSector(v); setSymbol('all'); }} label="Sector" width={isMobile ? 140 : 190}
+        items={[{ value: 'all', label: 'All sectors' }, ...options.sectors.map((s) => ({ value: s, label: s }))]} />
+      <PillSelect value={symbol} onChange={setSymbol} label="Stock" width={isMobile ? 130 : 160}
+        items={[{ value: 'all', label: 'All stocks' }, ...options.syms.filter((s) => sector === 'all' || getStockSector(s) === sector)
+          .map((s) => ({ value: s, label: s, icon: <StockLogo symbol={s} size="sm" /> }))]} />
+    </>
+  );
 
-    const holdingMap = {};
-    transactions.forEach((t) => {
-      const sym = t.symbol?.toUpperCase();
-      if (!holdingMap[sym]) holdingMap[sym] = { symbol: sym, companyName: t.company_name, totalShares: 0, totalCost: 0 };
-      const h = holdingMap[sym];
-      const fee = Number(t.fee) || 0;
-      if (t.type === 'buy') { h.totalShares += Number(t.quantity); h.totalCost += Number(t.price) * Number(t.quantity) + fee; }
-      else {
-        const qty = Number(t.quantity);
-        const costBasis = h.totalShares > 0 ? (h.totalCost / h.totalShares) * qty : 0;
-        h.totalShares -= qty; h.totalCost -= costBasis;
-      }
-    });
-
-    const holdings = Object.values(holdingMap).filter((h) => h.totalShares > 0)
-      .map((h) => ({ ...h, avgPrice: h.totalCost / h.totalShares }));
-
-    let totalInvested = 0, totalCurrentValue = 0;
-    holdings.forEach((h) => {
-      const livePrice = priceMap[h.symbol] || h.avgPrice;
-      totalInvested += h.totalCost;
-      totalCurrentValue += h.totalShares * livePrice;
-    });
-
-    /* Allocation data */
-    let profitIdx = 0, lossIdx = 0;
-    const allocationData = holdings.map((h) => {
-      const livePrice = priceMap[h.symbol] || h.avgPrice;
-      const currentValue = Math.round(h.totalShares * livePrice);
-      const gl = currentValue - h.totalCost;
-      const color = gl >= 0
-        ? profitColors[profitIdx++ % profitColors.length]
-        : lossColors[lossIdx++ % lossColors.length];
-      return { name: h.symbol, value: currentValue, gainLoss: Math.round(gl), color };
-    }).sort((a, b) => b.value - a.value);
-
-    /* Gain/Loss bar data */
-    const gainLossData = holdings.map((h) => {
-      const livePrice = priceMap[h.symbol] || h.avgPrice;
-      const currentValue = h.totalShares * livePrice;
-      const gl = currentValue - h.totalCost;
-      const pct = h.totalCost > 0 ? (gl / h.totalCost) * 100 : 0;
-      return {
-        name: h.symbol,
-        fullName: getStockName(h.symbol, h.companyName),
-        gainLoss: Math.round(gl),
-        pct,
-        fill: gl >= 0 ? '#22c55e' : '#ef4444',
-      };
-    }).sort((a, b) => b.gainLoss - a.gainLoss);
-
-    return {
-      allocationData, gainLossData,
-      totals: {
-        invested: totalInvested, currentValue: totalCurrentValue,
-        gainLoss: totalCurrentValue - totalInvested,
-        gainPct: totalInvested > 0 ? ((totalCurrentValue - totalInvested) / totalInvested) * 100 : 0,
-      },
-    };
-  }, [transactions, liveStocks]);
-
-  /* ── Sector-level aggregated data ── */
-  const { sectorAllocation, sectorPnL, treemapData, concentrationData } = useMemo(() => {
-    if (allocationData.length === 0) return { sectorAllocation: [], sectorPnL: [], treemapData: [], concentrationData: null };
-
-    const sectorMap = {};
-    allocationData.forEach((d) => {
-      const sector = getStockSector(d.name);
-      if (!sectorMap[sector]) sectorMap[sector] = { name: sector, value: 0, invested: 0, stocks: [], gainLoss: 0 };
-      sectorMap[sector].value += d.value;
-      sectorMap[sector].gainLoss += d.gainLoss;
-      sectorMap[sector].stocks.push(d.name);
-    });
-
-    // Match invested from gainLossData
-    gainLossData.forEach((d) => {
-      const sector = getStockSector(d.name);
-      if (sectorMap[sector]) {
-        const stockAlloc = allocationData.find((a) => a.name === d.name);
-        if (stockAlloc) {
-          sectorMap[sector].invested += stockAlloc.value - d.gainLoss; // invested = value - gl
-        }
-      }
-    });
-
-    const sectorArr = Object.values(sectorMap).sort((a, b) => b.value - a.value);
-    const sectorAllocation = sectorArr.map((s, i) => ({
-      ...s, color: getSectorColor(i),
-    }));
-
-    const sectorPnL = sectorArr.map((s) => {
-      const pct = s.invested > 0 ? (s.gainLoss / s.invested) * 100 : 0;
-      return {
-        name: s.name,
-        gainLoss: Math.round(s.gainLoss),
-        pct,
-        stocks: s.stocks.length,
-        fill: s.gainLoss >= 0 ? '#22c55e' : '#ef4444',
-      };
-    }).sort((a, b) => b.gainLoss - a.gainLoss);
-
-    // Treemap data
-    const treemapData = allocationData.map((d) => ({
-      name: d.name,
-      size: Math.max(d.value, 1),
-      value: d.value,
-      pnl: d.gainLoss,
-      sector: getStockSector(d.name),
-    }));
-
-    // Concentration risk
-    const totalValue = sectorAllocation.reduce((s, d) => s + d.value, 0);
-    const topStocks = [...allocationData].sort((a, b) => b.value - a.value).slice(0, 3);
-    const topPct = totalValue > 0 ? topStocks.reduce((s, d) => s + d.value, 0) / totalValue * 100 : 0;
-    const sectorCount = sectorAllocation.length;
-    const totalSectors = 15; // reasonable PSX sector baseline
-    const diversificationScore = Math.min(Math.round((sectorCount / totalSectors) * 100), 100);
-    const highConc = sectorAllocation.filter((s) => totalValue > 0 && (s.value / totalValue) * 100 > 40);
-
-    const concentrationData = {
-      topStocks: topStocks.map((s) => ({ name: s.name, pct: totalValue > 0 ? (s.value / totalValue) * 100 : 0 })),
-      topPct,
-      sectorCount,
-      diversificationScore,
-      warnings: highConc.map((s) => `${Math.round((s.value / totalValue) * 100)}% in ${s.name}`),
-    };
-
-    return { sectorAllocation, sectorPnL, treemapData, concentrationData };
-  }, [allocationData, gainLossData]);
-
-  const allSectors = useMemo(() => getAllSectors(), []);
-
-  /* Filtered data for search/sector toolbar */
-  const { filteredAllocation, filteredGainLoss, filteredTreemap, filteredSectorAllocation, filteredSectorPnL } = useMemo(() => {
-    const sq = searchFilter.toLowerCase();
-    const stockFilter = (d) => {
-      if (sq && !d.name.toLowerCase().includes(sq)) return false;
-      if (sectorFilter && getStockSector(d.name) !== sectorFilter) return false;
-      return true;
-    };
-    return {
-      filteredAllocation: allocationData.filter(stockFilter),
-      filteredGainLoss: gainLossData.filter(stockFilter),
-      filteredTreemap: treemapData.filter(stockFilter),
-      filteredSectorAllocation: sectorFilter ? sectorAllocation.filter((s) => s.name === sectorFilter) : sectorAllocation,
-      filteredSectorPnL: sectorFilter ? sectorPnL.filter((s) => s.name === sectorFilter) : sectorPnL,
-    };
-  }, [allocationData, gainLossData, treemapData, sectorAllocation, sectorPnL, searchFilter, sectorFilter]);
-
-  /* ── Growth data (dynamic period) ── */
-  const growthData = useMemo(() => {
-    const monthCount = { '1m': 1, '3m': 3, '6m': 6, '1y': 12, 'all': 60 }[period] || 6;
-    const months = [];
-    for (let i = monthCount - 1; i >= 0; i--) {
-      const d = subMonths(new Date(), i);
-      months.push({ key: format(d, 'yyyy-MM'), label: format(d, 'MMM'), invested: 0, value: 0 });
-    }
-    let cumInvested = 0;
-    const investedByMonth = {};
-    const sorted = [...transactions].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-    sorted.forEach((t) => {
-      const amt = Number(t.price) * Number(t.quantity);
-      cumInvested += t.type === 'buy' ? amt : -amt;
-      investedByMonth[t.date?.slice(0, 7)] = cumInvested;
-    });
-    const fc = {};
-    const snapshots = {};
-    const allMonths = [...new Set(sorted.map((t) => t.date?.slice(0, 7)))].sort();
-    allMonths.forEach((m) => {
-      sorted.filter((t) => t.date?.slice(0, 7) === m).forEach((t) => {
-        const sym = t.symbol?.toUpperCase();
-        if (!fc[sym]) fc[sym] = { shares: 0, price: Number(t.price) };
-        fc[sym].price = Number(t.price);
-        fc[sym].shares += t.type === 'buy' ? Number(t.quantity) : -Number(t.quantity);
-      });
-      snapshots[m] = Object.values(fc).reduce((sum, s) => sum + (s.shares > 0 ? s.shares * s.price : 0), 0);
-    });
-    let lastInv = 0, lastVal = 0;
-    const allKnown = [...new Set([...Object.keys(investedByMonth), ...Object.keys(snapshots)])].sort();
-    months.forEach((mo) => {
-      allKnown.filter((k) => k <= mo.key).forEach((k) => {
-        if (investedByMonth[k] !== undefined) lastInv = investedByMonth[k];
-        if (snapshots[k] !== undefined) lastVal = snapshots[k];
-      });
-      mo.invested = Math.round(lastInv);
-      mo.value = Math.round(lastVal);
-    });
-    return months;
-  }, [transactions, period]);
-
-  const lineColorInvested = isDark ? '#a3a3a3' : '#555';
-  const gridColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
-  const axisColor = isDark ? '#555' : '#aaa';
-
-  const pnlColor = totals.gainLoss >= 0 ? '#15803d' : '#b91c1c';
-  const statCards = [
-    { label: 'Invested', value: formatCurrency(totals.invested), icon: SavingsRounded },
-    { label: 'Current', value: formatCurrency(totals.currentValue), icon: PieChartRounded },
-    { label: 'P&L', value: formatCurrency(totals.gainLoss), icon: totals.gainLoss >= 0 ? TrendingUpRounded : TrendingDownRounded, color: pnlColor, highlight: true },
-    { label: 'Return', value: formatPercent(totals.gainPct), icon: ShowChartRounded, color: pnlColor },
-  ];
-
-  if (isLoading) {
+  if (isLoading || !p || !divs) {
     return (
       <Box>
-        <Skeleton variant="rounded" height={32} width={200} sx={{ mb: 3 }} />
-        <Grid container spacing={1.5} sx={{ mb: 3 }}>
-          {[1,2,3,4].map((i) => <Grid size={{ xs: 6, md: 3 }} key={i}><Skeleton variant="rounded" height={100} /></Grid>)}
-        </Grid>
-        <Skeleton variant="rounded" height={260} />
+        <PageHeader title="Analytics" />
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
+          {[1, 2].map((i) => <Skeleton key={i} variant="rounded" height={230} sx={{ borderRadius: '26px' }} />)}
+        </Box>
       </Box>
     );
   }
 
+  const tt = p.totals;
+  // Stocks active in the range, plus any that paid a dividend in it without a recorded trade.
+  const bySym = new Map(p.positions.map((x) => [x.symbol, { ...x, dividends: divs.bySymbol.get(x.symbol)?.net ?? 0 }]));
+  for (const d of divs.bySymbol.values()) {
+    if (!bySym.has(d.symbol)) bySym.set(d.symbol, { symbol: d.symbol, dividendOnly: true, dividends: d.net, realized: 0, realizedFees: 0, unrealizedNet: null, isOpen: false });
+  }
+  const total = (x) => (x.realized ?? 0) + (x.unrealizedNet ?? 0) + x.dividends;
+  const rows = [...bySym.values()].sort((a, b) => total(b) - total(a));
+  const chart = source === 'dividends'
+    ? { months: view === 'month' ? divs.months : divYears, taxLabel: 'Tax', title: 'Dividends' }
+    : { months: view === 'month' ? p.months : years, taxLabel: 'Fees', title: 'Earnings' };
+  const first = chart.months[0]?.month ? `${chart.months[0].month}-01` : p.start;
+
   return (
     <Box sx={{ pb: isMobile ? 1 : 0 }}>
-      <Typography sx={{ fontSize: isMobile ? '1.2rem' : '1.5rem', fontWeight: 800, letterSpacing: '-0.03em', mb: isMobile ? 1.5 : 3 }}>
-        Stock Analytics
-      </Typography>
+      <PageHeader title="Analytics" actions={!isMobile && filters} />
+      {isMobile && <Box sx={{ display: 'flex', gap: 0.75, mb: 1.5 }}>{filters}</Box>}
 
-      {allocationData.length === 0 ? (
-        <Card sx={{ p: 5, textAlign: 'center' }}>
-          <Typography color="text.secondary">No stock holdings to analyze</Typography>
-        </Card>
-      ) : (
-        <>
-          {/* ── Stat Cards (unified 2×2) ── */}
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-            <Card sx={{ mb: 1.5, overflow: 'hidden' }}>
-              <CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}>
-                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
-                  {statCards.map((s, i) => {
-                    const Icon = s.icon;
-                    return (
-                      <Box key={i} sx={{
-                        px: 1.75, py: 1.5,
-                        borderRight: i % 2 === 0 ? `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : '#f0f0f0'}` : 'none',
-                        borderBottom: i < 2 ? `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : '#f0f0f0'}` : 'none',
-                        ...(s.highlight && { bgcolor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)' }),
-                      }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5 }}>
-                          <Icon sx={{ fontSize: 14, color: 'text.secondary', opacity: 0.7 }} />
-                          <Typography sx={{ fontSize: '0.62rem', color: 'text.secondary', fontWeight: 500, letterSpacing: '0.04em', textTransform: 'uppercase' }}>{s.label}</Typography>
-                        </Box>
-                        <Typography sx={{ fontSize: s.highlight ? '1.1rem' : '0.95rem', fontWeight: 700, color: s.color || 'text.primary', fontFeatureSettings: '"tnum"' }} className="currency">{s.value}</Typography>
-                      </Box>
-                    );
-                  })}
-                </Box>
-              </CardContent>
-            </Card>
-          </motion.div>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, minmax(0, 1fr))' }, gap: 2, mb: 2 }}>
+        <GainCard kind="realized" net={tt.realized} gross={tt.realizedGross} tax={tt.realizedFees} taxLabel="Broker fees"
+          hint="Profit on shares sold in this period: sale proceeds − their average cost. Gross is before broker fees; net is after the buy and sell fees on those shares." />
+        <GainCard kind="unrealized" net={tt.unrealizedNet} gross={tt.unrealized} tax={tt.unrealizedTax}
+          hint="Profit on shares you still hold: their value at the end of the period − their average cost. No tax is due until you sell, so 15% CGT is shown as an estimate." />
+        <GainCard kind="realized" title="Dividends" net={divs.net} gross={divs.gross} tax={divs.deductions} taxLabel="Tax withheld"
+          hint="Cash dividends paid in this period, by payment date. Gross is the declared amount on your shares; tax is what was withheld at source (15% filer, 30% non-filer); net is what reached your account, as printed on the statement." />
+      </Box>
 
-          {/* ── Section Navigation (segmented control) ── */}
-          <Box sx={{
-            display: 'flex', gap: 0.5, p: 0.4, mb: 1.5,
-            borderRadius: 2.5, bgcolor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
-            overflowX: 'auto',
-            '&::-webkit-scrollbar': { display: 'none' }, scrollbarWidth: 'none',
-          }}>
-            {SECTIONS.map((sec) => {
-              const Icon = sec.icon;
-              const isActive = activeSection === sec.key;
-              return (
-                <Box key={sec.key} onClick={() => setActiveSection(sec.key)} sx={{
-                  flex: 1, minWidth: 'fit-content', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.4,
-                  py: 0.8, px: 0.5, borderRadius: 2, cursor: 'pointer', transition: 'all 0.2s',
-                  bgcolor: isActive ? (isDark ? '#fff' : '#111') : 'transparent',
-                  color: isActive ? (isDark ? '#000' : '#fff') : 'text.secondary',
-                  boxShadow: isActive ? (isDark ? 'none' : '0 1px 3px rgba(0,0,0,0.08)') : 'none',
-                  '&:hover': { bgcolor: isActive ? undefined : (isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)') },
-                }}>
-                  <Icon sx={{ fontSize: 14 }} />
-                  <Typography sx={{ fontSize: '0.62rem', fontWeight: isActive ? 700 : 500, lineHeight: 1, whiteSpace: 'nowrap' }}>{sec.label}</Typography>
-                </Box>
-              );
-            })}
+      <Box sx={{ bgcolor: t.surface, border: `1px solid ${t.border}`, borderRadius: '20px', boxShadow: t.shadow, p: { xs: 1.75, md: 2.25 }, mb: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5, mb: 1.5, flexWrap: 'wrap' }}>
+          <Box>
+            <Typography component="h2" sx={{ fontSize: '0.92rem', fontWeight: 650 }}>{chart.title} {view === 'month' ? 'by month' : 'by fiscal year'}</Typography>
+            <Typography sx={{ fontSize: '0.72rem', color: t.muted }}>
+              {view === 'month' ? `${shortDate(p.start > first ? p.start : first)} to ${shortDate(p.end)}` : 'All years, July to June'}
+            </Typography>
           </Box>
+          <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
+            <Seg size="sm" label="Chart shows" value={source} onChange={setSource} options={[{ value: 'trading', label: 'Trading' }, { value: 'dividends', label: 'Dividends' }]} />
+            <Seg size="sm" label="Chart period" value={view} onChange={setView} options={[{ value: 'month', label: 'Monthly' }, { value: 'year', label: 'Yearly' }]} />
+          </Box>
+        </Box>
+        <EarningsChart months={chart.months} height={isMobile ? 230 : 280} taxLabel={chart.taxLabel} />
+      </Box>
 
-          {/* ── Filter Toolbar (search + sector for data sections, period for growth) ── */}
-          {['allocation', 'gainloss', 'sectors', 'map'].includes(activeSection) && (
-            <Box sx={{ display: 'flex', gap: 0.75, mb: 1.5, alignItems: 'center' }}>
-              <TextField size="small" placeholder="Search stock..." value={searchFilter}
-                onChange={(e) => setSearchFilter(e.target.value)}
-                InputProps={{ startAdornment: <InputAdornment position="start"><SearchRounded sx={{ fontSize: 16, color: 'text.secondary' }} /></InputAdornment> }}
-                sx={{ flex: 1, '& .MuiOutlinedInput-root': { borderRadius: 2.5, fontSize: '0.75rem', height: 32, bgcolor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)' } }}
-              />
-              {sectorFilter ? (
-                <Chip label={sectorFilter} size="small" onDelete={() => setSectorFilter('')}
-                  sx={{ fontSize: '0.6rem', fontWeight: 600, height: 28, flexShrink: 0,
-                    bgcolor: isDark ? '#fff' : '#111', color: isDark ? '#000' : '#fff',
-                    '& .MuiChip-deleteIcon': { color: isDark ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.5)', fontSize: 14 },
-                  }} />
-              ) : (
-                <Chip label="Sector" size="small" icon={<FilterListRounded sx={{ fontSize: 13 }} />}
-                  onClick={(e) => setSectorMenuAnchor(e.currentTarget)}
-                  sx={{ fontSize: '0.6rem', fontWeight: 600, height: 28, flexShrink: 0,
-                    bgcolor: 'transparent', color: 'text.secondary',
-                    border: `1px solid ${isDark ? '#333' : '#ddd'}`,
-                    '& .MuiChip-icon': { color: 'text.secondary' },
-                  }} />
-              )}
-              <Menu anchorEl={sectorMenuAnchor} open={Boolean(sectorMenuAnchor)} onClose={() => setSectorMenuAnchor(null)}
-                slotProps={{ paper: { sx: { maxHeight: 320, minWidth: 180, borderRadius: 2.5 } } }}>
-                <MenuItem onClick={() => { setSectorFilter(''); setSectorMenuAnchor(null); }}
-                  sx={{ fontSize: '0.72rem', py: 0.75, fontWeight: !sectorFilter ? 700 : 400 }}>All Sectors</MenuItem>
-                {allSectors.map((s) => (
-                  <MenuItem key={s} selected={sectorFilter === s}
-                    onClick={() => { setSectorFilter(s); setSectorMenuAnchor(null); }}
-                    sx={{ fontSize: '0.72rem', py: 0.75, gap: 1 }}>
-                    {sectorFilter === s && <CheckRounded sx={{ fontSize: 14, color: isDark ? '#fff' : '#111' }} />}
-                    {s}
-                  </MenuItem>
-                ))}
-              </Menu>
-            </Box>
-          )}
-          {activeSection === 'growth' && (
-            <Box sx={{ display: 'flex', gap: 0.5, mb: 1.5 }}>
-              {[{ k: '1m', l: '1M' }, { k: '3m', l: '3M' }, { k: '6m', l: '6M' }, { k: '1y', l: '1Y' }, { k: 'all', l: 'All' }].map((p) => {
-                const isActive = period === p.k;
-                return (
-                  <Box key={p.k} onClick={() => setPeriod(p.k)} sx={{
-                    px: 1.2, py: 0.5, borderRadius: 2, cursor: 'pointer', transition: 'all 0.15s',
-                    bgcolor: isActive ? (isDark ? '#fff' : '#111') : (isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'),
-                    color: isActive ? (isDark ? '#000' : '#fff') : 'text.secondary',
-                  }}>
-                    <Typography sx={{ fontSize: '0.65rem', fontWeight: isActive ? 700 : 500 }}>{p.l}</Typography>
+      <Box sx={{ bgcolor: t.surface, border: `1px solid ${t.border}`, borderRadius: '26px', boxShadow: t.shadow, p: { xs: 1.5, md: 2.25 } }}>
+        <Typography component="h2" sx={{ fontSize: '0.95rem', fontWeight: 750, mb: 1 }}>By stock <Box component="span" sx={{ color: t.muted, fontWeight: 500 }}>{rows.length}</Box></Typography>
+        {rows.length === 0 ? <Typography sx={{ fontSize: '0.8rem', color: t.muted, py: 2 }}>No stocks in {label}.</Typography> : (
+          <Box sx={{ overflowX: 'auto' }}>
+            <Box component="table" sx={{
+              width: '100%', borderCollapse: 'collapse', minWidth: 700,
+              '& th': { fontSize: '0.66rem', fontWeight: 600, color: t.muted, textAlign: 'right', pb: 1, px: 1, whiteSpace: 'nowrap' }, '& th:first-of-type': { textAlign: 'left', pl: 0 },
+              '& td': { fontSize: '0.78rem', textAlign: 'right', py: 1, px: 1, borderTop: `1px solid ${t.hairline}`, fontFamily: FONT_NUM, whiteSpace: 'nowrap', letterSpacing: '-0.02em' },
+              '& td:first-of-type': { textAlign: 'left', pl: 0, fontFamily: 'inherit', letterSpacing: 0 },
+            }}>
+              <thead><tr><th>Stock</th><th>Realized (net)</th><th>Broker fees</th><th>Unrealized (net)</th><th>Dividends (net)</th><th>Value</th></tr></thead>
+              <tbody>
+                {rows.map((x) => (
+                  <Box component="tr" key={x.symbol} onClick={x.dividendOnly ? undefined : () => setStock(x)} sx={{ cursor: x.dividendOnly ? 'default' : 'pointer', '&:hover td': { bgcolor: t.surface2 } }}>
+                    <td>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <StockLogo symbol={x.symbol} size="sm" />
+                        <Box sx={{ minWidth: 0 }}>
+                          <Typography noWrap sx={{ fontSize: '0.78rem', fontWeight: 650 }}>{x.symbol}</Typography>
+                          <Typography noWrap sx={{ fontSize: '0.64rem', color: t.muted, maxWidth: 240 }}>{getStockSector(x.symbol)}{x.dividendOnly ? ', no trades recorded' : ''}</Typography>
+                        </Box>
+                      </Box>
+                    </td>
+                    <Box component="td" sx={{ color: signColor(t, x.realized) }}>{signed(x.realized)}</Box>
+                    <td>{formatCurrency(x.realizedFees ?? 0, 2)}</td>
+                    <Box component="td" sx={{ color: signColor(t, x.unrealizedNet ?? 0) }}>{x.isOpen ? signed(x.unrealizedNet) : '—'}</Box>
+                    <Box component="td" sx={{ color: signColor(t, x.dividends) }}>{x.dividends ? signed(x.dividends) : '—'}</Box>
+                    <td>{x.isOpen ? formatCurrency(x.value ?? 0) : '—'}</td>
                   </Box>
-                );
-              })}
+                ))}
+              </tbody>
             </Box>
-          )}
+          </Box>
+        )}
+      </Box>
 
-          {/* ── Section Content ── */}
-          <AnimatePresence mode="wait">
-            <motion.div key={activeSection} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
-
-              {/* ─── ALLOCATION: Dual pie (stock + sector side by side) ─── */}
-              {activeSection === 'allocation' && (
-                <Card sx={{ overflow: 'visible' }}>
-                  <CardContent sx={{ p: isMobile ? 1.5 : 2.5 }}>
-                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.02em', mb: 1 }}>Allocation</Typography>
-                    <Grid container spacing={isMobile ? 1 : 2}>
-                      {/* Stock pie */}
-                      <Grid size={{ xs: 12, md: 6 }}>
-                        <Typography sx={{ fontSize: '0.62rem', color: 'text.secondary', textAlign: 'center', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', mb: 0.5 }}>By Stock</Typography>
-                        <Box sx={{ position: 'relative' }}>
-                          <ResponsiveContainer width="100%" height={isMobile ? 240 : 280}>
-                            <PieChart>
-                              <Pie data={filteredAllocation} dataKey="value" cx="50%" cy="50%"
-                                innerRadius={isMobile ? 45 : 58} outerRadius={isMobile ? 68 : 85}
-                                paddingAngle={3} strokeWidth={0}
-                                shape={pieSector}
-                                label={activeIdx < 0 && !isMobile ? renderOuterLabel : false} labelLine={false}
-                                onMouseEnter={(_, i) => setActiveIdx(i)} onMouseLeave={() => setActiveIdx(-1)}>
-                                {filteredAllocation.map((d, i) => <Cell key={i} fill={d.color} />)}
-                              </Pie>
-                            </PieChart>
-                          </ResponsiveContainer>
-                          <DonutCenter
-                            data={filteredAllocation}
-                            activeIndex={activeIdx}
-                            restingValue={formatCurrency(totals.currentValue)}
-                            restingLabel="portfolio"
-                            format={formatCurrency}
-                            width={85}
-                            compact
-                          />
-                        </Box>
-                      </Grid>
-                      {/* Sector pie */}
-                      <Grid size={{ xs: 12, md: 6 }}>
-                        <Typography sx={{ fontSize: '0.62rem', color: 'text.secondary', textAlign: 'center', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', mb: 0.5 }}>By Sector</Typography>
-                        <Box sx={{ position: 'relative' }}>
-                          <ResponsiveContainer width="100%" height={isMobile ? 240 : 280}>
-                            <PieChart>
-                              <Pie data={filteredSectorAllocation} dataKey="value" cx="50%" cy="50%"
-                                innerRadius={isMobile ? 45 : 58} outerRadius={isMobile ? 68 : 85}
-                                paddingAngle={3} strokeWidth={0}
-                                shape={pieSector}
-                                label={activeIdx2 < 0 && !isMobile ? renderOuterLabel : false} labelLine={false}
-                                onMouseEnter={(_, i) => setActiveIdx2(i)} onMouseLeave={() => setActiveIdx2(-1)}>
-                                {filteredSectorAllocation.map((d, i) => <Cell key={i} fill={d.color} />)}
-                              </Pie>
-                            </PieChart>
-                          </ResponsiveContainer>
-                          <DonutCenter
-                            data={filteredSectorAllocation}
-                            activeIndex={activeIdx2}
-                            restingValue={filteredSectorAllocation.length}
-                            restingLabel="sectors"
-                            format={formatCurrency}
-                            width={85}
-                            compact
-                          />
-                        </Box>
-                      </Grid>
-                    </Grid>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* ─── GAIN/LOSS ─── */}
-              {activeSection === 'gainloss' && (
-                <Card>
-                  <CardContent sx={{ p: isMobile ? 2 : 2.5 }}>
-                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.02em', mb: 2 }}>Gain / Loss by Stock</Typography>
-                    <GainLossBars data={filteredGainLoss} isDark={isDark} />
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* ─── SECTORS ─── */}
-              {activeSection === 'sectors' && (
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  {/* Sector Summary */}
-                  <Card>
-                    <CardContent sx={{ p: isMobile ? 2 : 2.5 }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 2 }}>
-                        <CategoryRounded sx={{ fontSize: 16, color: 'text.secondary', opacity: 0.7 }} />
-                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.02em' }}>Sector Summary</Typography>
-                      </Box>
-                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
-                        {filteredSectorAllocation.map((s, i) => {
-                          const spnlColor = getPnLColor(s.gainLoss);
-                          const totalValue = sectorAllocation.reduce((sum, d) => sum + d.value, 0);
-                          const pct = totalValue > 0 ? (s.value / totalValue) * 100 : 0;
-                          return (
-                            <motion.div key={s.name} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}>
-                              <Box sx={{ p: 1.5, borderRadius: 2.5, bgcolor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.015)', borderLeft: `3px solid ${s.color}` }}>
-                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.75 }}>
-                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flex: 1, minWidth: 0 }}>
-                                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 600 }} noWrap>{s.name}</Typography>
-                                    <Typography sx={{ fontSize: '0.6rem', color: 'text.secondary' }}>{s.stocks.length} stock{s.stocks.length !== 1 ? 's' : ''}</Typography>
-                                  </Box>
-                                  <Chip size="small" label={`${pct.toFixed(1)}%`} sx={{ height: 20, fontSize: '0.58rem', fontWeight: 700, bgcolor: `${s.color}18`, color: s.color, '& .MuiChip-label': { px: 0.5 } }} />
-                                </Box>
-                                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 1 }}>
-                                  {[{ l: 'Invested', v: formatCurrency(s.invested) }, { l: 'Current', v: formatCurrency(s.value) }, { l: 'P&L', v: `${s.gainLoss >= 0 ? '+' : ''}${formatCurrency(s.gainLoss)}`, c: spnlColor }].map((item) => (
-                                    <Box key={item.l}>
-                                      <Typography sx={{ fontSize: '0.5rem', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 500 }}>{item.l}</Typography>
-                                      <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, fontFeatureSettings: '"tnum"', color: item.c || 'text.primary' }} className="currency">{item.v}</Typography>
-                                    </Box>
-                                  ))}
-                                </Box>
-                                <Box sx={{ display: 'flex', gap: 0.5, mt: 0.75, flexWrap: 'wrap' }}>
-                                  {s.stocks.map((sym) => <Chip key={sym} label={sym} size="small" sx={{ height: 18, fontSize: '0.5rem', fontWeight: 600, bgcolor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', '& .MuiChip-label': { px: 0.5 } }} />)}
-                                </Box>
-                              </Box>
-                            </motion.div>
-                          );
-                        })}
-                      </Box>
-                    </CardContent>
-                  </Card>
-                  {/* Sector Performance bars */}
-                  {filteredSectorPnL.length > 0 && (
-                    <Card>
-                      <CardContent sx={{ p: isMobile ? 2 : 2.5 }}>
-                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.02em', mb: 2 }}>Sector Performance</Typography>
-                        <GainLossBars data={filteredSectorPnL} isDark={isDark} />
-                      </CardContent>
-                    </Card>
-                  )}
-                </Box>
-              )}
-
-              {/* ─── PORTFOLIO MAP ─── */}
-              {activeSection === 'map' && filteredTreemap.length > 0 && (
-                <Card sx={{ overflow: 'hidden' }}>
-                  <CardContent sx={{ p: isMobile ? 2 : 2.5 }}>
-                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.02em', mb: 0.5 }}>Portfolio Map</Typography>
-                    <Typography sx={{ fontSize: '0.6rem', color: 'text.secondary', mb: 1.5 }}>Size = current value · Green = profit · Red = loss</Typography>
-                    <ResponsiveContainer width="100%" height={isMobile ? 280 : 360}>
-                      <Treemap data={filteredTreemap} dataKey="size" aspectRatio={4 / 3}
-                        stroke={isDark ? '#222' : '#fff'} content={<TreemapContent isDark={isDark} />} />
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* ─── HEALTH ─── */}
-              {activeSection === 'health' && concentrationData && (
-                <Card>
-                  <CardContent sx={{ p: isMobile ? 2 : 2.5 }}>
-                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.02em', mb: 1.5 }}>Portfolio Health</Typography>
-                    <Grid container spacing={1.5} sx={{ mb: concentrationData.warnings.length > 0 ? 1.5 : 0 }}>
-                      <Grid size={{ xs: 12, md: 6 }}>
-                        <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.015)' }}>
-                          <Typography sx={{ fontSize: '0.6rem', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 500, mb: 0.75 }}>Top 3 Holdings</Typography>
-                          {concentrationData.topStocks.map((s) => (
-                            <Box key={s.name} sx={{ display: 'flex', justifyContent: 'space-between', py: 0.25 }}>
-                              <Typography sx={{ fontSize: '0.72rem', fontWeight: 600 }}>{s.name}</Typography>
-                              <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, fontFeatureSettings: '"tnum"' }}>{s.pct.toFixed(1)}%</Typography>
-                            </Box>
-                          ))}
-                          <Box sx={{ height: 4, borderRadius: 2, bgcolor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)', mt: 0.75, overflow: 'hidden' }}>
-                            <Box sx={{ height: '100%', borderRadius: 2, width: `${Math.min(concentrationData.topPct, 100)}%`, bgcolor: concentrationData.topPct > 70 ? '#ef4444' : concentrationData.topPct > 50 ? '#eab308' : '#22c55e', transition: 'width 0.6s ease' }} />
-                          </Box>
-                          <Typography sx={{ fontSize: '0.58rem', color: 'text.secondary', mt: 0.25, textAlign: 'right' }}>{concentrationData.topPct.toFixed(1)}% of portfolio</Typography>
-                        </Box>
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 6 }}>
-                        <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.015)' }}>
-                          <Typography sx={{ fontSize: '0.6rem', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 500, mb: 0.75 }}>Diversification</Typography>
-                          <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5, mb: 0.5 }}>
-                            <Typography sx={{ fontSize: '1.4rem', fontWeight: 800, fontFeatureSettings: '"tnum"', color: concentrationData.diversificationScore > 40 ? '#22c55e' : concentrationData.diversificationScore > 20 ? '#eab308' : '#ef4444' }}>{concentrationData.diversificationScore}</Typography>
-                            <Typography sx={{ fontSize: '0.68rem', color: 'text.secondary', fontWeight: 500 }}>/100</Typography>
-                          </Box>
-                          <Typography sx={{ fontSize: '0.62rem', color: 'text.secondary' }}>{concentrationData.sectorCount} sector{concentrationData.sectorCount !== 1 ? 's' : ''} covered</Typography>
-                          <Box sx={{ height: 4, borderRadius: 2, bgcolor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)', mt: 0.75, overflow: 'hidden' }}>
-                            <Box sx={{ height: '100%', borderRadius: 2, width: `${concentrationData.diversificationScore}%`, bgcolor: concentrationData.diversificationScore > 40 ? '#22c55e' : concentrationData.diversificationScore > 20 ? '#eab308' : '#ef4444', transition: 'width 0.6s ease' }} />
-                          </Box>
-                        </Box>
-                      </Grid>
-                    </Grid>
-                    {concentrationData.warnings.length > 0 && (
-                      <Box sx={{ p: 1.25, borderRadius: 2, bgcolor: isDark ? 'rgba(234,179,8,0.06)' : 'rgba(234,179,8,0.04)', border: '1px solid', borderColor: isDark ? 'rgba(234,179,8,0.15)' : 'rgba(234,179,8,0.12)', display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <WarningAmberRounded sx={{ fontSize: 16, color: '#eab308' }} />
-                        <Box>
-                          <Typography sx={{ fontSize: '0.65rem', fontWeight: 600, color: '#eab308' }}>High concentration</Typography>
-                          <Typography sx={{ fontSize: '0.6rem', color: 'text.secondary' }}>{concentrationData.warnings.join(' · ')}</Typography>
-                        </Box>
-                      </Box>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* ─── GROWTH ─── */}
-              {activeSection === 'growth' && (
-                <Card>
-                  <CardContent sx={{ p: isMobile ? 2 : 2.5 }}>
-                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.02em', mb: 1 }}>Growth Over Time</Typography>
-                    {growthData.some((d) => d.value > 0 || d.invested > 0) ? (
-                      <>
-                        <ResponsiveContainer width="100%" height={isMobile ? 240 : 300}>
-                          <LineChart data={growthData} margin={{ top: 5, right: 10, left: -15, bottom: 0 }}>
-                            <CartesianGrid stroke={gridColor} strokeDasharray="3 3" vertical={false} />
-                            <XAxis dataKey="label" tick={{ fontSize: 10, fill: axisColor }} axisLine={false} tickLine={false} />
-                            <YAxis tick={{ fontSize: 10, fill: axisColor }} axisLine={false} tickLine={false} tickFormatter={(v) => v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `${(v / 1e3).toFixed(0)}K` : v} />
-                            <RTooltip content={<GrowthTooltip />} />
-                            <Line type="monotone" dataKey="value" name="Current Value" stroke={totals.gainLoss >= 0 ? '#15803d' : '#b91c1c'} strokeWidth={2.5} dot={{ r: 3, fill: totals.gainLoss >= 0 ? '#15803d' : '#b91c1c' }} activeDot={{ r: 5, fill: totals.gainLoss >= 0 ? '#15803d' : '#b91c1c' }} />
-                            <Line type="monotone" dataKey="invested" name="Invested" stroke={lineColorInvested} strokeWidth={1.5} strokeDasharray="4 4" dot={false} />
-                          </LineChart>
-                        </ResponsiveContainer>
-                        <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, mt: 1 }}>
-                          {[{ label: 'Current Value', style: { borderBottom: `2.5px solid ${totals.gainLoss >= 0 ? '#15803d' : '#b91c1c'}` } }, { label: 'Invested', style: { borderBottom: `1.5px dashed ${lineColorInvested}` } }].map((l) => (
-                            <Box key={l.label} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                              <Box sx={{ width: 16, height: 0, ...l.style }} />
-                              <Typography sx={{ fontSize: '0.6rem', color: 'text.secondary' }}>{l.label}</Typography>
-                            </Box>
-                          ))}
-                        </Box>
-                      </>
-                    ) : (
-                      <Box sx={{ height: 240, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>Add trades to see growth</Typography>
-                      </Box>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-
-            </motion.div>
-          </AnimatePresence>
-        </>
-      )}
+      {stock && <StockDetailsDialog position={stock} onClose={() => setStock(null)} />}
     </Box>
   );
 }

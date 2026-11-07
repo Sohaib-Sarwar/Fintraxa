@@ -90,6 +90,7 @@ export default function App() {
           <Route path="stocks" element={page(PSXSection)} />
           <Route path="stocks/shares" element={page(PSXSection)} />
           <Route path="stocks/transactions" element={page(PSXSection)} />
+          <Route path="stocks/dividends" element={page(PSXSection)} />
           <Route path="stocks/analytics" element={page(PSXSection)} />
           <Route path="stocks/research" element={page(PSXSection)} />
           <Route path="stocks/tools" element={page(PSXSection)} />

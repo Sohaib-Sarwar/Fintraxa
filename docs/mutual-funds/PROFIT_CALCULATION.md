@@ -97,10 +97,16 @@ are sold. It must always be labelled as an estimate, and it is never mixed into
 
 ### Holdings shown
 - **Held:** units > 0.01 at the end of the range.
-- **In the range:** held at the start, traded inside it, or held at the end.
-  A fund fully sold before the range starts is not part of it.
-- **Previous holdings** (dashboard, folded): every fund now at zero units, with
-  its all-time realized net.
+- **In the range (active):** still held when the range starts (units > 0.01
+  from trades before the start), **or** traded inside the range. A fund bought
+  before the range and never sold is part of it. A fund fully redeemed before
+  the start, or first bought after the end, is not. This one rule drives the
+  lists, the totals (value, invested, unrealized), the month-end series and the
+  Analytics filter options, which are built from the engine's `positions`. PSX
+  (`src/lib/psx/portfolio.js`) uses the same rule; its `allPositions` keeps
+  every stock for the trading screens.
+- **Previous holdings** (dashboard): funds at zero units at the range end that
+  were traded inside the range, with the realized net for the range.
 
 ### Profit by month (bar chart)
 For each calendar month inside the range: realized **gross**, **CGT** (tax

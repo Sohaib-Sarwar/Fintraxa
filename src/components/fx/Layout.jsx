@@ -2,7 +2,7 @@ import { Box, ButtonBase, Tooltip, Typography, IconButton, useMediaQuery } from 
 import { InfoOutlined, ChevronLeftRounded, ChevronRightRounded, NorthEastRounded, SouthEastRounded } from '@mui/icons-material';
 import { useFx, FONT_NUM } from './tokens';
 import RangeFilter from './RangeFilter';
-import { useDateRange, rangeLabel, shortDate, effectiveEnd } from '../../lib/dateRange';
+import { useDateRange, shortDate, effectiveEnd } from '../../lib/dateRange';
 
 /** Page title on the left, the global range filter (and any actions) on the right. */
 export function PageHeader({ title, icon, actions, filter = true, sub }) {
@@ -16,7 +16,7 @@ export function PageHeader({ title, icon, actions, filter = true, sub }) {
         {icon}
         <Box sx={{ minWidth: 0 }}>
           <Typography component="h1" sx={{ fontSize: isMobile ? '1.15rem' : '1.4rem', fontWeight: 750, letterSpacing: '-0.03em', lineHeight: 1.15, color: t.ink }}>{title}</Typography>
-          <Typography sx={{ fontSize: '0.7rem', color: t.muted, mt: 0.15 }}>{sub ?? (filter ? `${rangeLabel(range)} · ${period}` : '')}</Typography>
+          {sub !== false && <Typography sx={{ fontSize: '0.7rem', color: t.muted, mt: 0.15 }}>{sub ?? (filter ? period : '')}</Typography>}
         </Box>
       </Box>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, ml: 'auto' }}>
