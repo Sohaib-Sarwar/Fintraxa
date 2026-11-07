@@ -2,7 +2,7 @@ import { createTheme } from '@mui/material/styles';
 
 export function buildTheme(mode = 'light') {
   const isDark = mode === 'dark';
-  const borderColor = isDark ? '#1c1c1c' : '#f0f0f0';
+  const borderColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(10,12,16,0.08)';
   const focusColor = isDark ? '#ffffff' : '#111111';
   const focusRing = isDark ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.16)';
 
@@ -16,8 +16,8 @@ export function buildTheme(mode = 'light') {
       warning: { main: '#f59e0b', light: isDark ? '#78350f' : '#fef3c7' },
       info: { main: '#3b82f6', light: isDark ? '#1e3a5f' : '#dbeafe' },
       background: {
-        default: isDark ? '#000000' : '#ffffff',
-        paper: isDark ? '#111111' : '#ffffff',
+        default: isDark ? '#000000' : '#f4f5f6',
+        paper: isDark ? '#0c0c0d' : '#ffffff',
       },
       text: {
         primary: isDark ? '#f5f5f5' : '#111111',
@@ -29,9 +29,12 @@ export function buildTheme(mode = 'light') {
       divider: borderColor,
     },
     typography: {
-      fontFamily: "'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-      h4: { fontWeight: 700, letterSpacing: '-0.025em' },
-      h5: { fontWeight: 700, letterSpacing: '-0.015em' },
+      // Text: Monety (body) and Artonex (headings), loaded from public/fonts
+      // once licensed files are added; Inter until then. Figures: Inter Tight
+      // with tabular digits (see '.currency, [data-numeric]' below).
+      fontFamily: "'Monety', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      h4: { fontWeight: 700, letterSpacing: '-0.025em', fontFamily: "'Artonex', 'Monety', 'Inter', sans-serif" },
+      h5: { fontWeight: 700, letterSpacing: '-0.015em', fontFamily: "'Artonex', 'Monety', 'Inter', sans-serif" },
       h6: { fontWeight: 600, letterSpacing: '-0.01em' },
       subtitle1: { fontWeight: 500, fontSize: '0.938rem' },
       subtitle2: { fontWeight: 600, fontSize: '0.813rem' },
@@ -45,18 +48,19 @@ export function buildTheme(mode = 'light') {
     components: {
       MuiCssBaseline: {
         styleOverrides: {
-          body: { transition: 'background-color 0.25s ease, color 0.25s ease' },
+          body: { transition: 'background-color 0.25s ease, color 0.25s ease', fontFeatureSettings: "'cv11', 'ss01'" },
           '*': { WebkitTapHighlightColor: 'transparent' },
           // Figures are compared down a column all over this app — holdings,
           // transactions, P&L. Proportional digits make those columns ragged.
-          '.currency, [data-numeric]': { fontVariantNumeric: 'tabular-nums' },
+          '.currency, [data-numeric]': { fontVariantNumeric: 'tabular-nums', fontFamily: "'Inter Tight', 'Inter', sans-serif", letterSpacing: '-0.01em' },
+          '.recharts-text': { fontFamily: "'Inter Tight', 'Inter', sans-serif" },
         },
       },
       MuiCard: {
         styleOverrides: {
           root: {
-            borderRadius: 16,
-            boxShadow: isDark ? 'none' : '0 1px 3px rgba(0,0,0,0.04)',
+            borderRadius: 20,
+            boxShadow: isDark ? 'none' : '0 1px 2px rgba(10,12,16,.04), 0 6px 20px -8px rgba(10,12,16,.08)',
             border: `1px solid ${borderColor}`,
             backgroundImage: 'none',
             transition: 'border-color 0.15s ease, box-shadow 0.15s ease',

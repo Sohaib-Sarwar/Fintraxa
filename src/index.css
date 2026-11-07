@@ -1,3 +1,10 @@
+/* Text faces. Monety and Artonex are commercial fonts: put licensed .woff2
+   files in public/fonts/ (names in public/fonts/README.md) and uncomment the
+   url() lines. Until then a locally installed copy is used if present, and
+   Inter otherwise. */
+@font-face { font-family: 'Monety'; font-display: swap; src: local('Monety'), local('Monety Regular'), local('Monety-Regular') /* , url('/fonts/Monety-Regular.woff2') format('woff2') */; }
+@font-face { font-family: 'Artonex'; font-display: swap; src: local('Artonex'), local('Artonex Regular'), local('Artonex-Regular') /* , url('/fonts/Artonex-Regular.woff2') format('woff2') */; }
+
 *,
 *::before,
 *::after {

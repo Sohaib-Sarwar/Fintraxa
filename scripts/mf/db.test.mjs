@@ -216,3 +216,65 @@ test('QA purge works only for QA accounts', async () => {
 test('service-only functions refuse normal users', async () => {
   await assert.rejects(asUser(db, A, () => db.query(`select public.mf_service_classify_import($1)`, [randomUUID()])), /permission denied|Service role only/);
 });
+
+test('delete_import removes the statement and everything derived from it, only for its owner', async () => {
+  const { importId } = await stageImport(A, '7'.repeat(64), [
+    { type: 'purchase', date: '2026-08-01', nav: '60', units: '10', gross: '600', net: '600', dir: 'investor_pays' },
+    { type: 'redemption', date: '2026-08-05', nav: '61', units: '-4', gross: '244', net: '243', dir: 'investor_receives', components: [{ type: 'cgt', amount: '1' }] },
+  ], { fundName: 'Meezan Delete Test Fund' });
+  const ids = (await staged(importId)).map((s) => s.id);
+  await approve(A, importId, ids);
+  const entries = await all(`select id from public.mf_ledger_entries where source_import_id = $1`, [importId]);
+  assert.equal(entries.length, 2);
+  await asUser(db, A, () => db.query(`select public.mf_reverse_entry($1, 'test')`, [entries[0].id]));
+  await assert.rejects(asUser(db, B, () => db.query(`select public.mf_delete_import($1)`, [importId])), /not found/);
+  const r = await asUser(db, A, async () => (await one(`select public.mf_delete_import($1) as r`, [importId])).r);
+  assert.equal(r.entries_deleted, 3, 'two entries plus the reversal');
+  assert.match(r.storage_path, /\.pdf$/);
+  assert.equal((await all(`select 1 from public.mf_statement_imports where id = $1`, [importId])).length, 0);
+  assert.equal((await all(`select 1 from public.mf_staged_transactions where import_id = $1`, [importId])).length, 0);
+  assert.equal((await all(`select 1 from public.mf_ledger_entries where source_import_id = $1 or reverses_entry_id = any($2)`, [importId, entries.map((e) => e.id)])).length, 0);
+  assert.equal((await all(`select 1 from public.mf_ledger_components where entry_id = any($1)`, [entries.map((e) => e.id)])).length, 0);
+  const audit = await one(`select action from public.mf_audit_log where entity_id = $1 and action = 'delete_import'`, [importId]);
+  assert.equal(audit.action, 'delete_import');
+});
+
+test('delete_entry removes one transaction (and its reversal); the statement row is marked excluded', async () => {
+  const { importId } = await stageImport(A, '8'.repeat(64), [
+    { type: 'purchase', date: '2026-08-10', nav: '60', units: '5', gross: '300', net: '300', dir: 'investor_pays' },
+    { type: 'purchase', date: '2026-08-11', nav: '60', units: '6', gross: '360', net: '360', dir: 'investor_pays' },
+  ], { fundName: 'Meezan Entry Delete Fund' });
+  const ids = (await staged(importId)).map((s) => s.id);
+  await approve(A, importId, ids);
+  const [first, second] = await all(`select id from public.mf_ledger_entries where source_import_id = $1 order by trade_date`, [importId]);
+  await assert.rejects(asUser(db, B, () => db.query(`select public.mf_delete_entry($1)`, [first.id])), /not found/);
+  const r = await asUser(db, A, async () => (await one(`select public.mf_delete_entry($1) as r`, [first.id])).r);
+  assert.equal(r.deleted, 1);
+  const left = await all(`select id from public.mf_ledger_entries where source_import_id = $1`, [importId]);
+  assert.deepEqual(left.map((x) => x.id), [second.id]);
+  const st = await one(`select review_status, ledger_entry_id from public.mf_staged_transactions where import_id = $1 and seq = 1`, [importId]);
+  assert.equal(st.review_status, 'excluded');
+  assert.equal(st.ledger_entry_id, null);
+  // Manual and migrated rows go too; the legacy source row is removed with the migrated entry.
+  const legacy = await one(`select id from public.mf_ledger_entries where legacy_txn_id = $1`, [LEGACY_ID]);
+  await asUser(db, A, () => db.query(`select public.mf_delete_entry($1)`, [legacy.id]));
+  assert.equal((await all(`select 1 from public.mutual_fund_transactions where id = $1`, [LEGACY_ID])).length, 0);
+});
+
+test('edit_entry changes figures in place, keeps direction, validates, and is audited', async () => {
+  const { importId } = await stageImport(A, '9'.repeat(64), [
+    { type: 'redemption', date: '2026-08-20', nav: '62', units: '-3', gross: '186', net: '185', dir: 'investor_receives', components: [{ type: 'cgt', amount: '1' }] },
+  ], { fundName: 'Meezan Edit Fund' });
+  await approve(A, importId, (await staged(importId)).map((s) => s.id));
+  const e = await one(`select id from public.mf_ledger_entries where source_import_id = $1`, [importId]);
+  await asUser(db, A, () => db.query(`select public.mf_edit_entry($1, $2)`, [e.id, { units: '3.5', gross_amount: '217', net_amount: '215', cgt: '2', trade_date: '2026-08-21' }]));
+  const row = await one(`select trade_date::text d, unit_delta::text u, gross_amount::text g, net_amount::text n from public.mf_ledger_entries where id = $1`, [e.id]);
+  assert.deepEqual(row, { d: '2026-08-21', u: '-3.5', g: '217', n: '215' }, 'units stay an outflow');
+  const cgt = await all(`select amount::text a from public.mf_ledger_components where entry_id = $1 and component_type = 'cgt'`, [e.id]);
+  assert.deepEqual(cgt.map((c) => c.a), ['2']);
+  await assert.rejects(asUser(db, A, () => db.query(`select public.mf_edit_entry($1, $2)`, [e.id, { fund_id: randomUUID() }])), /cannot be edited/);
+  await assert.rejects(asUser(db, A, () => db.query(`select public.mf_edit_entry($1, $2)`, [e.id, { trade_date: '2099-01-01' }])), /future/);
+  await assert.rejects(asUser(db, B, () => db.query(`select public.mf_edit_entry($1, $2)`, [e.id, { nav: '1' }])), /not found/);
+  const audit = await one(`select details from public.mf_audit_log where entity_id = $1 and action = 'edit_entry'`, [e.id]);
+  assert.equal(String(audit.details.before.gross_amount), '186');
+});

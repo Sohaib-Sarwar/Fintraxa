@@ -496,9 +496,9 @@ export default function AppLayout() {
           sx={{
             flex: 1,
             px: { xs: 1, sm: 1.5, md: 3 },
-            pt: { xs: 1, md: 3 },
+            pt: { xs: 1, md: 2 },
             pb: isMobile ? 'calc(60px + env(safe-area-inset-bottom, 0px) + 8px)' : 3,
-            maxWidth: 1000, width: '100%', mx: 'auto',
+            maxWidth: 1440, width: '100%', mx: 'auto',
           }}
         >
           {isMobile ? (

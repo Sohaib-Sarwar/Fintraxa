@@ -78,7 +78,7 @@ export function parseDate(text) {
     const mo = MONTHS[m[2].toLowerCase()];
     return mo ? iso(+m[3], mo, +m[1]) : null;
   }
-  if ((m = s.match(/^([A-Za-z]{3,9})[-/ .](\d{1,2})[-/ .,]+(\d{2,4})$/))) {
+  if ((m = s.match(/^([A-Za-z]{3,9})\.?[-/ .]+(\d{1,2})[-/ .,]+(\d{2,4})$/))) {
     const mo = MONTHS[m[1].toLowerCase()];
     return mo ? iso(+m[3], mo, +m[2]) : null;
   }

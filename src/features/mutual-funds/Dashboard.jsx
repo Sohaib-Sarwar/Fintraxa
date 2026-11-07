@@ -1,276 +1,180 @@
-import { useState } from 'react';
-import {
-  Box, Card, CardContent, Typography, Grid, Skeleton, Tooltip, IconButton, Alert, Button, useMediaQuery, useTheme,
-} from '@mui/material';
-import {
-  UploadFileRounded, ReceiptLongRounded, ExpandMoreRounded, InfoOutlined,
-} from '@mui/icons-material';
-import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
+import { Box, Skeleton, Typography, ButtonBase, Collapse, Button, useMediaQuery } from '@mui/material';
+import { ExpandMoreRounded } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { supabase } from '../../lib/supabase';
-import { useAppStore } from '../../store/appStore';
-import { dbErrorHandler } from '../../lib/dbErrors';
-import { useMfPortfolio, MF_LEDGER_KEY } from '../../lib/mf/useMfPortfolio';
-import { formatCurrency, formatPercent, getPnLColor, shortFundName } from '../../lib/formatters';
-import { CountUp } from '../../components/motion';
-import { pieSector, makeOuterLabel, DonutCenter } from '../../components/charts';
-import { clickable } from '../../lib/a11y';
-import ImportDialog from './ImportDialog';
+import { useMfAnalysis } from '../../lib/mf/useMfPortfolio';
+import { useDateRange, rangeLabel, shortDate } from '../../lib/dateRange';
+import { formatCurrency } from '../../lib/formatters';
+import { useFx, PageHeader, ValueCard, MonthlyProfitChart, FONT_NUM, signColor } from '../../components/fx';
 import AmcLogo from './AmcLogo';
-import { ProfitDetailsDialog, FundDetailsDialog, GrowthChart } from './MFDetails';
+import { FundDetailsDialog } from './MFDetails';
+import { monthName } from './mfLabels';
 
-const profitColors = ['#22c55e', '#4ade80', '#86efac', '#bbf7d0'];
-const lossColors = ['#ef4444', '#f87171', '#fca5a5', '#fecaca'];
-const renderOuterLabel = makeOuterLabel((p) => p.shortName || p.name);
-const num = (d) => (d === null || d === undefined ? null : Number(d.toString()));
 const AMC_SHORT = { atlas: 'Atlas', mcb: 'MCB', meezan: 'Meezan', nbp: 'NBP', ubl: 'UBL' };
+/** The range's first day, or the first month with data for "All time". */
+const periodStart = (a) => {
+  const first = a.months[0] ? `${a.months[0].month}-01` : a.start;
+  return a.start > first ? a.start : first;
+};
+const signed = (v) => (v === null || v === undefined ? '—' : `${v > 0 ? '+' : v < 0 ? '−' : ''}${formatCurrency(Math.abs(v))}`);
 
+/**
+ * Mutual funds for the selected range: the value card and profit by month
+ * side by side, then the funds held now, then (folded) the ones sold.
+ */
 export default function MFDashboard() {
-  const isMobile = useMediaQuery('(max-width:768px)');
-  const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
+  const t = useFx();
+  const isMobile = useMediaQuery('(max-width:900px)');
   const navigate = useNavigate();
-  const qc = useQueryClient();
-  const showSnackbar = useAppStore((s) => s.showSnackbar);
-  const showConfirm = useAppStore((s) => s.showConfirm);
-  const [activeIdx, setActiveIdx] = useState(-1);
-  const [importOpen, setImportOpen] = useState(false);
-  const [profitOpen, setProfitOpen] = useState(false);
+  const { range } = useDateRange();
+  const { analysis: a, isLoading } = useMfAnalysis(range);
   const [fund, setFund] = useState(null);
-  const [showClosed, setShowClosed] = useState(false);
-  const { portfolio, isLoading } = useMfPortfolio();
+  const [showPrev, setShowPrev] = useState(false);
+  const label = rangeLabel(range);
 
-  const supersede = useMutation({
-    mutationFn: async (fundId) => {
-      const { data, error } = await supabase.rpc('mf_supersede_manual', { p_fund_id: fundId });
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: (n) => { showSnackbar(`${n} manual entr${n === 1 ? 'y' : 'ies'} superseded (kept for audit)`, 'success'); qc.invalidateQueries({ queryKey: [MF_LEDGER_KEY] }); },
-    onError: dbErrorHandler(showSnackbar, 'Could not supersede'),
-  });
+  const { held, previous } = useMemo(() => {
+    if (!a) return { held: [], previous: [] };
+    return {
+      held: a.positions.filter((p) => p.isOpen).sort((x, y) => (y.value ?? 0) - (x.value ?? 0)),
+      previous: a.allPositions.filter((p) => !p.isOpen).sort((x, y) => (y.lastDate ?? '').localeCompare(x.lastDate ?? '')),
+    };
+  }, [a]);
 
-  const header = (
-    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: isMobile ? 1.5 : 2 }}>
-      <Typography sx={{ fontSize: isMobile ? '1.2rem' : '1.45rem', fontWeight: 800, letterSpacing: '-0.03em' }}>Mutual Funds</Typography>
-      <Box sx={{ display: 'flex', gap: 0.5 }}>
-        <Tooltip title="Fund transactions"><IconButton aria-label="Fund transactions" onClick={() => navigate('/funds/transactions')}><ReceiptLongRounded /></IconButton></Tooltip>
-        <Tooltip title="Import statement (PDF)">
-          <IconButton aria-label="Import statement" onClick={() => setImportOpen(true)}
-            sx={{ bgcolor: isDark ? '#fff' : '#111', color: isDark ? '#111' : '#fff', '&:hover': { bgcolor: isDark ? '#e5e5e5' : '#333' } }}>
-            <UploadFileRounded />
-          </IconButton>
-        </Tooltip>
-      </Box>
-    </Box>
-  );
-
-  if (isLoading || !portfolio) {
+  if (isLoading || !a) {
     return (
       <Box>
-        {header}
-        <Grid container spacing={1.5} sx={{ mb: 1.5 }}>
-          <Grid size={{ xs: 12, md: 8 }}><Skeleton variant="rounded" height={250} /></Grid>
-          <Grid size={{ xs: 12, md: 4 }}><Skeleton variant="rounded" height={250} /></Grid>
-        </Grid>
-        <Grid container spacing={1.5}>{[1, 2, 3, 4].map((i) => <Grid size={{ xs: 6, md: 3 }} key={i}><Skeleton variant="rounded" height={84} /></Grid>)}</Grid>
+        <PageHeader title="Mutual Funds" />
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2, mb: 2 }}>
+          <Skeleton variant="rounded" height={330} sx={{ borderRadius: '26px' }} />
+          <Skeleton variant="rounded" height={330} sx={{ borderRadius: '26px' }} />
+        </Box>
       </Box>
     );
   }
 
-  const t = portfolio.totals;
-  const open = portfolio.positions.filter((p) => p.isOpen);
-  const closed = portfolio.positions.filter((p) => !p.isOpen);
-
-  if (!portfolio.positions.length) {
-    return (
-      <Box>
-        {header}
-        <Card sx={{ p: isMobile ? 3 : 5, textAlign: 'center' }}>
-          <UploadFileRounded sx={{ fontSize: 44, color: 'text.disabled', mb: 1 }} />
-          <Typography sx={{ fontWeight: 700, mb: 0.5 }}>Import your first statement</Typography>
-          <Typography sx={{ fontSize: '0.8rem', color: 'text.secondary', mb: 2.5, maxWidth: 420, mx: 'auto' }}>
-            Upload the PDF account statement from Atlas, MCB, Meezan, NBP or UBL. Transactions, CGT and refunds are read
-            from it and your profit is calculated with FIFO.
-          </Typography>
-          <Button variant="contained" disableElevation startIcon={<UploadFileRounded />} onClick={() => setImportOpen(true)} sx={{ textTransform: 'none', borderRadius: 2.5 }}>
-            Import statement
-          </Button>
-        </Card>
-        <ImportDialog open={importOpen} onClose={() => setImportOpen(false)} />
-      </Box>
-    );
-  }
-
-  const net = num(t.netProfit) ?? 0;
-  const pnl = net >= 0 ? '#15803d' : '#b91c1c';
-  const xirr = t.xirr ? num(t.xirr) * 100 : null;
-  const simple = t.returnPct !== null ? num(t.returnPct) : null;
-  const stats = [
-    { label: 'Current value', value: num(t.marketValue) ?? 0, logic: 'Units you hold × each fund\'s latest repurchase price (NAV). Click for the full breakdown.' },
-    { label: 'Invested', value: num(t.externalInvested) ?? 0, logic: 'Every rupee you paid into your funds. Moving money between funds (switches) is not counted twice.' },
-    { label: 'Net profit', value: net, color: pnl, logic: 'Value now + money you received − money you invested. Equals realized + unrealized gains + dividends − CGT actually charged − other charges.' },
-    { label: xirr !== null ? 'Return · XIRR' : 'Return', value: xirr ?? simple ?? 0, format: formatPercent, color: pnl,
-      logic: xirr !== null ? `Annualised, accounting for when money went in and out. Simple return: ${simple !== null ? formatPercent(simple) : '—'}.` : 'Net profit ÷ invested.' },
-  ];
-
-  let profitIdx = 0, lossIdx = 0;
-  const pie = open
-    .map((p) => ({ name: p.fundName ?? 'Fund', shortName: shortFundName(p.fundName ?? ''), value: Math.round(num(p.marketValue) ?? 0), gainLoss: num(p.netProfit) ?? 0 }))
-    .sort((a, b) => b.value - a.value)
-    .map((d) => ({ ...d, color: d.gainLoss >= 0 ? profitColors[profitIdx++ % profitColors.length] : lossColors[lossIdx++ % lossColors.length] }));
-  const chartH = isMobile ? 260 : 290;
+  const tt = a.totals;
+  const hasAny = a.allPositions.length > 0;
 
   return (
     <Box sx={{ pb: isMobile ? 1 : 0 }}>
-      {header}
+      <PageHeader title="Mutual Funds" />
 
-      {portfolio.manualOverlaps.length > 0 && (
-        <Alert severity="info" sx={{ mb: 1.5, borderRadius: 2.5, fontSize: '0.74rem', py: 0.25 }}
-          action={portfolio.manualOverlaps.length === 1 ? (
-            <Button size="small" color="inherit" disabled={supersede.isPending} sx={{ textTransform: 'none' }}
-              onClick={() => showConfirm('Use statement data?', `Manual entries for ${portfolio.manualOverlaps[0].fundName} will be reversed (kept for audit).`, () => supersede.mutate(portfolio.manualOverlaps[0].fundId))}>
-              Fix
-            </Button>
-          ) : null}>
-          Manual entries overlap {portfolio.manualOverlaps.map((o) => o.fundName).join(', ')}, which your statements now cover.
-          {portfolio.manualOverlaps.length > 1 && (
-            <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap', mt: 0.75 }}>
-              {portfolio.manualOverlaps.map((o) => (
-                <Button key={o.fundId} size="small" variant="outlined" color="inherit" sx={{ textTransform: 'none', fontSize: '0.68rem', py: 0 }}
-                  onClick={() => showConfirm('Use statement data?', `Manual entries for ${o.fundName} will be reversed (kept for audit).`, () => supersede.mutate(o.fundId))}>
-                  {o.fundName}
-                </Button>
-              ))}
+      {!hasAny ? (
+        <Box sx={{ textAlign: 'center', py: 8, px: 2, border: `1px dashed ${t.border}`, borderRadius: '26px' }}>
+          <Typography sx={{ fontWeight: 700, mb: 0.5 }}>No funds yet</Typography>
+          <Typography sx={{ fontSize: '0.82rem', color: t.muted, mb: 2 }}>Upload a statement or add a fund by hand.</Typography>
+          <Button variant="contained" disableElevation onClick={() => navigate('/funds/add')} sx={{ borderRadius: 999 }}>Add fund</Button>
+        </Box>
+      ) : (
+        <>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 1fr) minmax(0, 1fr)' }, gap: 2, mb: 2.5, alignItems: 'stretch' }}>
+            <ValueCard
+              title="Current value"
+              badge={label}
+              value={tt.value}
+              panels={[
+                { tone: 'indigo', items: [{ label: 'Invested', value: formatCurrency(tt.invested) }, { label: 'Funds held', value: String(tt.held) }] },
+                {
+                  tone: 'lavender',
+                  items: [
+                    { label: 'Realized gain', value: signed(tt.realized.net), onClick: () => navigate('/funds/analytics') },
+                    { label: 'Unrealized gain', value: signed(tt.unrealized.net), onClick: () => navigate('/funds/analytics') },
+                  ],
+                },
+              ]}
+            />
+            <MonthlyProfitChart months={a.months} monthName={monthName} height={isMobile ? 200 : 210}
+              subtitle={`${shortDate(periodStart(a))} to ${shortDate(a.end)}`} />
+          </Box>
+
+          <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', mb: 1.25 }}>
+            <Typography component="h2" sx={{ fontSize: '1rem', fontWeight: 750, letterSpacing: '-0.02em' }}>
+              Holdings <Box component="span" sx={{ color: t.muted, fontWeight: 500 }}>{held.length}</Box>
+            </Typography>
+          </Box>
+          {held.length === 0 ? (
+            <Typography sx={{ fontSize: '0.82rem', color: t.muted, mb: 2 }}>Nothing held at the end of {label}.</Typography>
+          ) : (
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(3, minmax(0, 1fr))', xl: 'repeat(4, minmax(0, 1fr))' }, gap: 1.5, mb: 2 }}>
+              {held.map((p) => <HoldingCard key={p.key} p={p} onOpen={() => setFund(p)} />)}
             </Box>
           )}
-        </Alert>
-      )}
 
-      {/* ── Figures ── */}
-      <Grid container spacing={1.5} sx={{ mb: 1.5 }}>
-        {stats.map((s, i) => (
-          <Grid size={{ xs: 6, md: 3 }} key={s.label}>
-            <Tooltip title={s.logic} arrow placement="top" enterDelay={250}>
-              <Card {...clickable(() => setProfitOpen(true))} aria-label={`${s.label}: open breakdown`}
-                sx={{ cursor: 'pointer', transition: 'transform .15s, box-shadow .15s', '&:hover': { transform: 'translateY(-1px)', boxShadow: isDark ? '0 6px 18px rgba(255,255,255,0.04)' : '0 6px 18px rgba(0,0,0,0.07)' } }}>
-                <CardContent sx={{ p: isMobile ? 1.5 : 1.75, '&:last-child': { pb: isMobile ? 1.5 : 1.75 } }}>
-                  <Typography sx={{ fontSize: '0.62rem', color: 'text.secondary', fontWeight: 500, letterSpacing: '0.05em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 0.4 }}>
-                    {s.label}<InfoOutlined sx={{ fontSize: 11, opacity: 0.5 }} />
-                  </Typography>
-                  <Typography sx={{ fontSize: isMobile ? '1.02rem' : '1.2rem', fontWeight: 750, color: s.color || 'text.primary', fontFeatureSettings: '"tnum"', mt: 0.25 }}>
-                    <CountUp to={s.value} format={s.format || formatCurrency} delay={i * 0.04} />
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Tooltip>
-          </Grid>
-        ))}
-      </Grid>
-
-      {/* ── Two charts ── */}
-      <Grid container spacing={1.5} sx={{ mb: 2 }}>
-        <Grid size={{ xs: 12, md: 8 }}>
-          <Card sx={{ height: '100%' }}>
-            <CardContent sx={{ p: isMobile ? 1.5 : 2, '&:last-child': { pb: 1 } }}>
-              <Typography sx={{ fontSize: '0.74rem', fontWeight: 600, mb: 0.5 }}>Growth</Typography>
-              <GrowthChart series={portfolio.series} height={chartH} />
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid size={{ xs: 12, md: 4 }}>
-          <Card sx={{ height: '100%' }}>
-            <CardContent sx={{ p: isMobile ? 1.5 : 2, '&:last-child': { pb: 1.5 } }}>
-              <Typography sx={{ fontSize: '0.74rem', fontWeight: 600, mb: 0.5 }}>Allocation</Typography>
-              {pie.length ? (
-                <Box sx={{ position: 'relative' }}>
-                  <ResponsiveContainer width="100%" height={chartH}>
-                    <PieChart>
-                      <Pie data={pie} dataKey="value" cx="50%" cy="50%"
-                        innerRadius={isMobile ? 55 : 68} outerRadius={isMobile ? 78 : 96}
-                        paddingAngle={4} strokeWidth={0} shape={pieSector}
-                        label={activeIdx < 0 ? renderOuterLabel : false} labelLine={false}
-                        onMouseEnter={(_, i) => setActiveIdx(i)} onMouseLeave={() => setActiveIdx(-1)}>
-                        {pie.map((d, i) => <Cell key={i} fill={d.color} />)}
-                      </Pie>
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <DonutCenter data={pie} activeIndex={activeIdx} restingValue={formatCurrency(num(t.marketValue) ?? 0)}
-                    restingLabel="portfolio" format={formatCurrency} width={isMobile ? 90 : 115} compact={isMobile} />
+          {previous.length > 0 && (
+            <>
+              <ButtonBase onClick={() => setShowPrev((v) => !v)} aria-expanded={showPrev}
+                sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, height: 34, px: 1.5, borderRadius: 999, border: `1px solid ${t.border}`, bgcolor: t.surface, fontSize: '0.78rem', fontWeight: 650, fontFamily: 'inherit', color: t.ink2 }}>
+                Previous holdings · {previous.length}
+                <ExpandMoreRounded sx={{ fontSize: 18, transition: 'transform .25s', transform: showPrev ? 'rotate(180deg)' : 'none' }} />
+              </ButtonBase>
+              <Collapse in={showPrev} unmountOnExit>
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(3, minmax(0, 1fr))', xl: 'repeat(4, minmax(0, 1fr))' }, gap: 1.5, mt: 1.5 }}>
+                  {previous.map((p) => <PreviousCard key={p.key} p={p} onOpen={() => setFund(p)} />)}
                 </Box>
-              ) : (
-                <Box sx={{ height: chartH, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Typography sx={{ fontSize: '0.76rem', color: 'text.secondary' }}>No open holdings</Typography>
-                </Box>
-              )}
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-
-      {/* ── Holdings ── */}
-      <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', mb: 1 }}>
-        <Typography sx={{ fontSize: '0.78rem', fontWeight: 700 }}>Holdings <Box component="span" sx={{ color: 'text.secondary', fontWeight: 500 }}>· {open.length}</Box></Typography>
-      </Box>
-      <Grid container spacing={1.25}>
-        {open.map((p, i) => <Grid size={{ xs: 12, sm: 6, lg: 4 }} key={p.key}><FundCard p={p} i={i} onOpen={() => setFund(p)} /></Grid>)}
-      </Grid>
-
-      {closed.length > 0 && (
-        <>
-          <Button size="small" onClick={() => setShowClosed((v) => !v)} endIcon={<ExpandMoreRounded sx={{ transform: showClosed ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }} />}
-            sx={{ textTransform: 'none', color: 'text.secondary', mt: 1.5, mb: 1 }}>
-            {showClosed ? 'Hide' : 'Show'} closed positions ({closed.length})
-          </Button>
-          {showClosed && (
-            <Grid container spacing={1.25}>
-              {closed.map((p, i) => <Grid size={{ xs: 12, sm: 6, lg: 4 }} key={p.key}><FundCard p={p} i={i} closed onOpen={() => setFund(p)} /></Grid>)}
-            </Grid>
+              </Collapse>
+            </>
           )}
         </>
       )}
 
-      <ImportDialog open={importOpen} onClose={() => setImportOpen(false)} />
-      <ProfitDetailsDialog open={profitOpen} onClose={() => setProfitOpen(false)} totals={t} />
-      <FundDetailsDialog open={!!fund} onClose={() => setFund(null)} position={fund} />
+      <FundDetailsDialog open={!!fund} onClose={() => setFund(null)} position={fund} rangeLabel={label} />
     </Box>
   );
 }
 
-/** Compact holding card: who, how much, how it's doing. Everything else is one click away. */
-function FundCard({ p, i, closed, onOpen }) {
-  const value = num(p.marketValue);
-  const net = num(p.netProfit);
-  const invested = num(p.invested) ?? 0;
-  const pct = net !== null && invested > 0 ? (net / invested) * 100 : null;
-  const color = getPnLColor(net ?? 0);
+function HoldingCard({ p, onOpen }) {
+  const t = useFx();
+  const u = p.unrealized;
   return (
-    <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i, 8) * 0.03 }} style={{ height: '100%' }}>
-      <Card {...clickable(onOpen)} aria-label={`${p.fundName}: open details`}
-        sx={{ height: '100%', cursor: 'pointer', opacity: closed ? 0.8 : 1, transition: 'transform .15s, box-shadow .15s, border-color .15s',
-          '&:hover': { transform: 'translateY(-1px)', boxShadow: '0 6px 18px rgba(0,0,0,0.07)' } }}>
-        <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 }, display: 'flex', alignItems: 'center', gap: 1.25 }}>
-          <AmcLogo code={p.amcCode} name={p.amcName} size={38} />
-          <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography sx={{ fontSize: '0.8rem', fontWeight: 650, lineHeight: 1.25, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-              {p.fundName ?? 'Fund'}
-            </Typography>
-            <Typography sx={{ fontSize: '0.64rem', color: 'text.secondary', mt: 0.2 }}>
-              {AMC_SHORT[p.amcCode] ?? p.amcName ?? ''}{p.price?.stale ? ' · price outdated' : ''}{!p.realizedComplete ? ' · incomplete' : ''}
-            </Typography>
-          </Box>
-          <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
-            <Typography sx={{ fontSize: '0.84rem', fontWeight: 700, fontFeatureSettings: '"tnum"' }}>
-              {closed ? 'Closed' : value === null ? '—' : formatCurrency(value)}
-            </Typography>
-            <Typography sx={{ fontSize: '0.68rem', fontWeight: 600, color, fontFeatureSettings: '"tnum"' }}>
-              {net === null ? '—' : `${net >= 0 ? '+' : ''}${formatCurrency(net)}`}{pct !== null ? ` · ${formatPercent(pct)}` : ''}
-            </Typography>
-          </Box>
-        </CardContent>
-      </Card>
-    </motion.div>
+    <ButtonBase onClick={onOpen} aria-label={`${p.fundName}: details`} sx={{
+      display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 1.5, p: 1.75, borderRadius: '20px', textAlign: 'left', fontFamily: 'inherit',
+      bgcolor: t.surface, border: `1px solid ${t.border}`, boxShadow: t.shadow, transition: 'border-color .16s',
+      '@media (hover: hover)': { '&:hover': { borderColor: t.muted } },
+    }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, minWidth: 0 }}>
+        <AmcLogo code={p.amcCode} name={p.amcName} size={38} />
+        <Box sx={{ minWidth: 0, flex: 1 }}>
+          <Typography noWrap sx={{ fontSize: '0.84rem', fontWeight: 650, color: t.ink }}>{p.fundName ?? 'Fund'}</Typography>
+          <Typography noWrap sx={{ fontSize: '0.68rem', color: t.muted }}>{AMC_SHORT[p.amcCode] ?? p.amcName}{p.flags.includes('price_outdated') ? ' · price outdated' : ''}</Typography>
+        </Box>
+      </Box>
+      <Typography data-numeric sx={{ fontFamily: FONT_NUM, fontSize: '1.35rem', fontWeight: 650, letterSpacing: '-0.04em', color: t.ink, lineHeight: 1 }}>
+        {p.value === null ? '—' : formatCurrency(p.value)}
+      </Typography>
+      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
+        <Mini label="Invested" value={formatCurrency(p.invested)} />
+        <Mini label="Unrealized" value={signed(u.net)} color={signColor(t, u.net ?? 0)} />
+      </Box>
+    </ButtonBase>
+  );
+}
+
+function PreviousCard({ p, onOpen }) {
+  const t = useFx();
+  return (
+    <ButtonBase onClick={onOpen} aria-label={`${p.fundName}: details`} sx={{
+      display: 'flex', alignItems: 'center', gap: 1.25, p: 1.5, borderRadius: '18px', textAlign: 'left', fontFamily: 'inherit',
+      bgcolor: t.surface2, border: `1px solid ${t.hairline}`, '@media (hover: hover)': { '&:hover': { bgcolor: t.surface3 } },
+    }}>
+      <AmcLogo code={p.amcCode} name={p.amcName} size={32} />
+      <Box sx={{ minWidth: 0, flex: 1 }}>
+        <Typography noWrap sx={{ fontSize: '0.8rem', fontWeight: 650 }}>{p.fundName ?? 'Fund'}</Typography>
+        <Typography noWrap sx={{ fontSize: '0.66rem', color: t.muted }}>Redeemed {p.lastDate ? shortDate(p.lastDate) : ''}</Typography>
+      </Box>
+      <Box sx={{ textAlign: 'right' }}>
+        <Typography sx={{ fontSize: '0.62rem', color: t.muted }}>Realized</Typography>
+        <Typography data-numeric sx={{ fontFamily: FONT_NUM, fontSize: '0.84rem', fontWeight: 650, color: signColor(t, p.allTime.net), letterSpacing: '-0.03em' }}>{signed(p.allTime.net)}</Typography>
+      </Box>
+    </ButtonBase>
+  );
+}
+
+function Mini({ label, value, color }) {
+  const t = useFx();
+  return (
+    <Box sx={{ bgcolor: t.surface2, borderRadius: '12px', px: 1.25, py: 0.9, minWidth: 0 }}>
+      <Typography sx={{ fontSize: '0.64rem', color: t.muted, fontWeight: 600 }}>{label}</Typography>
+      <Typography data-numeric noWrap sx={{ fontFamily: FONT_NUM, fontSize: '0.86rem', fontWeight: 650, color: color ?? t.ink, letterSpacing: '-0.03em' }}>{value}</Typography>
+    </Box>
   );
 }

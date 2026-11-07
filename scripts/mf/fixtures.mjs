@@ -198,3 +198,39 @@ export function ublStatement() {
     ]),
   ];
 }
+
+/** UBL portal / mobile-app "Transaction Statement" (date-range download). */
+export function ublPortalStatement() {
+  return [page(1, [
+    [txt(375, 'Statement Period :'), txt(460, 'Feb. 12, 2026'), txt(523, 'To'), txt(542, 'Mar. 31, 2026')],
+    [txt(378, 'Customer lD'), txt(448, '00999999-1'), txt(508, 'Type'), txt(555, 'Individual')],
+    [txt(11, 'Transaction Statement'), txt(378, 'Online Access'), txt(453, 'Registered')],
+    [txt(9, 'TESTA INVESTOROVA')],
+    [txt(10, 'House 9, Lane 4, Sample Town,')],
+    [txt(13, 'Ledger Date'), txt(59, 'Applicable'), txt(145, 'Transaction Type'), txt(259, 'Gross'), txt(304, 'Load'), txt(340, 'Charges'),
+      txt(383, 'CGT /'), txt(430, 'Net'), txt(478, 'Unit'), txt(514, 'No. of Units'), txt(570, 'Balance')],
+    [txt(61, 'NAV Date'), txt(256, 'Amount'), txt(300, 'Amount'), txt(385, 'Tax'), txt(424, 'Amount'), txt(477, 'Price'), txt(574, 'Units')],
+    [txt(8, 'AL-AMEEN ISLAMIC CASH FUND'), txt(489, 'Opening'), num(576, '0.00')],
+    [txt(11, '12 FEB 2026'), txt(59, '11-FEB-2026'), txt(148, 'Initial Purchase'), num(289, '2,500'), num(330, '0'), num(374, '0'), num(407, '0'), num(462, '2,500'), num(506, '107.5000'), num(554, '23.26'), num(607, '23.26')],
+    [txt(11, '10 MAR 2026'), txt(59, '10-MAR-2026'), txt(148, 'Redemption (Withdrawal)'), num(289, '(1,088)'), num(330, '0'), num(374, '0'), num(407, '2'), num(462, '(1,086)'), num(506, '108.8000'), num(554, '(10.00)'), num(607, '13.26')],
+    [txt(9, 'Fund Name : AL-AMEEN ISLAMIC CASH FUND'), txt(254, 'NAV :'), num(315, '109.0000'), txt(336, 'Investment Value (Rs.) :'), num(500, '1,445.34')],
+    [txt(332, 'Total Investment Value (Rs.) :'), num(529, '1,445.34')],
+    [txt(11, 'Note :'), txt(40, 'For investment valuation, NAV or Redemption price is used.')],
+    [txt(12, 'IMPORTANT: Report any discrepancy to: UBL Fund Managers - Operations Office. e-mail info@UBLFunds.com')],
+  ])];
+}
+
+/** A layout no specific parser knows (e.g. a new portal design) — generic reader. */
+export function unknownLayoutMeezan() {
+  return [page(1, [
+    [txt(150, 'AL MEEZAN INVESTMENT MANAGEMENT LTD')],
+    [txt(40, 'Account Activity For the period 01-Jan-2026 to 31-Mar-2026')],
+    [txt(40, 'Portfolio No:'), txt(120, '424242-111')],
+    [txt(40, 'Transaction Date'), txt(130, 'Description'), txt(300, 'Units'), txt(360, 'NAV'), txt(430, 'Amount (PKR)'), txt(520, 'Balance Units')],
+    [txt(40, 'MEEZAN ISLAMIC FUND')],
+    [txt(40, '05-Jan-2026'), txt(130, 'Purchase'), num(330, '100.0000'), num(400, '150.0000'), num(490, '15,000'), num(570, '100.0000')],
+    [txt(40, '20-Mar-2026'), txt(130, 'Redemption'), num(330, '-40.0000'), num(400, '160.0000'), num(490, '6,370'), num(570, '60.0000')],
+    [txt(130, 'Capital Gain Tax'), num(490, '30')],
+    [txt(40, 'Disclaimer: This is a computer generated statement.')],
+  ])];
+}

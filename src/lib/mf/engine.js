@@ -16,7 +16,8 @@
  */
 import Decimal from 'decimal.js';
 
-export const ENGINE_VERSION = 'mf-engine-1.1.0';
+export const ENGINE_VERSION = 'mf-engine-1.3.0';
+// Period and monthly profit live in ./profit.js (analyzeFunds).
 
 /**
  * Rate used ONLY to estimate the CGT that would fall due if today's
@@ -27,7 +28,9 @@ export const CGT_ESTIMATE_RATE = '0.15';
 
 const D = (v) => (v === null || v === undefined || v === '' ? null : new Decimal(String(v)));
 const ZERO = new Decimal(0);
-const UNIT_TOLERANCE = new Decimal('0.001');   // MCB rounds a full redemption to −0.0001
+// Statements round units (UBL prints 2 decimals, MCB 4), so a full redemption
+// can be 0.01–0.03 units more than the rounded purchases added up to.
+const UNIT_TOLERANCE = new Decimal('0.05');
 const DUST_UNITS = new Decimal('0.01');
 
 const UNIT_IN = new Set(['purchase', 'switch_in', 'transfer_in', 'dividend_reinvest', 'bonus_units', 'capital_refund_units', 'cgt_refund_reinvest']);
@@ -363,40 +366,4 @@ export function xirr(flows) {
     if (fm.isNegative() === flo.isNegative()) { lo = mid; flo = fm; } else { hi = mid; fhi = fm; }
   }
   return null;
-}
-
-/**
- * Invested (FIFO cost of units still held) and market value at each month
- * end, for the growth chart. Each point replays the ledger up to that date
- * with only the prices known by then, so history is not revalued with
- * today's NAV.
- * @returns {{date: string, invested: number, value: number}[]}
- */
-export function growthSeries({ entries, components = [], prices = [], funds = {}, amcs = {}, asOf, maxPoints = 24 }) {
-  const today = asOf ?? new Date().toISOString().slice(0, 10);
-  const dated = entries.filter((e) => e.trade_date).map((e) => e.trade_date).sort();
-  if (!dated.length) return [];
-  const ends = [];
-  const d = new Date(`${dated[0].slice(0, 7)}-01T00:00:00Z`);
-  for (;;) {
-    const end = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).toISOString().slice(0, 10);
-    if (end >= today) { ends.push(today); break; }
-    ends.push(end);
-    d.setUTCMonth(d.getUTCMonth() + 1);
-  }
-  const step = Math.max(1, Math.ceil(ends.length / maxPoints));
-  const picked = ends.filter((_, i) => i % step === 0 || i === ends.length - 1);
-  return picked.map((date) => {
-    const p = computePortfolio({
-      entries: entries.filter((e) => e.trade_date <= date),
-      components,
-      prices: prices.filter((x) => x.date <= date),
-      funds, amcs, asOf: date,
-    });
-    return {
-      date,
-      invested: Number(p.totals.costOpen.toFixed(2)),
-      value: Number(p.totals.marketValue.toFixed(2)),
-    };
-  });
 }

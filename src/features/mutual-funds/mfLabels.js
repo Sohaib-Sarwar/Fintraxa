@@ -35,3 +35,7 @@ export const DIRECTION = {
 };
 
 export const fmtDate = (d) => (d ? new Date(`${d}T00:00:00`).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
+
+const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+/** '2026-10' -> 'October 2026' */
+export const monthName = (m) => (m ? `${MONTHS_LONG[Number(m.slice(5, 7)) - 1]} ${m.slice(0, 4)}` : '');

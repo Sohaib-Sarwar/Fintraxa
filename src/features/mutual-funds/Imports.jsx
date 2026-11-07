@@ -1,6 +1,9 @@
 import { useState } from 'react';
-import { Box, Card, CardContent, Typography, Chip, Button, Skeleton, useMediaQuery } from '@mui/material';
-import { UploadFileRounded, ChevronRightRounded, DescriptionRounded } from '@mui/icons-material';
+import { Box, Card, CardContent, Typography, Chip, Button, Skeleton, IconButton, Tooltip, useMediaQuery } from '@mui/material';
+import { UploadFileRounded, ChevronRightRounded, DescriptionRounded, DeleteOutlineRounded } from '@mui/icons-material';
+import { useAppStore } from '../../store/appStore';
+import { useDeleteImport } from '../../lib/mf/mutations';
+import { PageHeader } from '../../components/fx';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
@@ -16,6 +19,11 @@ export default function Imports() {
   const navigate = useNavigate();
   const isMobile = useMediaQuery('(max-width:768px)');
   const [open, setOpen] = useState(false);
+  const showConfirm = useAppStore((s) => s.showConfirm);
+  const del = useDeleteImport();
+  const confirmDelete = (imp) => showConfirm('Delete this statement?',
+    'The statement, every transaction it added and its evidence are removed permanently. Your figures are recalculated without it. This cannot be undone.',
+    () => del.mutate(imp.id));
 
   const { data: imports = [], isLoading } = useQuery({
     queryKey: ['mf-imports', user?.id],
@@ -32,13 +40,13 @@ export default function Imports() {
 
   return (
     <Box sx={{ pb: isMobile ? 1 : 0 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: isMobile ? 2 : 3 }}>
-        <Typography sx={{ fontSize: isMobile ? '1.2rem' : '1.5rem', fontWeight: 800, letterSpacing: '-0.03em' }}>Statement imports</Typography>
-        <Button variant="contained" disableElevation startIcon={<UploadFileRounded />} onClick={() => setOpen(true)}
-          sx={{ textTransform: 'none', borderRadius: 2.5, fontWeight: 600 }}>
-          Import
-        </Button>
-      </Box>
+      <PageHeader title="Statement imports" filter={false} sub="Upload AMC statements; clean transactions are added automatically"
+        actions={(
+          <Button variant="contained" disableElevation startIcon={<UploadFileRounded />} onClick={() => setOpen(true)}
+            sx={{ borderRadius: 999, fontWeight: 600, minHeight: 34, py: 0.5, px: 2 }}>
+            Import
+          </Button>
+        )} />
 
       {isLoading && [1, 2, 3].map((i) => <Skeleton key={i} variant="rounded" height={72} sx={{ mb: 1 }} />)}
 
@@ -73,7 +81,14 @@ export default function Imports() {
                 </Typography>
               </Box>
               <Chip size="small" label={label} color={color} variant="outlined" sx={{ fontSize: '0.62rem' }} />
-              <ChevronRightRounded sx={{ color: 'text.disabled' }} />
+              <Tooltip title="Delete statement">
+                <IconButton size="small" aria-label="Delete statement" disabled={del.isPending}
+                  onClick={(e) => { e.stopPropagation(); confirmDelete(imp); }}
+                  onKeyDown={(e) => e.stopPropagation()}>
+                  <DeleteOutlineRounded sx={{ fontSize: 18 }} />
+                </IconButton>
+              </Tooltip>
+              {!isMobile && <ChevronRightRounded sx={{ color: 'text.disabled' }} />}
             </CardContent>
           </Card>
         );

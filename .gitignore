@@ -42,3 +42,11 @@ Stock Analyzer/
 
 # Real statements and figures never enter git
 tests/private/
+
+# Statements and other personal documents never enter git, wherever they land
+*.pdf
+
+# Test / tooling output
+coverage/
+.nyc_output/
+*.tsbuildinfo

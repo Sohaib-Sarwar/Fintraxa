@@ -1,0 +1,131 @@
+/**
+ * Profit engine (src/lib/mf/profit.js). Every expected figure is worked by
+ * hand in the comment above it.
+ */
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { analyzeFunds } from '../../src/lib/mf/profit.js';
+
+let n = 0;
+const E = (o) => ({ id: `e${++n}`, account_id: 'A', fund_id: o.fund ?? 'F', unit_class: '', seq: n, created_at: String(n).padStart(6, '0'), cash_direction: 'none', ...o });
+const C = (e, type, amount) => ({ entry_id: e.id, component_type: type, amount: String(amount) });
+const P = (price, date, fund = 'F') => ({ fund_id: fund, price: String(price), date, source: 'mufap' });
+const buy = (date, units, nav, fund) => E({ fund, entry_type: 'purchase', trade_date: date, unit_delta: String(units), nav: String(nav), gross_amount: String(units * nav), net_amount: String(units * nav), cash_direction: 'investor_pays' });
+const sell = (date, units, nav, gross, net, fund) => E({ fund, entry_type: 'redemption', trade_date: date, unit_delta: String(-units), nav: String(nav), gross_amount: String(gross), net_amount: String(net), cash_direction: 'investor_receives' });
+const FY = { start: '2026-07-01', end: '2027-06-30', today: '2026-10-31' };
+
+test('realized = proceeds − FIFO cost; paid CGT only on realized; 15% only on unrealized', () => {
+  const b1 = buy('2026-01-10', 100, 10);
+  const b2 = buy('2026-02-10', 100, 12);
+  const s1 = sell('2026-08-10', 150, 15, 2250, 2220);
+  const a = analyzeFunds({ entries: [b1, b2, s1], components: [C(s1, 'cgt', 30)], prices: [P(16, '2026-10-31')], ...FY });
+  // FIFO cost of 150 = 1,000 + 50 × 12 = 1,600 → gain 650; CGT 30 → net 620.
+  assert.deepEqual(a.totals.realized, { gross: 650, cgt: 30, charges: 0, net: 620, sales: 1 });
+  // Held 50 @16 = 800, cost 600 → gross 200, 15% = 30, net 170.
+  assert.deepEqual(a.totals.unrealized, { gross: 200, tax: 30, net: 170, rate: 0.15 });
+  assert.equal(a.totals.invested, 600);
+  assert.equal(a.totals.value, 800);
+  // Months: only August settled anything.
+  assert.deepEqual(a.months.map((m) => [m.month, m.gross, m.cgt, m.net]),
+    [['2026-07', 0, 0, 0], ['2026-08', 650, 30, 620], ['2026-09', 0, 0, 0], ['2026-10', 0, 0, 0]]);
+});
+
+test('a full redemption clears what was invested', () => {
+  const a = analyzeFunds({ entries: [buy('2026-07-05', 100, 10), sell('2026-07-20', 100, 11, 1100, 1100)], prices: [P(11.5, '2026-10-31')], ...FY });
+  assert.equal(a.totals.invested, 0);
+  assert.equal(a.totals.value, 0);
+  assert.equal(a.totals.held, 0);
+  assert.equal(a.positions[0].isOpen, false);
+  assert.equal(a.totals.realized.gross, 100);
+  assert.equal(a.totals.unrealized.gross, 0);
+});
+
+test('15% is per holding: a loss in one fund does not reduce tax on a gain in another', () => {
+  const a = analyzeFunds({
+    entries: [buy('2026-07-01', 10, 100, 'G'), buy('2026-07-01', 10, 100, 'L')],
+    prices: [P(110, '2026-10-31', 'G'), P(95, '2026-10-31', 'L')], ...FY,
+  });
+  // G: +100 → tax 15. L: −50 → tax 0. Gross 50, tax 15, net 35.
+  assert.deepEqual(a.totals.unrealized, { gross: 50, tax: 15, net: 35, rate: 0.15 });
+});
+
+test('CGT refunds and reversals reduce CGT in the month they arrive; net CGT is never clamped', () => {
+  const b = buy('2026-05-01', 100, 10);
+  const s = sell('2026-06-10', 100, 12, 1200, 1170);
+  const refund = E({ entry_type: 'cgt_refund_cash', trade_date: '2026-08-02', gross_amount: '50', net_amount: '50', cash_direction: 'investor_receives' });
+  const a = analyzeFunds({ entries: [b, s, refund], components: [C(s, 'cgt', 30), C(refund, 'cgt_refund', 50)], prices: [], ...FY });
+  // The sale was before the range, the refund inside it: gross 0, CGT −50, net +50.
+  assert.deepEqual([a.totals.realized.gross, a.totals.realized.cgt, a.totals.realized.net], [0, -50, 50]);
+  assert.equal(a.months.find((m) => m.month === '2026-08').cgt, -50);
+});
+
+test('a CGT refund paid as units is a refund and a zero-gain lot at its value', () => {
+  const b = buy('2026-07-01', 100, 10);
+  const ru = E({ entry_type: 'cgt_refund_reinvest', trade_date: '2026-07-03', unit_delta: '4', nav: '10', gross_amount: '40', net_amount: '40', cash_direction: 'internal' });
+  const a = analyzeFunds({ entries: [b, ru], components: [C(ru, 'cgt_refund', 40)], prices: [P(10, '2026-10-31')], ...FY });
+  assert.equal(a.totals.realized.cgt, -40);
+  assert.equal(a.totals.invested, 1040);
+  assert.equal(a.totals.unrealized.gross, 0);
+});
+
+test('switching funds is a sale of the old fund (gain, CGT) and a purchase of the new one', () => {
+  const b = buy('2026-07-01', 100, 10, 'X');
+  const out = E({ fund: 'X', entry_type: 'switch_out', trade_date: '2026-08-01', unit_delta: '-100', nav: '11', gross_amount: '1100', net_amount: '1085', cash_direction: 'internal' });
+  const inn = E({ fund: 'Y', entry_type: 'switch_in', trade_date: '2026-08-01', unit_delta: '108.5', nav: '10', gross_amount: '1085', net_amount: '1085', cash_direction: 'internal' });
+  const a = analyzeFunds({ entries: [b, out, inn], components: [C(out, 'cgt', 15)], prices: [P(10.2, '2026-10-31', 'Y')], ...FY });
+  assert.deepEqual([a.totals.realized.gross, a.totals.realized.cgt, a.totals.realized.net], [100, 15, 85]);
+  assert.equal(a.totals.invested, 1085);
+  assert.equal(a.totals.deposits, 1000, 'a switch is not new money');
+  // Y: 108.5 × 10.2 = 1,106.70 − 1,085 = 21.70.
+  assert.equal(a.totals.unrealized.gross, 21.7);
+});
+
+test('range: sales before the start are not counted; a fund closed before the start is not shown', () => {
+  const old = [buy('2026-01-01', 10, 100, 'Old'), sell('2026-03-01', 10, 110, 1100, 1100, 'Old')];
+  const cur = [buy('2026-02-01', 100, 10), sell('2026-06-30', 50, 11, 550, 550), sell('2026-07-15', 50, 12, 600, 600)];
+  const a = analyzeFunds({ entries: [...old, ...cur], prices: [], ...FY });
+  assert.deepEqual(a.positions.map((p) => p.fundId), ['F']);
+  assert.equal(a.totals.realized.gross, 100, 'only the July sale: 600 − 500');
+  const last = analyzeFunds({ entries: [...old, ...cur], prices: [], start: '2025-07-01', end: '2026-06-30', today: '2026-10-31' });
+  assert.deepEqual(last.positions.map((p) => p.fundId).sort(), ['F', 'Old']);
+  assert.equal(last.totals.realized.gross, 150, '100 on Old + 50 on F');
+});
+
+test('unrealized uses the price known at the end of the range, not today', () => {
+  const a = analyzeFunds({ entries: [buy('2026-05-01', 100, 10)], prices: [P(10.5, '2026-06-30'), P(11, '2026-10-31')], start: '2025-07-01', end: '2026-06-30', today: '2026-10-31' });
+  assert.equal(a.totals.value, 1050);
+  assert.equal(a.totals.unrealized.gross, 50);
+});
+
+test('UBL 2-decimal rounding: selling 0.03 units more than recorded is complete and closes the fund', () => {
+  const b = E({ entry_type: 'purchase', trade_date: '2026-07-01', unit_delta: '958.66', nav: '104.3031', gross_amount: '99990', net_amount: '99990', cash_direction: 'investor_pays' });
+  const s = E({ entry_type: 'redemption', trade_date: '2026-07-12', unit_delta: '-958.69', nav: '104.3031', gross_amount: '99995', net_amount: '99983', cash_direction: 'investor_receives' });
+  const a = analyzeFunds({ entries: [b, s], components: [C(s, 'cgt', 12)], prices: [], ...FY });
+  assert.ok(!a.totals.incomplete);
+  assert.equal(a.totals.invested, 0);
+  assert.deepEqual([a.totals.realized.gross, a.totals.realized.cgt, a.totals.realized.net], [5, 12, -7]);
+});
+
+test('reversed entries drop out with their reversal', () => {
+  const b = buy('2026-07-01', 100, 10);
+  const wrong = buy('2026-07-02', 50, 10);
+  const rev = E({ entry_type: 'purchase', trade_date: '2026-07-03', unit_delta: '-50', gross_amount: '500', reverses_entry_id: wrong.id });
+  const a = analyzeFunds({ entries: [b, wrong, rev], prices: [P(10, '2026-10-31')], ...FY });
+  assert.equal(a.totals.invested, 1000);
+});
+
+test('no price for a holding: value and unrealized are unknown and flagged, never the cost', () => {
+  const a = analyzeFunds({ entries: [E({ entry_type: 'purchase', trade_date: '2026-07-01', unit_delta: '10', gross_amount: '1000', net_amount: '1000', cash_direction: 'investor_pays' })], prices: [], ...FY });
+  assert.equal(a.positions[0].value, null);
+  assert.equal(a.positions[0].unrealized.gross, null);
+  assert.ok(a.totals.incomplete);
+  assert.ok(a.positions[0].flags.includes('no_price'));
+});
+
+test('cash dividends are realized income and money received', () => {
+  const b = buy('2026-07-01', 100, 10);
+  const d = E({ entry_type: 'dividend_cash', trade_date: '2026-09-01', gross_amount: '50', net_amount: '50', cash_direction: 'investor_receives' });
+  const a = analyzeFunds({ entries: [b, d], prices: [P(10, '2026-10-31')], ...FY });
+  assert.equal(a.totals.realized.gross, 50);
+  assert.equal(a.totals.withdrawals, 50);
+});

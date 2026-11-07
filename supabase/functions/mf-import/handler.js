@@ -196,6 +196,7 @@ async function runImport({ admin, asUser, user, importId, bytes, openPdf, fetchI
   // ── Funds ──
   const feed = await mufapFeed(fetchImpl);
   const fundBySection = new Map();
+  const classBySection = new Map();
   const sectionInfo = [];
   for (const s of r.sections) {
     const alias = normName(s.fundNamePrinted);
@@ -229,6 +230,17 @@ async function runImport({ admin, asUser, user, importId, bytes, openPdf, fetchI
     }
     mapped = match;
     fundBySection.set(s.key, fundId);
+    // A layout that prints no unit class must not split one holding in two:
+    // adopt the class the ledger already uses for this fund in this account.
+    let unitClass = s.unitClass;
+    if (!unitClass) {
+      const { data: classes } = await admin.from('mf_ledger_entries').select('unit_class')
+        .eq('user_id', user.id).eq('account_id', account.id).eq('fund_id', fundId).limit(500);
+      const distinct = [...new Set((classes ?? []).map((c) => c.unit_class))];
+      if (distinct.length === 1) unitClass = distinct[0];
+    }
+    s.unitClass = unitClass;
+    classBySection.set(s.key, unitClass);
     sectionInfo.push({ section: s, fundId, mapped });
   }
 
@@ -277,7 +289,7 @@ async function runImport({ admin, asUser, user, importId, bytes, openPdf, fetchI
     return {
       import_id: importId, user_id: user.id, source_key: e.source_key, seq: e.seq, line_ids: e.line_ids, page: e.page,
       section_key: e.section_key, fund_name_printed: r.sections.find((s) => s.key === e.section_key)?.fundNamePrinted ?? null,
-      unit_class: (e.section_key ?? '').split('|')[1] ?? '', fund_id: fundBySection.get(e.section_key) ?? null,
+      unit_class: classBySection.get(e.section_key) ?? (e.section_key ?? '').split('|')[1] ?? '', fund_id: fundBySection.get(e.section_key) ?? null,
       original_labels: e.original_labels, original_label: e.original_label, entry_type: e.entry_type,
       trade_date: e.trade_date, price_date: e.price_date, nav: e.nav, unit_delta: e.unit_delta,
       gross_amount: e.gross_amount, net_amount: e.net_amount, cash_direction: e.cash_direction,

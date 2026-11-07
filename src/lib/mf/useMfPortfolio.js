@@ -12,7 +12,8 @@ import Decimal from 'decimal.js';
 import { supabase } from '../supabase';
 import { useAuthStore } from '../../store/authStore';
 import { mufapFundsQuery, fundBySlug } from '../marketQueries';
-import { computePortfolio, growthSeries } from './engine';
+import { computePortfolio } from './engine';
+import { analyzeFunds } from './profit';
 
 export const MF_LEDGER_KEY = 'mf-ledger';
 
@@ -53,6 +54,42 @@ export function mfLedgerQuery(userId) {
   };
 }
 
+/** Funds, AMCs and every price observation (statement NAVs + MUFAP today). */
+function buildInputs(d, market) {
+  const funds = Object.fromEntries(d.funds.map((f) => [f.id, f]));
+  const amcs = Object.fromEntries(d.amcs.map((a) => [a.id, a]));
+  const bySlug = fundBySlug(market);
+  const prices = d.navs.map((n) => ({ fund_id: n.fund_id, price: n.price, date: n.nav_date, source: n.source, kind: n.price_kind }));
+  for (const f of d.funds) {
+    const m = f.mufap_slug ? bySlug[f.mufap_slug] : null;
+    const p = m?.repurchase_price || m?.nav;
+    if (p && m.validity_date) {
+      prices.push({ fund_id: f.id, price: String(p), date: String(m.validity_date).slice(0, 10), source: 'mufap', kind: m.repurchase_price ? 'repurchase' : 'nav' });
+    }
+  }
+  return { funds, amcs, bySlug, prices };
+}
+
+/** Names, AMC code, account and the position's own entries, for display. */
+function enrich(positions, d, { funds, amcs, bySlug }) {
+  const cgt = new Map();
+  for (const c of d.components) {
+    if (c.component_type === 'cgt') cgt.set(c.entry_id, (cgt.get(c.entry_id) ?? 0) + Number(c.amount));
+  }
+  for (const p of positions) {
+    const f = funds[p.fundId];
+    const m = f?.mufap_slug ? bySlug[f.mufap_slug] : null;
+    p.category = f?.category ?? m?.category ?? null;
+    p.fundReturns = m?.returns ?? null;   // MUFAP-published fund performance, distinct from yours
+    p.account = d.accounts.find((a) => a.id === p.accountId) ?? null;
+    p.methodNote = (f && amcs[f.amc_id]?.cost_method_note) ?? null;
+    p.amcCode = (f && amcs[f.amc_id]?.code) ?? null;
+    p.amcId = f?.amc_id ?? null;
+    p.entries = d.entries.filter((e) => e.fund_id === p.fundId && e.account_id === p.accountId)
+      .map((e) => ({ ...e, cgt: cgt.get(e.id) ?? null }));
+  }
+}
+
 export function useMfPortfolio() {
   const user = useAuthStore((s) => s.user);
   const ledger = useQuery(mfLedgerQuery(user?.id));
@@ -61,30 +98,10 @@ export function useMfPortfolio() {
   const portfolio = useMemo(() => {
     const d = ledger.data;
     if (!d) return null;
-    const funds = Object.fromEntries(d.funds.map((f) => [f.id, f]));
-    const amcs = Object.fromEntries(d.amcs.map((a) => [a.id, a]));
-    const bySlug = fundBySlug(market.data);
-
-    const prices = d.navs.map((n) => ({ fund_id: n.fund_id, price: n.price, date: n.nav_date, source: n.source, kind: n.price_kind }));
-    for (const f of d.funds) {
-      const m = f.mufap_slug ? bySlug[f.mufap_slug] : null;
-      const p = m?.repurchase_price || m?.nav;
-      if (p && m.validity_date) {
-        prices.push({ fund_id: f.id, price: String(p), date: String(m.validity_date).slice(0, 10), source: 'mufap', kind: m.repurchase_price ? 'repurchase' : 'nav' });
-      }
-    }
+    const inputs = buildInputs(d, market.data);
+    const { funds, amcs, prices } = inputs;
     const result = computePortfolio({ entries: d.entries, components: d.components, prices, funds, amcs });
-    result.series = growthSeries({ entries: d.entries, components: d.components, prices, funds, amcs });
-    for (const p of result.positions) {
-      const f = funds[p.fundId];
-      const m = f?.mufap_slug ? bySlug[f.mufap_slug] : null;
-      p.category = f?.category ?? m?.category ?? null;
-      p.fundReturns = m?.returns ?? null;   // MUFAP-published fund performance, distinct from yours
-      p.account = d.accounts.find((a) => a.id === p.accountId) ?? null;
-      p.methodNote = (f && amcs[f.amc_id]?.cost_method_note) ?? null;
-      p.amcCode = (f && amcs[f.amc_id]?.code) ?? null;
-      p.entries = d.entries.filter((e) => e.fund_id === p.fundId && e.account_id === p.accountId);
-    }
+    enrich(result.positions, d, inputs);
     // Manual / migrated entries in a fund that statements also cover.
     const statementFunds = new Set(d.entries.filter((e) => e.origin === 'statement').map((e) => e.fund_id));
     const reversed = new Set(d.entries.filter((e) => e.reverses_entry_id).map((e) => e.reverses_entry_id));
@@ -95,6 +112,34 @@ export function useMfPortfolio() {
   }, [ledger.data, market.data]);
 
   return { portfolio, ledger: ledger.data, isLoading: ledger.isLoading, error: ledger.error, refetch: ledger.refetch };
+}
+
+/**
+ * Realized and unrealized profit for a date range, optionally one AMC or one
+ * fund — see src/lib/mf/profit.js for the rules. This is what the dashboard
+ * and analytics read.
+ */
+export function useMfAnalysis(range, { amcId = 'all', fundId = 'all' } = {}) {
+  const user = useAuthStore((s) => s.user);
+  const ledger = useQuery(mfLedgerQuery(user?.id));
+  const market = useQuery(mufapFundsQuery());
+  const { start, end } = range;
+  const analysis = useMemo(() => {
+    const d = ledger.data;
+    if (!d) return null;
+    const { funds, amcs, prices } = buildInputs(d, market.data);
+    const entries = d.entries.filter((e) => (fundId === 'all' || e.fund_id === fundId)
+      && (amcId === 'all' || funds[e.fund_id]?.amc_id === amcId));
+    const a = analyzeFunds({ entries, components: d.components, prices, funds, amcs, start, end });
+    const cgt = new Map();
+    for (const c of d.components) if (c.component_type === 'cgt') cgt.set(c.entry_id, (cgt.get(c.entry_id) ?? 0) + Number(c.amount));
+    for (const p of a.allPositions) {
+      p.account = d.accounts.find((x) => x.id === p.accountId) ?? null;
+      p.entries = p.entries.map((e) => ({ ...e, cgt: cgt.get(e.id) ?? null }));
+    }
+    return a;
+  }, [ledger.data, market.data, start, end, amcId, fundId]);
+  return { analysis, ledger: ledger.data, isLoading: ledger.isLoading, error: ledger.error };
 }
 
 /**

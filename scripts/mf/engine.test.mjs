@@ -206,15 +206,11 @@ test('expected CGT is a 15% estimate on open gains only, separate from reported 
   assert.equal(s(loss.expectedCgt), '0.00', 'no tax estimated on a loss');
 });
 
-test('growth series replays history with prices known at each date', async () => {
-  const { growthSeries } = await import('../../src/lib/mf/engine.js');
-  const { entries, components } = base();
-  const series = growthSeries({ entries, components, prices: [price(16)], asOf: '2026-10-31' });
-  assert.ok(series.length >= 9);
-  const jan = series[0];
-  assert.equal(jan.invested, 1000);              // one lot at 10
-  assert.equal(jan.value, 1000);                 // valued at its own NAV (10), not today's 16
-  const last = series[series.length - 1];
-  assert.equal(last.invested, 600);
-  assert.equal(last.value, 800);
+test('UBL 2-decimal rounding (a redemption 0.03 units over) is not flagged as missing units', () => {
+  const b = E({ entry_type: 'purchase', trade_date: '2026-01-01', unit_delta: '958.66', nav: '104.3031', gross_amount: '99990', net_amount: '99990', cash_direction: 'investor_pays' });
+  const r = E({ entry_type: 'redemption', trade_date: '2026-01-12', unit_delta: '-958.69', nav: '104.3031', gross_amount: '99995', net_amount: '99983', cash_direction: 'investor_receives' });
+  const p = run([b, r], [], [price(104.3031)]).positions[0];
+  assert.ok(!p.flags.includes('insufficient_units'));
+  assert.ok(p.realizedComplete);
+  assert.equal(p.isOpen, false);
 });

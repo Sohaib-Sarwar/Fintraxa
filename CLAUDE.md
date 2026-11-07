@@ -108,14 +108,26 @@ them, which silently disables the "Install as app" flow on Android.
 
 Holdings come from the append-only ledger (`mf_ledger_entries` + `mf_ledger_components`),
 never from `mutual_fund_transactions` (legacy, read-only, mirrored into the ledger by a trigger).
-Read through `src/lib/mf/useMfPortfolio.js`; every figure comes from `src/lib/mf/engine.js`
-(FIFO, exact decimals via decimal.js — never JS floats for money).
+Read through `src/lib/mf/useMfPortfolio.js`. Profit for a date range comes from `src/lib/mf/profit.js`
+(`analyzeFunds`, via `useMfAnalysis`): FIFO lots, exact decimals (decimal.js — never JS floats for money).
+- Realized = sale proceeds − FIFO cost (+ distributions) in the range; CGT = what statements deducted,
+  net of refunds/reversals in the range. Paid CGT applies to realized gains only.
+- Unrealized = value at the range end − FIFO cost of units held; 15% CGT shown as an estimate, per holding.
+- Invested = FIFO cost of units still held (a redemption removes its units' cost).
+- Verified by `scripts/mf/profit.test.mjs` (hand-worked) and `tests/private/profit-crosscheck.test.mjs`
+  (real statements vs the QA ledger, NBP's and Meezan's own printed figures).
+- **Full rules, worked example and change checklist: `docs/mutual-funds/PROFIT_CALCULATION.md`.**
+  Read it before touching any profit, CGT or invested figure.
 
 - Statements: upload → `mf-statements` bucket → Edge Function `mf-import` → per-AMC parser
   (`supabase/functions/_shared/mf/parsers/`) → staging → duplicate check (SQL) → auto-approve
   clean, reconciled fund sections. Add an AMC by adding a parser + fixture test, not an LLM.
-- Writes only via RPCs (`mf_approve_staged`, `mf_edit_staged`, `mf_reverse_entry`,
-  `mf_record_manual_entry` …). Corrections are reversals; nothing is updated or deleted.
+- Writes only via RPCs (`mf_approve_staged`, `mf_edit_staged`, `mf_record_manual_entry`,
+  `mf_edit_entry`, `mf_delete_entry`, `mf_delete_import` …). Clients still cannot UPDATE/DELETE the
+  ledger directly; edits and permanent deletes go through SECURITY DEFINER functions that check
+  ownership and write `mf_audit_log`. Deleting an import also removes its PDF via the Storage API.
+- One global date range (`src/lib/dateRange.js`, default this fiscal year, 1 Jul–30 Jun) drives every
+  dashboard; shared UI lives in `src/components/fx`.
 - CGT shown as charged/refunded is what statements report. The 15% figure is an estimate on
   unrealized gains and must stay labelled as one.
 - Redeploy the function from disk: `npm run deploy:edge` (needs `supabase login`).

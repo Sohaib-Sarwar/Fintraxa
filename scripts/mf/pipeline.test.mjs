@@ -176,3 +176,35 @@ test('fund names map to MUFAP within the same AMC only', () => {
   assert.equal(matchMufapFund('MEEZAN CASH FUND', 'ubl', feed), null, 'never crosses AMCs');
   assert.equal(matchMufapFund('Something Else Fund', 'mcb', feed), null);
 });
+
+// ── layouts beyond each AMC's main statement ──
+import { ublPortalStatement, unknownLayoutMeezan } from './fixtures.mjs';
+
+test('UBL portal/mobile "Transaction Statement" layout: rows read, not "no transactions"', () => {
+  const r = processStatement(ublPortalStatement());
+  assert.equal(r.amcCode, 'ubl');
+  assert.deepEqual(r.events.map(pick), [
+    { type: 'purchase', date: '2026-02-12', units: '23.26', nav: '107.5000', gross: '2500', net: '2500', comps: 'cgt:0,front_load:0,charge:0' },
+    { type: 'redemption', date: '2026-03-10', units: '-10.00', nav: '108.8000', gross: '1088', net: '1086', comps: 'cgt:2,back_load:0,charge:0' },
+  ]);
+  assert.equal(r.events[0].price_date, '2026-02-11', 'applicable NAV date kept separately');
+  assert.deepEqual([r.statement.periodFrom, r.statement.periodTo], ['2026-02-12', '2026-03-31']);
+  assert.ok(r.events.every((e) => e.review_status === 'pending_review'), 'clean rows are auto-approvable');
+  assert.ok(r.reconciliation.every((x) => x.status !== 'material'));
+  assert.ok(!r.lines.some((l) => /TESTA|00999999/.test(l.text)), 'still redacted');
+});
+
+test('an unknown layout of a known AMC falls back to the general reader, CGT sub-row attached', () => {
+  const r = processStatement(unknownLayoutMeezan());
+  assert.equal(r.amcCode, 'meezan');
+  assert.deepEqual(r.events.map(pick), [
+    { type: 'purchase', date: '2026-01-05', units: '100.0000', nav: '150.0000', gross: '15000', net: '15000', comps: '' },
+    { type: 'redemption', date: '2026-03-20', units: '-40.0000', nav: '160.0000', gross: '6400', net: '6370', comps: 'cgt:30' },
+  ]);
+  assert.ok(r.reconciliation.every((x) => x.status !== 'material'));
+});
+
+test('a known AMC document with no transaction table explains itself', () => {
+  const pages = [[{ id: 'p1-l1', page: 1, n: 1, text: 'UBL Fund Managers fund manager report', cells: [{ text: 'UBL Fund Managers fund manager report', x0: 0, x1: 200 }] }]];
+  assert.throws(() => processStatement(pages), /no transaction table was found/);
+});

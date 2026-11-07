@@ -1,40 +1,38 @@
 import { useMemo, useState } from 'react';
-import {
-  Box, Card, Typography, TextField, MenuItem, Chip, Table, TableBody, TableCell, TableHead, TableRow, Skeleton,
-  IconButton, Tooltip, Dialog, DialogContent, Button, useMediaQuery,
-} from '@mui/material';
-import { UndoRounded, FilterListOffRounded } from '@mui/icons-material';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '../../lib/supabase';
-import { useAppStore } from '../../store/appStore';
-import { dbErrorHandler } from '../../lib/dbErrors';
-import { useMfPortfolio, MF_LEDGER_KEY } from '../../lib/mf/useMfPortfolio';
-import { formatNumber } from '../../lib/formatters';
+import { Box, Typography, Skeleton, InputBase, ButtonBase, useMediaQuery } from '@mui/material';
+import { SearchRounded, EditRounded, CloseRounded } from '@mui/icons-material';
+import { useMfPortfolio } from '../../lib/mf/useMfPortfolio';
+import { useDateRange, rangeLabel, inRange } from '../../lib/dateRange';
+import { formatNumber, formatCurrency } from '../../lib/formatters';
+import { useFx, PageHeader, FxCard, Seg, PillSelect, usePageSize, Pager, FitPage, FONT_NUM, Chip } from '../../components/fx';
 import { TYPE_LABEL, fmtDate } from './mfLabels';
 import AmcLogo from './AmcLogo';
+import EntryEditor from './EntryEditor';
 
-const GROUPS = {
-  all: { label: 'All types', types: null },
-  buy: { label: 'Purchases', types: ['purchase'] },
-  redeem: { label: 'Redemptions', types: ['redemption'] },
-  switch: { label: 'Switches', types: ['switch_in', 'switch_out', 'transfer_in', 'transfer_out'] },
-  tax: { label: 'CGT & refunds', types: ['cgt_deduction', 'cgt_reversal', 'cgt_refund_cash', 'cgt_refund_reinvest'] },
-  income: { label: 'Dividends & distributions', types: ['dividend_cash', 'dividend_reinvest', 'capital_refund_units', 'bonus_units'] },
-};
-const SOURCE = { statement: 'Statement', manual: 'Manual', legacy_migration: 'Manual (old)', correction: 'Reversal' };
+const GROUPS = [
+  { value: 'all', label: 'All', types: null },
+  { value: 'buy', label: 'Buy', types: ['purchase'] },
+  { value: 'redeem', label: 'Redeem', types: ['redemption'] },
+  { value: 'switch', label: 'Switch', types: ['switch_in', 'switch_out', 'transfer_in', 'transfer_out'] },
+  { value: 'tax', label: 'CGT', types: ['cgt_deduction', 'cgt_reversal', 'cgt_refund_cash', 'cgt_refund_reinvest'] },
+  { value: 'income', label: 'Income', types: ['dividend_cash', 'dividend_reinvest', 'capital_refund_units', 'bonus_units'] },
+];
+const SOURCE = { statement: 'Statement', manual: 'Manual', legacy_migration: 'Manual', correction: 'Reversal' };
 
 export default function MFTransactions() {
-  const isMobile = useMediaQuery('(max-width:768px)');
+  const t = useFx();
+  const isMobile = useMediaQuery('(max-width:900px)');
+  const { range } = useDateRange();
   const { ledger, isLoading } = useMfPortfolio();
-  const [amc, setAmc] = useState('all');
-  const [fund, setFund] = useState('all');
+  const [amcPick, setAmc] = useState('all');
+  const [fundPick, setFund] = useState('all');
   const [group, setGroup] = useState('all');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
-  const [reversing, setReversing] = useState(null);
+  const [q, setQ] = useState('');
+  const [editing, setEditing] = useState(null);
+  const [pageState, setPageState] = useState({ sig: '', n: 0 });
 
-  const view = useMemo(() => {
-    if (!ledger) return { rows: [], amcs: [], funds: [] };
+  const all = useMemo(() => {
+    if (!ledger) return [];
     const funds = Object.fromEntries(ledger.funds.map((f) => [f.id, f]));
     const amcs = Object.fromEntries(ledger.amcs.map((a) => [a.id, a]));
     const cgt = new Map();
@@ -42,147 +40,144 @@ export default function MFTransactions() {
       if (c.component_type === 'cgt') cgt.set(c.entry_id, (cgt.get(c.entry_id) ?? 0) + Number(c.amount));
     }
     const reversedIds = new Set(ledger.entries.filter((e) => e.reverses_entry_id).map((e) => e.reverses_entry_id));
-    const all = ledger.entries.map((e) => {
+    return ledger.entries.map((e) => {
       const f = funds[e.fund_id];
-      return {
-        ...e, fundName: f?.name ?? 'Fund', amcId: f?.amc_id, amcName: amcs[f?.amc_id]?.name ?? '', amcCode: amcs[f?.amc_id]?.code ?? null,
-        cgt: cgt.get(e.id) ?? null, reversed: reversedIds.has(e.id),
-      };
+      const a = amcs[f?.amc_id];
+      return { ...e, fundName: f?.name ?? 'Fund', amcId: f?.amc_id ?? null, amcName: a?.name ?? '', amcCode: a?.code ?? null, cgt: cgt.get(e.id) ?? null, reversed: reversedIds.has(e.id) };
     });
-    const usedAmcs = [...new Map(all.map((r) => [r.amcId, { id: r.amcId, name: r.amcName }])).values()].filter((a) => a.id);
-    const usedFunds = [...new Map(all.filter((r) => amc === 'all' || r.amcId === amc).map((r) => [r.fund_id, { id: r.fund_id, name: r.fundName }])).values()];
-    const types = GROUPS[group].types;
-    const rows = all
+  }, [ledger]);
+
+  // Options come from the rows in the selected range, so every choice shown has something behind it.
+  const inPeriod = useMemo(() => all.filter((r) => inRange(r.trade_date, range)), [all, range]);
+  const amcOptions = useMemo(() => [...new Map(inPeriod.filter((r) => r.amcId).map((r) => [r.amcId, { value: r.amcId, label: r.amcName, icon: <AmcLogo code={r.amcCode} name={r.amcName} size={18} /> }])).values()]
+    .sort((a, b) => a.label.localeCompare(b.label)), [inPeriod]);
+  // A filter pointing at something no longer offered falls back to "all" instead of silently showing nothing.
+  const amc = amcOptions.some((o) => o.value === amcPick) ? amcPick : 'all';
+  const fundOptions = useMemo(() => [...new Map(inPeriod.filter((r) => amc === 'all' || r.amcId === amc).map((r) => [r.fund_id, { value: r.fund_id, label: r.fundName }])).values()]
+    .sort((a, b) => a.label.localeCompare(b.label)), [inPeriod, amc]);
+
+  const fund = fundOptions.some((o) => o.value === fundPick) ? fundPick : 'all';
+
+  const rows = useMemo(() => {
+    const types = GROUPS.find((g) => g.value === group)?.types;
+    const needle = q.trim().toLowerCase();
+    return inPeriod
       .filter((r) => (amc === 'all' || r.amcId === amc) && (fund === 'all' || r.fund_id === fund))
       .filter((r) => !types || types.includes(r.entry_type))
-      .filter((r) => (!from || r.trade_date >= from) && (!to || r.trade_date <= to))
-      .sort((a, b) => (b.trade_date.localeCompare(a.trade_date)) || (b.seq - a.seq));
-    return { rows, amcs: usedAmcs.sort((a, b) => a.name.localeCompare(b.name)), funds: usedFunds.sort((a, b) => a.name.localeCompare(b.name)) };
-  }, [ledger, amc, fund, group, from, to]);
+      .filter((r) => !needle || `${r.fundName} ${r.amcName} ${TYPE_LABEL[r.entry_type] ?? ''} ${r.original_label ?? ''}`.toLowerCase().includes(needle))
+      .sort((a, b) => b.trade_date.localeCompare(a.trade_date) || (b.seq - a.seq));
+  }, [inPeriod, amc, fund, group, q]);
 
-  const filtered = amc !== 'all' || fund !== 'all' || group !== 'all' || from || to;
-  const clear = () => { setAmc('all'); setFund('all'); setGroup('all'); setFrom(''); setTo(''); };
+  // Any filter change starts again at page one.
+  const sig = [amc, fund, group, q, range.start, range.end].join('|');
+  const page = pageState.sig === sig ? pageState.n : 0;
+  const setPage = (n) => setPageState({ sig, n });
+
+  const [ref, size] = usePageSize(isMobile ? 64 : 48, { min: 4 });
+  const pages = Math.max(1, Math.ceil(rows.length / size));
+  const p = Math.min(page, pages - 1);
+  const shown = isMobile ? rows : rows.slice(p * size, p * size + size);
+  const totals = rows.reduce((s, r) => {
+    const u = r.unit_delta !== null ? Number(r.unit_delta) : 0;
+    if (r.reversed || r.reverses_entry_id) return s;
+    if (r.entry_type === 'purchase') s.in += Number(r.gross_amount ?? r.net_amount ?? 0);
+    if (r.entry_type === 'redemption' || (u < 0 && r.cash_direction === 'investor_receives')) s.out += Number(r.net_amount ?? r.gross_amount ?? 0);
+    s.cgt += r.cgt ?? 0;
+    return s;
+  }, { in: 0, out: 0, cgt: 0 });
+  const filtered = amc !== 'all' || fund !== 'all' || group !== 'all' || q;
 
   return (
-    <Box sx={{ pb: isMobile ? 1 : 0 }}>
-      <Typography sx={{ fontSize: isMobile ? '1.2rem' : '1.5rem', fontWeight: 800, letterSpacing: '-0.03em', mb: isMobile ? 2 : 3 }}>Fund transactions</Typography>
+    <FitPage>
+      <PageHeader title="Fund transactions" />
 
-      <Box sx={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(5, minmax(0, 1fr)) auto', gap: 1, mb: 2, alignItems: 'center' }}>
-        <TextField select size="small" label="AMC" value={amc} onChange={(e) => { setAmc(e.target.value); setFund('all'); }}>
-          <MenuItem value="all">All AMCs</MenuItem>
-          {view.amcs.map((a) => <MenuItem key={a.id} value={a.id}>{a.name}</MenuItem>)}
-        </TextField>
-        <TextField select size="small" label="Fund" value={fund} onChange={(e) => setFund(e.target.value)}>
-          <MenuItem value="all">All funds</MenuItem>
-          {view.funds.map((f) => <MenuItem key={f.id} value={f.id}>{f.name}</MenuItem>)}
-        </TextField>
-        <TextField select size="small" label="Type" value={group} onChange={(e) => setGroup(e.target.value)}>
-          {Object.entries(GROUPS).map(([k, g]) => <MenuItem key={k} value={k}>{g.label}</MenuItem>)}
-        </TextField>
-        <TextField size="small" type="date" label="From" value={from} onChange={(e) => setFrom(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
-        <TextField size="small" type="date" label="To" value={to} onChange={(e) => setTo(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
+      <Box sx={{ display: 'flex', gap: 0.75, mb: 1.25, flexWrap: 'wrap', alignItems: 'center', flexShrink: 0 }}>
+        <Seg size="sm" label="Type" value={group} onChange={setGroup} options={GROUPS} />
+        <PillSelect value={amc} onChange={(v) => { setAmc(v); setFund('all'); }} label="AMC" items={[{ value: 'all', label: 'All AMCs' }, ...amcOptions]} />
+        <PillSelect value={fund} onChange={setFund} label="Fund" width={isMobile ? 160 : 220} items={[{ value: 'all', label: 'All funds' }, ...fundOptions]} />
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, height: 34, px: 1.25, borderRadius: 999, border: `1px solid ${t.border}`, bgcolor: t.surface, flex: isMobile ? '1 1 160px' : '0 1 220px' }}>
+          <SearchRounded sx={{ fontSize: 16, color: t.muted }} />
+          <InputBase value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" inputProps={{ 'aria-label': 'Search transactions' }} sx={{ fontSize: '0.76rem', flex: 1 }} />
+        </Box>
         {filtered && (
-          <Tooltip title="Clear filters"><IconButton aria-label="Clear filters" onClick={clear}><FilterListOffRounded /></IconButton></Tooltip>
+          <ButtonBase onClick={() => { setAmc('all'); setFund('all'); setGroup('all'); setQ(''); }}
+            sx={{ height: 34, px: 1.25, borderRadius: 999, fontSize: '0.74rem', fontWeight: 600, color: t.muted, gap: 0.5, fontFamily: 'inherit' }}>
+            <CloseRounded sx={{ fontSize: 15 }} />Clear
+          </ButtonBase>
         )}
       </Box>
 
-      <Typography sx={{ fontSize: '0.7rem', color: 'text.secondary', mb: 1 }}>{view.rows.length} transaction{view.rows.length === 1 ? '' : 's'}</Typography>
-
-      {isLoading ? <Skeleton variant="rounded" height={300} /> : (
-        <Card sx={{ overflow: 'hidden' }}>
-          <Box sx={{ overflowX: 'auto' }}>
-            <Table size="small">
-              <TableHead>
-                <TableRow sx={{ '& th': { fontSize: '0.66rem', fontWeight: 600, color: 'text.secondary', whiteSpace: 'nowrap' } }}>
-                  <TableCell>Date</TableCell>
-                  <TableCell>Fund</TableCell>
-                  <TableCell>Type</TableCell>
-                  <TableCell align="right">Units</TableCell>
-                  {!isMobile && <TableCell align="right">NAV</TableCell>}
-                  <TableCell align="right">Amount</TableCell>
-                  <TableCell align="right">CGT</TableCell>
-                  {!isMobile && <TableCell>Source</TableCell>}
-                  <TableCell />
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {view.rows.length === 0 && (
-                  <TableRow><TableCell colSpan={9} sx={{ textAlign: 'center', py: 4, color: 'text.secondary', fontSize: '0.78rem' }}>No transactions match.</TableCell></TableRow>
-                )}
-                {view.rows.map((r) => {
-                  const units = r.unit_delta !== null ? Number(r.unit_delta) : null;
-                  const amount = units !== null && units < 0 ? (r.net_amount ?? r.gross_amount) : (r.gross_amount ?? r.net_amount);
-                  const struck = r.reversed || r.reverses_entry_id;
-                  return (
-                    <TableRow key={r.id} hover sx={{ '& td': { fontSize: '0.72rem', py: 0.8, fontFeatureSettings: '"tnum"', opacity: struck ? 0.5 : 1, textDecoration: r.reversed ? 'line-through' : 'none' } }}>
-                      <TableCell sx={{ whiteSpace: 'nowrap' }}>{fmtDate(r.trade_date)}</TableCell>
-                      <TableCell sx={{ minWidth: 160 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <AmcLogo code={r.amcCode} name={r.amcName} size={26} />
-                          <Box sx={{ minWidth: 0 }}>
-                            <Box sx={{ fontWeight: 600 }}>{r.fundName}</Box>
-                            <Box sx={{ fontSize: '0.62rem', color: 'text.secondary' }}>{r.amcName}</Box>
-                          </Box>
-                        </Box>
-                      </TableCell>
-                      <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                        {TYPE_LABEL[r.entry_type] ?? r.entry_type}
-                        {r.reverses_entry_id && <Chip size="small" label="Reversal" sx={{ ml: 0.5, height: 16, fontSize: '0.55rem' }} />}
-                      </TableCell>
-                      <TableCell align="right" sx={{ color: units < 0 ? '#b91c1c' : units > 0 ? '#15803d' : undefined }}>
-                        {units === null ? '—' : `${units > 0 ? '+' : ''}${formatNumber(units, 4)}`}
-                      </TableCell>
-                      {!isMobile && <TableCell align="right">{r.nav ? formatNumber(Number(r.nav), 4) : '—'}</TableCell>}
-                      <TableCell align="right">{amount ? formatNumber(Number(amount), 2) : '—'}</TableCell>
-                      <TableCell align="right">{r.cgt ? formatNumber(r.cgt, 2) : '—'}</TableCell>
-                      {!isMobile && <TableCell sx={{ color: 'text.secondary' }}>{SOURCE[r.origin] ?? r.origin}</TableCell>}
-                      <TableCell align="right">
-                        {!struck && (
-                          <Tooltip title="Reverse (correct) this entry">
-                            <IconButton size="small" aria-label="Reverse entry" onClick={() => setReversing(r)}><UndoRounded sx={{ fontSize: 16 }} /></IconButton>
-                          </Tooltip>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+      <FxCard sx={{ flex: isMobile ? 'none' : '1 1 0', minHeight: 0 }} bodySx={{ minHeight: 0 }}>
+        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 1, fontSize: '0.72rem', color: t.muted, flexShrink: 0 }}>
+          <span><b style={{ color: t.ink }}>{rows.length}</b> transaction{rows.length === 1 ? '' : 's'} in {rangeLabel(range)}</span>
+          <span>Bought <Box component="b" sx={{ color: t.ink, fontFamily: FONT_NUM }}>{formatCurrency(totals.in)}</Box></span>
+          <span>Redeemed <Box component="b" sx={{ color: t.ink, fontFamily: FONT_NUM }}>{formatCurrency(totals.out)}</Box></span>
+          <span>CGT <Box component="b" sx={{ color: t.ink, fontFamily: FONT_NUM }}>{formatCurrency(totals.cgt, 2)}</Box></span>
+        </Box>
+        {!isMobile && (
+          <Box sx={{ display: 'grid', gridTemplateColumns: COLS, gap: 1.5, px: 1, pb: 0.75, fontSize: '0.66rem', fontWeight: 600, color: t.muted, borderBottom: `1px solid ${t.hairline}`, flexShrink: 0 }}>
+            <span>Date</span><span>Fund</span><span>Type</span><Box sx={{ textAlign: 'right' }}>Units</Box><Box sx={{ textAlign: 'right' }}>NAV</Box><Box sx={{ textAlign: 'right' }}>Amount</Box><Box sx={{ textAlign: 'right' }}>CGT</Box><span>Source</span><span />
           </Box>
-        </Card>
-      )}
+        )}
+        <Box ref={ref} sx={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          {isLoading ? <Skeleton variant="rounded" height={200} /> : rows.length === 0 ? (
+            <Typography sx={{ textAlign: 'center', py: 5, color: t.muted, fontSize: '0.8rem' }}>No transactions match in {rangeLabel(range)}.</Typography>
+          ) : shown.map((r) => <TxRow key={r.id} r={r} mobile={isMobile} onEdit={() => setEditing(r)} />)}
+        </Box>
+        {!isMobile && <Pager page={p} pages={pages} total={rows.length} size={size} onPage={setPage} />}
+      </FxCard>
 
-      {reversing && <ReverseDialog entry={reversing} onClose={() => setReversing(null)} />}
-    </Box>
+      {editing && <EntryEditor entry={editing} onClose={() => setEditing(null)} />}
+    </FitPage>
   );
 }
 
-function ReverseDialog({ entry, onClose }) {
-  const showSnackbar = useAppStore((s) => s.showSnackbar);
-  const qc = useQueryClient();
-  const [reason, setReason] = useState('');
-  const reverse = useMutation({
-    mutationFn: async () => {
-      const { error } = await supabase.rpc('mf_reverse_entry', { p_entry_id: entry.id, p_reason: reason.trim() });
-      if (error) throw error;
-    },
-    onSuccess: () => { showSnackbar('Entry reversed. Both rows are kept for audit.', 'success'); qc.invalidateQueries({ queryKey: [MF_LEDGER_KEY] }); onClose(); },
-    onError: dbErrorHandler(showSnackbar, 'Could not reverse'),
-  });
-  return (
-    <Dialog open onClose={onClose} maxWidth="xs" fullWidth slotProps={{ paper: { sx: { borderRadius: 3 } } }}>
-      <DialogContent>
-        <Typography sx={{ fontWeight: 700, mb: 0.5 }}>Reverse this entry?</Typography>
-        <Typography sx={{ fontSize: '0.74rem', color: 'text.secondary', mb: 2 }}>
-          {TYPE_LABEL[entry.entry_type]} · {entry.fundName} · {fmtDate(entry.trade_date)}. Nothing is deleted: a mirror entry cancels it, and both stay in your history.
-        </Typography>
-        <TextField label="Reason" size="small" fullWidth autoFocus value={reason} onChange={(e) => setReason(e.target.value)} />
-        <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
-          <Button fullWidth onClick={onClose} sx={{ textTransform: 'none' }}>Cancel</Button>
-          <Button fullWidth variant="contained" color="error" disableElevation disabled={!reason.trim() || reverse.isPending}
-            onClick={() => reverse.mutate()} sx={{ textTransform: 'none' }}>Reverse</Button>
+const COLS = '92px minmax(0, 2.4fr) minmax(0, 1.1fr) 110px 90px 110px 80px 76px 32px';
+
+function TxRow({ r, mobile, onEdit }) {
+  const t = useFx();
+  const units = r.unit_delta !== null ? Number(r.unit_delta) : null;
+  const amount = units !== null && units < 0 ? (r.net_amount ?? r.gross_amount) : (r.gross_amount ?? r.net_amount);
+  const struck = r.reversed || r.reverses_entry_id;
+  const typeText = <>{TYPE_LABEL[r.entry_type] ?? r.entry_type}{r.reverses_entry_id && <Box component="span" sx={{ ml: 0.5 }}><Chip>Reversal</Chip></Box>}</>;
+  const uColor = units < 0 ? t.neg : units > 0 ? t.pos : t.ink2;
+  if (mobile) {
+    return (
+      <ButtonBase onClick={onEdit} sx={{ display: 'flex', width: '100%', alignItems: 'center', gap: 1.25, py: 1, borderBottom: `1px solid ${t.hairline}`, textAlign: 'left', fontFamily: 'inherit', opacity: struck ? 0.5 : 1 }}>
+        <AmcLogo code={r.amcCode} name={r.amcName} size={32} />
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Typography noWrap sx={{ fontSize: '0.78rem', fontWeight: 650, textDecoration: r.reversed ? 'line-through' : 'none' }}>{r.fundName}</Typography>
+          <Typography noWrap sx={{ fontSize: '0.66rem', color: t.muted }}>{fmtDate(r.trade_date)} · {TYPE_LABEL[r.entry_type] ?? r.entry_type}</Typography>
         </Box>
-      </DialogContent>
-    </Dialog>
+        <Box sx={{ textAlign: 'right' }}>
+          <Typography sx={{ fontSize: '0.78rem', fontWeight: 600, fontFamily: FONT_NUM }}>{amount ? formatNumber(Number(amount), 0) : '—'}</Typography>
+          <Typography sx={{ fontSize: '0.64rem', fontFamily: FONT_NUM, color: uColor }}>{units === null ? '' : `${units > 0 ? '+' : ''}${formatNumber(units, 2)} u`}</Typography>
+        </Box>
+      </ButtonBase>
+    );
+  }
+  return (
+    <Box onClick={onEdit} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onEdit(); } }}
+      sx={{
+        display: 'grid', gridTemplateColumns: COLS, gap: 1.5, alignItems: 'center', height: 48, px: 1, borderBottom: `1px solid ${t.hairline}`,
+        fontSize: '0.74rem', cursor: 'pointer', opacity: struck ? 0.5 : 1, borderRadius: '10px', transition: 'background-color .16s',
+        '&:hover': { bgcolor: t.surface2 }, '&:hover .edit': { opacity: 1 }, '&:focus-visible': { outline: `2px solid ${t.ink}` },
+      }}>
+      <Box sx={{ fontFamily: FONT_NUM, color: t.ink2, letterSpacing: '-0.02em' }}>{fmtDate(r.trade_date)}</Box>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+        <AmcLogo code={r.amcCode} name={r.amcName} size={26} />
+        <Box sx={{ minWidth: 0 }}>
+          <Typography noWrap sx={{ fontSize: '0.74rem', fontWeight: 600, textDecoration: r.reversed ? 'line-through' : 'none' }}>{r.fundName}</Typography>
+          <Typography noWrap sx={{ fontSize: '0.62rem', color: t.muted }}>{r.amcName}</Typography>
+        </Box>
+      </Box>
+      <Box sx={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{typeText}</Box>
+      <Box sx={{ textAlign: 'right', fontFamily: FONT_NUM, color: uColor, letterSpacing: '-0.02em' }}>{units === null ? '—' : `${units > 0 ? '+' : ''}${formatNumber(units, 4)}`}</Box>
+      <Box sx={{ textAlign: 'right', fontFamily: FONT_NUM, letterSpacing: '-0.02em' }}>{r.nav ? formatNumber(Number(r.nav), 4) : '—'}</Box>
+      <Box sx={{ textAlign: 'right', fontFamily: FONT_NUM, fontWeight: 600, letterSpacing: '-0.02em' }}>{amount ? formatNumber(Number(amount), 2) : '—'}</Box>
+      <Box sx={{ textAlign: 'right', fontFamily: FONT_NUM, letterSpacing: '-0.02em' }}>{r.cgt ? formatNumber(r.cgt, 2) : '—'}</Box>
+      <Box sx={{ color: t.muted, fontSize: '0.68rem' }}>{SOURCE[r.origin] ?? r.origin}</Box>
+      <EditRounded className="edit" sx={{ fontSize: 15, color: t.muted, opacity: 0, transition: 'opacity .16s' }} />
+    </Box>
   );
 }
