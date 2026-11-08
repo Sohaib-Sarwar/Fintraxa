@@ -9,10 +9,10 @@
 import { useTheme } from '@mui/material';
 
 /** Text: Monety, Artonex for display; Inter until licensed files are added (see public/fonts/README.md). */
-export const FONT_TEXT = "'Monety', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
-export const FONT_DISPLAY = "'Artonex', 'Monety', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+export const FONT_TEXT = "'Monety', 'Inter Variable', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+export const FONT_DISPLAY = "'Artonex', 'Monety', 'Inter Variable', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
 /** Figures: Inter Tight — tight, heavy grotesk numerals (the "Number font" reference), tabular. */
-export const FONT_NUM = "'Inter Tight', 'Inter', -apple-system, 'Segoe UI', sans-serif";
+export const FONT_NUM = "'Inter Tight Variable', 'Inter Tight', 'Inter Variable', 'Inter', -apple-system, 'Segoe UI', sans-serif";
 
 const LIGHT = {
   bg: '#f4f5f6', surface: '#ffffff', surface2: '#f6f7f8', surface3: '#eceef1',

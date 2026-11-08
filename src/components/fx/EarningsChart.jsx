@@ -2,14 +2,25 @@ import { useTheme, Box, Typography } from '@mui/material';
 import { NorthEastRounded, SouthEastRounded } from '@mui/icons-material';
 import { ResponsiveContainer, ComposedChart, Area, XAxis, YAxis, Tooltip } from 'recharts';
 import { useFx, FONT_NUM, earningsColors } from './tokens';
-import { formatCurrency } from '../../lib/formatters';
+import { useWidth } from './hooks';
+import { formatCurrency, compactNumber } from '../../lib/formatters';
 
 const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-const kAxis = (v) => {
-  const a = Math.abs(v);
-  const s = a >= 1e5 ? `${+(a / 1e5).toFixed(1)}L` : a >= 1e3 ? `${+(a / 1e3).toFixed(a >= 1e4 ? 0 : 1)}k` : `${Math.round(a)}`;
-  return v < 0 ? `−${s}` : s;
-};
+const kAxis = (v) => compactNumber(v);
+/**
+ * Where the hover card sits relative to its point so it never leaves the chart
+ * (and slides under the next card on the page): centred, or anchored to the
+ * left / right edge near the sides. Returns the foreignObject x, the flex
+ * alignment and where the caret points.
+ */
+function placeCard(cx, width, FW) {
+  const HALF = 118;  // about half a typical card
+  const PAD = 26;    // caret distance from the card's edge
+  if (width && cx + HALF > width) return { x: cx - FW + PAD, justify: 'flex-end', caret: `calc(100% - ${PAD}px)` };
+  if (cx < HALF) return { x: cx - PAD, justify: 'flex-start', caret: `${PAD}px` };
+  return { x: cx - FW / 2, justify: 'center', caret: '50%' };
+}
+
 
 /**
  * Earnings by month as two smooth lines (after the "line chart UI"
@@ -22,6 +33,7 @@ export default function EarningsChart({ months, height = 260, taxLabel = 'CGT' }
   const t = useFx();
   const mode = useTheme().palette.mode;
   const c = earningsColors(mode);
+  const [wrapRef, width] = useWidth();
   const empty = !months.some((m) => m.gross || m.cgt || m.net);
   if (empty) {
     return (
@@ -39,7 +51,7 @@ export default function EarningsChart({ months, height = 260, taxLabel = 'CGT' }
   const axis = { axisLine: false, tickLine: false, tick: { fontSize: 11.5, fill: c.axis, fontFamily: FONT_NUM } };
 
   return (
-    <Box sx={{ position: 'relative', height, '& .recharts-surface': { overflow: 'visible' }, '& .recharts-wrapper': { overflow: 'visible' } }}>
+    <Box ref={wrapRef} sx={{ position: 'relative', height, '& .recharts-surface': { overflow: 'visible' }, '& .recharts-wrapper': { overflow: 'visible' } }}>
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={data} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
           <defs>
@@ -62,7 +74,7 @@ export default function EarningsChart({ months, height = 260, taxLabel = 'CGT' }
             dot={false} activeDot={<Ring color={c.gross} surface={t.surface} />} animationDuration={600} />
           {/* Net is drawn last so its hover card sits above both lines. */}
           <Area type="monotone" dataKey="net" name="Net" stroke={c.net} strokeWidth={3} fill="url(#fx-fill-n)" filter="url(#fx-glow-n)"
-            dot={false} activeDot={(p) => <HoverCard {...p} colors={c} surface={t.surface} taxLabel={taxLabel} key={`hc-${p.index}`} />} animationDuration={600} />
+            dot={false} activeDot={(p) => <HoverCard {...p} colors={c} surface={t.surface} taxLabel={taxLabel} chartWidth={width} key={`hc-${p.index}`} />} animationDuration={600} />
         </ComposedChart>
       </ResponsiveContainer>
     </Box>
@@ -80,11 +92,12 @@ function Ring({ cx, cy, color, surface }) {
  * large, gross and CGT small. The card sizes to its content (no fixed box),
  * inside a generous foreignObject anchored bottom-centre on the point.
  */
-function HoverCard({ cx, cy, payload, colors, surface, taxLabel }) {
+function HoverCard({ cx, cy, payload, colors, surface, taxLabel, chartWidth }) {
   if (cx === undefined || cy === undefined || !payload) return null;
   const m = payload;
   const FW = 360;   // room the card may use; the card itself is only as wide as its text
   const FH = 220;
+  const place = placeCard(cx, chartWidth, FW);
   const up = m.change === null ? null : m.change >= 0;
   const muted = 'rgba(196,205,230,0.85)';
   const line = (label, value, color) => (
@@ -96,13 +109,13 @@ function HoverCard({ cx, cy, payload, colors, surface, taxLabel }) {
   return (
     <g style={{ pointerEvents: 'none' }}>
       <circle cx={cx} cy={cy} r={6.5} fill={surface} stroke={colors.net} strokeWidth={3} />
-      <foreignObject x={cx - FW / 2} y={cy - FH - 16} width={FW} height={FH} style={{ overflow: 'visible' }}>
-        <Box sx={{ width: FW, height: FH, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+      <foreignObject x={place.x} y={cy - FH - 16} width={FW} height={FH} style={{ overflow: 'visible' }}>
+        <Box sx={{ width: FW, height: FH, display: 'flex', alignItems: 'flex-end', justifyContent: place.justify }}>
           <Box sx={{
             position: 'relative', width: 'max-content', minWidth: 176, maxWidth: FW, boxSizing: 'border-box', borderRadius: '12px',
             px: 1.75, pt: 1.25, pb: 1.25, bgcolor: colors.tip, color: '#fff', whiteSpace: 'nowrap',
             boxShadow: '0 12px 28px -10px rgba(5,10,30,.55)', fontFamily: 'inherit',
-            '&::after': { content: '""', position: 'absolute', left: '50%', bottom: -6, width: 12, height: 12, bgcolor: colors.tip, transform: 'translateX(-50%) rotate(45deg)', borderRadius: '2px' },
+            '&::after': { content: '""', position: 'absolute', left: place.caret, bottom: -6, width: 12, height: 12, bgcolor: colors.tip, transform: 'translateX(-50%) rotate(45deg)', borderRadius: '2px' },
           }}>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
               <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: 'rgba(255,255,255,0.9)' }}>

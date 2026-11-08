@@ -13,7 +13,7 @@ import { animate, useReducedMotion } from 'framer-motion';
  * format: number → string. split: render the decimals in a dimmer span
  * (the hero figure), which needs `dimColor`.
  */
-export default function AnimatedValue({ value, format, duration = 0.9, split = false, dimColor, className, style }) {
+export default function AnimatedValue({ value, format, formatKey, duration = 0.9, split = false, dimColor, className, style }) {
   const ref = useRef(null);
   const shown = useRef(0);
   const fmt = useRef(format);
@@ -28,16 +28,18 @@ export default function AnimatedValue({ value, format, duration = 0.9, split = f
       shown.current = n;
       const text = fmt.current(n);
       if (!split) { el.textContent = text; return; }
-      const i = text.lastIndexOf('.');
-      el.children[0].textContent = i > 0 ? text.slice(0, i) : text;
-      el.children[1].textContent = i > 0 ? text.slice(i) : '';
+      // Only trailing decimals are dimmed ("25,401" + ".06"); "Rs 1.4M" stays whole.
+      const m = text.match(/^(.*?)(\.\d+)$/);
+      el.children[0].textContent = m ? m[1] : text;
+      el.children[1].textContent = m ? m[2] : '';
     };
     const target = Number(value);
-    if (!Number.isFinite(target)) { el.textContent = '—'; return undefined; }
-    if (reduce) { paint(target); return undefined; }
+    if (!Number.isFinite(target)) { if (split) { el.children[0].textContent = '—'; el.children[1].textContent = ''; } else el.textContent = '—'; return undefined; }
+    // Same value, new format (e.g. switched to compact): repaint at once, no animation.
+    if (reduce || shown.current === target) { paint(target); return undefined; }
     const controls = animate(shown.current, target, { duration, ease: [0.22, 1, 0.36, 1], onUpdate: paint });
     return () => controls.stop();
-  }, [value, duration, split, reduce]);
+  }, [value, duration, split, reduce, formatKey]);
 
   return split
     ? <span ref={ref} className={className} style={style}><span /><span style={{ color: dimColor }} /></span>

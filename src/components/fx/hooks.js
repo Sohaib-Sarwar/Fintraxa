@@ -1,6 +1,23 @@
 import { useEffect, useRef, useState } from 'react';
 
 /**
+ * [ref, width]: the element's current content width, kept up to date. A
+ * callback ref, so it starts measuring whenever the element mounts (charts
+ * render an empty state first and the plot later).
+ */
+export function useWidth() {
+  const [el, setEl] = useState(null);
+  const [width, setWidth] = useState(0);
+  useEffect(() => {
+    if (!el) return undefined;
+    const ro = new ResizeObserver(([e]) => setWidth(Math.round(e.contentRect.width)));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [el]);
+  return [setEl, width];
+}
+
+/**
  * Rows per page from the space a list actually has, so a page never
  * scrolls: the list pages instead. Returns [ref, pageSize].
  */

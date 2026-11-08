@@ -165,9 +165,39 @@ test('active in range: a fund bought before the range and still held is shown an
   assert.deepEqual(a.positions.map((p) => p.fundId).sort(), ['F', 'Held']);
   assert.equal(a.totals.invested, 1500, '1,000 Held + 500 F');
   assert.equal(a.totals.value, 1650, '100 × 11 + 50 × 11');
-  assert.deepEqual(a.series.map((x) => x.invested), [1000, 1500, 1500, 1500], 'Jul holds only Held; F joins in Aug');
+  // Opening balance on 30 Jun (Held only), then month-ends: Jul Held only, F joins in Aug.
+  assert.deepEqual(a.series.map((x) => [x.month, x.invested, !!x.opening]), [['2026-06', 1000, true], ['2026-07', 1000, false], ['2026-08', 1500, false], ['2026-09', 1500, false], ['2026-10', 1500, false]]);
+  assert.equal(a.series[0].title, 'Opening balance, 30 Jun 2026');
   assert.equal(a.allPositions.length, 3);
   // A range that ends before the first purchase shows nothing of it.
   const early = analyzeFunds({ entries: held, prices, start: '2025-07-01', end: '2025-12-31', today: '2026-10-31' });
   assert.equal(early.positions.length, 0);
+});
+
+test('a fund with no price at all counts at cost in net worth, matching the chart', () => {
+  // No MUFAP price and no NAV on the entry: value unknown, so book value (cost) stands in.
+  const e = { ...buy('2026-08-01', 100, 10, 'NoNav'), nav: null };
+  const a = analyzeFunds({ entries: [e], prices: [], ...FY });
+  assert.equal(a.positions[0].value, null, 'the holding itself still shows no market value');
+  assert.equal(a.totals.value, 1000);
+  assert.equal(a.totals.incomplete, true);
+  assert.equal(a.series.at(-1).value, a.totals.value, 'last chart point = net worth');
+});
+
+test('opening balance: only for a range that starts on the 1st and only if something was held', () => {
+  const held = [buy('2026-02-01', 100, 10, 'Held')];
+  const prices = [P(11, '2026-10-31', 'Held')];
+  const mid = analyzeFunds({ entries: held, prices, start: '2026-07-15', end: '2027-06-30', today: '2026-10-31' });
+  assert.ok(!mid.series.some((x) => x.opening), 'mid-month start: no opening point');
+  const sold = [buy('2026-02-01', 100, 10, 'Gone'), sell('2026-03-01', 100, 11, 1100, 1100, 'Gone'), buy('2026-08-01', 10, 10)];
+  const empty = analyzeFunds({ entries: sold, prices, ...FY });
+  assert.ok(!empty.series.some((x) => x.opening), 'nothing held on 30 Jun: no opening point');
+});
+
+test('long histories keep their latest months (no 5-year cut-off)', () => {
+  const entries = [buy('2019-01-15', 10, 10), sell('2026-09-10', 5, 12, 60, 60)];
+  const a = analyzeFunds({ entries, prices: [], start: '2000-01-01', end: '2026-10-31', today: '2026-10-31' });
+  assert.equal(a.months.at(-1).month, '2026-10');
+  assert.equal(a.months.find((m) => m.month === '2026-09').gross, 10, 'the 2026 sale is still counted');
+  assert.equal(a.series.at(-1).month, '2026-10');
 });

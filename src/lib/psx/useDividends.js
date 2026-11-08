@@ -9,6 +9,7 @@ import { supabase } from '../supabase';
 import { useAuthStore } from '../../store/authStore';
 import { getStockSector } from '../psxSectors';
 import { summarizeDividends } from './dividends';
+import { todayIso } from '../dateRange';
 
 const COLUMNS = 'id, symbol, company_name, payment_date, issue_date, account_ref, warrant_no, filer_status, filer_status_raw, '
   + 'shares::text, gross_amount::text, tax_amount::text, jh_tax_amount::text, zakat_amount::text, net_amount::text, source, notes, created_at';
@@ -42,7 +43,7 @@ export function useDividends(range, filter = {}) {
   const summary = useMemo(() => {
     if (!q.data) return null;
     const rows = q.data.filter((x) => (symbol === 'all' || x.symbol === symbol) && (sector === 'all' || getStockSector(x.symbol) === sector));
-    return summarizeDividends(rows, { start, end });
+    return summarizeDividends(rows, { start, end, today: todayIso() });
   }, [q.data, start, end, sector, symbol]);
   return { all: q.data ?? [], summary, isLoading: q.isLoading, isError: q.isError };
 }

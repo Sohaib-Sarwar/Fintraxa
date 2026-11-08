@@ -15,6 +15,21 @@ function convertFromPKR(amount) {
   return amount / rate;
 }
 
+/** 1,423,567 → "1.4M"; 845,231 → "845.2K"; 2,350,000,000 → "2.35B". Trailing zeros dropped. */
+export function compactNumber(n) {
+  const a = Math.abs(Number(n) || 0);
+  const fmt = (x, dp) => String(+x.toFixed(dp));
+  const s = a >= 1e9 ? `${fmt(a / 1e9, 2)}B` : a >= 1e6 ? `${fmt(a / 1e6, a >= 1e8 ? 0 : 1)}M` : a >= 1e3 ? `${fmt(a / 1e3, a >= 1e5 ? 0 : 1)}K` : fmt(a, 0);
+  return Number(n) < 0 ? `−${s}` : s;
+}
+
+/** Currency in compact form ("Rs 1.4M"), converted to the user's currency like formatCurrency. */
+export function formatCompactCurrency(amount) {
+  const { symbol } = getCurrencyInfo();
+  if (amount == null || isNaN(amount)) return `${symbol} 0`;
+  return `${symbol} ${compactNumber(convertFromPKR(Number(amount)))}`;
+}
+
 /** Format number as currency with the user's selected symbol (auto-converts from PKR) */
 export function formatCurrency(amount, decimals = 0) {
   if (amount == null || isNaN(amount)) {

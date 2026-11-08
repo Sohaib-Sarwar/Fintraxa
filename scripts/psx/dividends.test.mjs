@@ -121,3 +121,103 @@ test('key matches the table unique constraint', () => {
   assert.equal(dividendKey({ symbol: 'FFC', payment_date: '2026-01-01', warrant_no: '12' }), 'FFC|2026-01-01|12');
   assert.equal(dividendKey({ symbol: 'FFC', payment_date: '2026-01-01', warrant_no: null }), 'FFC|2026-01-01|');
 });
+
+// ── Regressions from a real two-page CDC report ────────────────────────────
+const PAGE_HEADER = `Dividend / Zakat & Tax Deduction Summary Report
+Date and Time Printed :   07/11/2026 11:18:11
+Name :   TEST INVESTOR   Page :   2 of 2
+Payment Date :   01/01/2026 To 07/11/2026
+* As per Issuer Record
+${HEADER}`;
+
+test('a row followed by a page header is still its own row (not merged into the next one)', () => {
+  const text = `${HEADER}
+21/09/2026 18/09/2026 XYZ - THE XYZ
+BANK LIMITED
+11111-222222 41589 Filer 1 1.60 0.24 0.00 0.00 2.00
+${PAGE_HEADER}
+25/09/2026 25/09/2026 MNO - MNO ENERGIES
+LIMITED
+11111-222222 8751392 Filer 1 19.00 2.81 0.00 0.00 16.00
+Total 20.60 3.05 0.00 0.00 18.00`;
+  const { rows, statements, warnings } = parseDividendStatement(text);
+  assert.deepEqual(rows.map((r) => [r.symbol, r.payment_date, r.warrant_no, r.gross_amount, r.net_amount]), [
+    ['XYZ', '2026-09-21', '41589', '1.60', '2.00'],
+    ['MNO', '2026-09-25', '8751392', '19.00', '16.00'],
+  ]);
+  assert.equal(rows[0].company_name, 'THE XYZ BANK LIMITED');
+  assert.equal(statements[0].matches, true);
+  assert.deepEqual(warnings, []);
+});
+
+test('text: a damaged row is reported and skipped, never glued to its neighbour', () => {
+  const text = `${HEADER}
+21/09/2026 18/09/2026 XYZ - THE XYZ BANK LIMITED 11111-222222 41589 Filer 1 1.60 0.24
+25/09/2026 25/09/2026 MNO - MNO ENERGIES LIMITED 11111-222222 8751392 Filer 1 19.00 2.81 0.00 0.00 16.00
+Total 19.00 2.81 0.00 0.00 16.00`;
+  const { rows, warnings } = parseDividendStatement(text);
+  assert.deepEqual(rows.map((r) => [r.symbol, r.warrant_no]), [['MNO', '8751392']]);
+  assert.match(warnings.join(' '), /row paid 21\/09\/2026 could not be read/);
+});
+
+const C = (text, x) => ({ text, x0: x, x1: x + text.length * 4 });
+const row = (page, pay, issue, symName, acct, warrant, filer, nums) => ({ page, cells: [C(pay, 24), C(issue, 59), C(symName, 97), C(acct, 174), C(warrant, 256), C(filer, 308), ...nums.map((n, i) => C(n, 396 + i * 60))] });
+const frag = (page, text) => ({ page, cells: [C(text, 97)] });
+const other = (page, text, x = 20) => ({ page, cells: [C(text, x)] });
+
+test('PDF lines: each row by position, wrapped names below it, page breaks and footers ignored', async () => {
+  const { parseDividendLines } = await import('../../src/lib/psx/dividends.js');
+  const lines = [
+    other(1, 'Dividend / Zakat & Tax Deduction Summary Report', 216),
+    row(1, '25/03/2026', '25/03/2026', 'ABC - ALPHA', '11111-222222', '15554828', '30%', ['10', '85.00', '26.00', '0.00', '0.00', '59.00']),
+    frag(1, 'FERTILIZER'), frag(1, 'COMPANY'), frag(1, 'LIMITED'),
+    row(1, '21/09/2026', '18/09/2026', 'XYZ - THE XYZ', '11111-222222', '41589', 'Filer', ['1', '1.60', '0.24', '0.00', '0.00', '2.00']),
+    frag(1, 'BANK LIMITED'),
+    other(1, '* As per Issuer Record', 18),
+    other(2, 'Dividend / Zakat & Tax Deduction Summary Report', 216),
+    other(2, 'Page :'),
+    row(2, '25/09/2026', '25/09/2026', 'MNO - MNO', '33333-444444', '8751392', 'Non Filler', ['1', '19.00', '2.81', '0.00', '0.00', '16.00']),
+    frag(2, 'ENERGIES'), frag(2, 'LIMITED'),
+    { page: 2, cells: [C('Total', 345), C('105.60', 449), C('29.05', 530), C('0.00', 610), C('0.00', 685), C('77.00', 747)] },
+    other(2, 'Disclaimer'),
+    other(2, 'By accessing the web portal of CDC relating to Centralized Cash Dividend Register'),
+  ];
+  const { rows, statements, warnings } = parseDividendLines(lines);
+  assert.deepEqual(rows.map((r) => [r.symbol, r.company_name, r.account_ref, r.warrant_no, r.filer_status, r.net_amount]), [
+    ['ABC', 'ALPHA FERTILIZER COMPANY LIMITED', '11111-222222', '15554828', 'non_filer', '59.00'],
+    ['XYZ', 'THE XYZ BANK LIMITED', '11111-222222', '41589', 'filer', '2.00'],
+    ['MNO', 'MNO ENERGIES LIMITED', '33333-444444', '8751392', 'non_filer', '16.00'],
+  ]);
+  assert.deepEqual([statements.length, statements[0].matches], [1, true]);
+  assert.deepEqual(warnings, []);
+});
+
+test('PDF lines: a row with missing amounts is skipped with a reason; merged date cells are split', async () => {
+  const { parseDividendLines } = await import('../../src/lib/psx/dividends.js');
+  const merged = { page: 1, cells: [C('25/09/2026 25/09/2026', 24), C('MNO - MNO ENERGIES', 97), C('33333-444444', 174), C('8751392', 256), C('Filer', 308), ...['1', '19.00', '2.81', '0.00', '0.00', '16.00'].map((n, i) => C(n, 396 + i * 60))] };
+  const broken = row(1, '21/09/2026', '18/09/2026', 'XYZ - THE XYZ', '11111-222222', '41589', 'Filer', ['1', '1.60']);
+  const { rows, warnings } = parseDividendLines([broken, merged]);
+  assert.deepEqual(rows.map((r) => r.symbol), ['MNO']);
+  assert.match(warnings[0], /row paid 21\/09\/2026 could not be read \(amounts missing\)/);
+});
+
+test('report: the reading that reconciles with the printed totals is used', async () => {
+  const { parseDividendReport } = await import('../../src/lib/psx/dividends.js');
+  const lines = [row(1, '25/09/2026', '25/09/2026', 'MNO - MNO', '33333-444444', '8751392', 'Filer', ['1', '19.00', '2.81', '0.00', '0.00', '16.00']),
+    { page: 1, cells: [C('Total', 345), C('19.00', 449), C('2.81', 530), C('0.00', 610), C('0.00', 685), C('16.00', 747)] }];
+  const r = parseDividendReport({ text: 'garbage without rows', lines });
+  assert.deepEqual([r.rows.length, r.statements[0].matches], [1, true]);
+  const r2 = parseDividendReport({ text: B, lines: [] });
+  assert.equal(r2.rows.length, 1, 'falls back to the text reading when lines give nothing');
+});
+
+test('duplicates: same warrant is saved; same stock, date and amount without that warrant is possible', async () => {
+  const { dividendDuplicates } = await import('../../src/lib/psx/dividends.js');
+  const rows = parseDividendStatement(A).rows; // ABCD 2026-08-05 w7001, XYZ 2026-08-14 w88, PQ.R 2026-09-02 w9001234
+  const existing = [
+    { symbol: 'ABCD', payment_date: '2026-08-05', warrant_no: '7001', gross_amount: '40.00', net_amount: '28.00' },
+    { symbol: 'XYZ', payment_date: '2026-08-14', warrant_no: null, gross_amount: '7.50', net_amount: '5.25' },
+    { symbol: 'PQ.R', payment_date: '2026-09-02', warrant_no: null, gross_amount: '1.00', net_amount: '1.00' },
+  ];
+  assert.deepEqual(dividendDuplicates(rows, existing), { 'ABCD|2026-08-05|7001': 'saved', 'XYZ|2026-08-14|88': 'possible' });
+});

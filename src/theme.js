@@ -32,9 +32,9 @@ export function buildTheme(mode = 'light') {
       // Text: Monety (body) and Artonex (headings), loaded from public/fonts
       // once licensed files are added; Inter until then. Figures: Inter Tight
       // with tabular digits (see '.currency, [data-numeric]' below).
-      fontFamily: "'Monety', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-      h4: { fontWeight: 700, letterSpacing: '-0.025em', fontFamily: "'Artonex', 'Monety', 'Inter', sans-serif" },
-      h5: { fontWeight: 700, letterSpacing: '-0.015em', fontFamily: "'Artonex', 'Monety', 'Inter', sans-serif" },
+      fontFamily: "'Monety', 'Inter Variable', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      h4: { fontWeight: 700, letterSpacing: '-0.025em', fontFamily: "'Artonex', 'Monety', 'Inter Variable', 'Inter', sans-serif" },
+      h5: { fontWeight: 700, letterSpacing: '-0.015em', fontFamily: "'Artonex', 'Monety', 'Inter Variable', 'Inter', sans-serif" },
       h6: { fontWeight: 600, letterSpacing: '-0.01em' },
       subtitle1: { fontWeight: 500, fontSize: '0.938rem' },
       subtitle2: { fontWeight: 600, fontSize: '0.813rem' },
@@ -52,8 +52,8 @@ export function buildTheme(mode = 'light') {
           '*': { WebkitTapHighlightColor: 'transparent' },
           // Figures are compared down a column all over this app — holdings,
           // transactions, P&L. Proportional digits make those columns ragged.
-          '.currency, [data-numeric]': { fontVariantNumeric: 'tabular-nums', fontFamily: "'Inter Tight', 'Inter', sans-serif", letterSpacing: '-0.01em' },
-          '.recharts-text': { fontFamily: "'Inter Tight', 'Inter', sans-serif" },
+          '.currency, [data-numeric]': { fontVariantNumeric: 'tabular-nums', fontFamily: "'Inter Tight Variable', 'Inter Tight', 'Inter Variable', 'Inter', sans-serif", letterSpacing: '-0.01em' },
+          '.recharts-text': { fontFamily: "'Inter Tight Variable', 'Inter Tight', 'Inter Variable', 'Inter', sans-serif" },
         },
       },
       MuiCard: {

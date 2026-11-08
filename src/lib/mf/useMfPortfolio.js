@@ -14,6 +14,7 @@ import { useAuthStore } from '../../store/authStore';
 import { mufapFundsQuery, fundBySlug } from '../marketQueries';
 import { computePortfolio } from './engine';
 import { analyzeFunds } from './profit';
+import { todayIso } from '../dateRange';
 
 export const MF_LEDGER_KEY = 'mf-ledger';
 
@@ -136,7 +137,8 @@ export function useMfAnalysis(range, { amcId = 'all', fundId = 'all' } = {}) {
     const { funds, amcs, prices } = buildInputs(d, market.data);
     const entries = d.entries.filter((e) => (fundId === 'all' || e.fund_id === fundId)
       && (amcId === 'all' || funds[e.fund_id]?.amc_id === amcId));
-    const a = analyzeFunds({ entries, components: d.components, prices, funds, amcs, start, end });
+    // Pakistan's calendar day, not UTC's (which lags by five hours after midnight).
+    const a = analyzeFunds({ entries, components: d.components, prices, funds, amcs, start, end, today: todayIso() });
     const cgt = new Map();
     for (const c of d.components) if (c.component_type === 'cgt') cgt.set(c.entry_id, (cgt.get(c.entry_id) ?? 0) + Number(c.amount));
     for (const p of a.allPositions) {

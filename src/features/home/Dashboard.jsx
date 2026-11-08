@@ -6,10 +6,10 @@ import { useMfAnalysis } from '../../lib/mf/useMfPortfolio';
 import { usePsxPortfolio } from '../../lib/psx/usePsxPortfolio';
 import { fiscalYearEnds } from '../../lib/psx/portfolio';
 import { mergeSeries, combineTotals } from '../../lib/home/combine';
-import { useDateRange, rangeLabel } from '../../lib/dateRange';
+import { useDateRange, rangeLabel, ALL_TIME_START, todayIso } from '../../lib/dateRange';
 import { formatCurrency } from '../../lib/formatters';
 import {
-  useFx, PageHeader, Panel, PanelHeader, SummaryCard, GrowthChart, AllocationDonut, AnimatedValue, Seg, FitPage, FONT_NUM, signColor,
+  useFx, PageHeader, Panel, PanelHeader, SummaryCard, GrowthChart, AllocationDonut, FitMoney, Seg, FitPage, FONT_NUM, signColor,
 } from '../../components/fx';
 import AmcLogo from '../mutual-funds/AmcLogo';
 import { FundDetailsDialog } from '../mutual-funds/MFDetails';
@@ -44,6 +44,11 @@ export default function HomeDashboard() {
   const label = rangeLabel(range);
   const { analysis: mf, isLoading: mfLoading } = useMfAnalysis(range);
   const { portfolio: psx, isLoading: psxLoading, pricesLoading } = usePsxPortfolio(range);
+  // Yearly view: every fiscal year's 30 June close from the whole history (one year alone is a single point).
+  const allTime = useMemo(() => ({ id: 'all', start: ALL_TIME_START, end: todayIso() }), []);
+  const { analysis: mfAll } = useMfAnalysis(allTime);
+  const { portfolio: psxAll } = usePsxPortfolio(allTime);
+  const yearly = useMemo(() => (mfAll && psxAll ? fiscalYearEnds(mergeSeries(mfAll.series, psxAll.series)) : []), [mfAll, psxAll]);
   const [view, setView] = useState('month');
   const [tab, setTab] = useState('all');
   const [fund, setFund] = useState(null);
@@ -125,7 +130,7 @@ export default function HomeDashboard() {
             right={<Seg size="sm" label="Chart period" value={view} onChange={setView} options={[{ value: 'month', label: 'Monthly' }, { value: 'year', label: 'Yearly' }]} />} />
           <Box sx={{ flex: 1, minHeight: isMobile ? 240 : 0, position: 'relative' }}>
             <Box sx={{ position: isMobile ? 'relative' : 'absolute', inset: 0, height: isMobile ? 240 : '100%' }}>
-              <GrowthChart points={view === 'month' ? data.series : fiscalYearEnds(data.series)} height="100%" />
+              <GrowthChart points={view === 'month' ? data.series : yearly} height="100%" />
             </Box>
           </Box>
         </Panel>
@@ -154,7 +159,7 @@ function Split({ funds, stocks, onFunds, onStocks }) {
       '&:hover .v': { textDecoration: 'underline', textUnderlineOffset: '3px' }, '&:focus-visible': { outline: `2px solid ${t.ink}`, outlineOffset: 2, borderRadius: '6px' },
     }}>
       <Typography sx={{ fontSize: '0.7rem', color: t.muted }}>{name} <Box component="span" sx={{ fontFamily: FONT_NUM }}>{(s.share * 100).toFixed(0)}%</Box></Typography>
-      <Typography className="v" data-numeric noWrap sx={{ fontFamily: FONT_NUM, fontSize: '0.86rem', fontWeight: 600, letterSpacing: '-0.02em', color: t.ink }}><AnimatedValue value={s.value} format={(n) => formatCurrency(n)} /></Typography>
+      <Typography className="v" data-numeric component="div" sx={{ fontFamily: FONT_NUM, fontSize: '0.86rem', fontWeight: 600, letterSpacing: '-0.02em', color: t.ink, minWidth: 0 }}><FitMoney value={s.value} /></Typography>
     </Box>
   );
   return (

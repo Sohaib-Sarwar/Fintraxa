@@ -2,6 +2,9 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+// Self-hosted variable fonts: same files on every browser, allowed by the CSP (font-src 'self').
+import '@fontsource-variable/inter/opsz.css';
+import '@fontsource-variable/inter-tight/wght.css';
 import App from './App';
 import './index.css';
 

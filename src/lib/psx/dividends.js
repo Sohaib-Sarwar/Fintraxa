@@ -1,18 +1,22 @@
 /**
  * PSX cash dividends: statement parsing and range summaries. Pure, no React,
  * no network, exact decimals (decimal.js), so it is unit-tested directly
- * (scripts/psx/dividends.test.mjs).
+ * (scripts/psx/dividends.test.mjs; real reports in tests/private).
  *
- * Statement format: the CDC / registrar "dividend statement" table, as text
- * copied out of the PDF:
+ * Source: the CDC "Dividend / Zakat & Tax Deduction Summary Report":
  *
  *   Payment Date | Dividend Issue Date | Sec. Symbol - Sec. Name | Part. ID - A/c # / Folio #
  *   | Warrant # | Filer Status | No. of Securities | Gross Dividend | Tax | JH's Tax | Zakat | Net Dividend
  *
- * Company names wrap over several lines and the filer status is free text
- * ("Filer", "NONFILER", "Non Filler", "15%", "30%"), so rows are matched on
- * the whole text with whitespace collapsed, anchored on the two dates at the
- * start and the six numbers at the end. Deterministic on purpose: no LLM.
+ * Every row is read on its own and validated on its own:
+ *   - PDFs: by position (parseDividendLines). A row is the line that starts
+ *     with two dates; each value comes from its own cell; the company name
+ *     wraps onto the lines directly below it in the name column. Page
+ *     headers, footers and the disclaimer can never become part of a row.
+ *   - Pasted text: by pattern (parseDividendStatement). A name may not run
+ *     across a date or an account number, so one unreadable row is reported,
+ *     never merged into the next.
+ * Deterministic on purpose: no LLM.
  */
 import Decimal from 'decimal.js';
 
@@ -40,72 +44,60 @@ export function normFiler(raw) {
 }
 
 const isoFromDmy = (s) => {
-  const [d, m, y] = s.split('/').map(Number);
-  const dt = new Date(Date.UTC(y, m - 1, d));
-  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== m - 1 || dt.getUTCDate() !== d) return null;
+  const m = String(s ?? '').match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!m) return null;
+  const [d, mo, y] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d) return null;
   return dt.toISOString().slice(0, 10);
 };
 
-const NUM = '(\\d{1,3}(?:,\\d{3})*(?:\\.\\d+)?|\\d+(?:\\.\\d+)?)';
-const ROW = new RegExp(
-  '(\\d{2}/\\d{2}/\\d{4})\\s+(\\d{2}/\\d{2}/\\d{4})\\s+'        // payment date, issue date
-  + '([A-Z0-9][A-Z0-9.\\-]{0,15})\\s*-\\s+(.+?)\\s+'              // symbol - name (lazy, wraps)
-  + '(\\d{3,8}-\\d{3,12})\\s+'                                    // participant id - account
-  + '(\\S+)\\s+'                                                   // warrant #
-  + '(.{1,20}?)\\s+'                                               // filer status (free text)
-  + `${NUM}\\s+${NUM}\\s+${NUM}\\s+${NUM}\\s+${NUM}\\s+${NUM}`     // securities, gross, tax, JH tax, zakat, net
-  + '(?=\\s+\\d{2}/\\d{2}/\\d{4}|\\s+Total\\b|\\s*$)',
-  'g',
-);
-const TOTAL = new RegExp(`\\bTotal\\s+${NUM}\\s+${NUM}\\s+${NUM}\\s+${NUM}\\s+${NUM}`);
+const NUM_RE = /^(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?$/;
+const DATE_RE = /^\d{2}\/\d{2}\/\d{4}$/;
+const ACCOUNT_RE = /^\d{3,8}-\d{3,12}$/;
+const SYMBOL_NAME_RE = /^([A-Z0-9][A-Z0-9.-]{0,15})\s*-\s*(.*)$/;
+const NAME_FRAGMENT_RE = /^[A-Z0-9&.,()'/ -]+$/; // CDC prints company names in capitals
 
-/**
- * Text of one or more dividend statements → rows ready to insert, plus checks.
- * @returns {{ rows: object[], statements: object[], warnings: string[] }}
- *   rows: { payment_date, issue_date, symbol, company_name, account_ref, warrant_no,
- *           filer_status, filer_status_raw, shares, gross_amount, tax_amount, jh_tax_amount,
- *           zakat_amount, net_amount, source: 'statement', netGap }  (amounts as strings)
- *   statements: per pasted statement, { rows, totals (printed) | null, matches }
- */
-export function parseDividendStatement(text) {
-  const warnings = [];
-  // \s also matches the no-break spaces PDFs put in copied text.
-  const flat = String(text ?? '').replace(/\s+/g, ' ').trim();
-  // Several statements pasted together: each table ends with its own "Total" line.
-  const chunks = flat.split(/(?<=\bTotal(?:\s+[\d,.]+){5})(?=\s|$)/).map((c) => c.trim()).filter(Boolean);
+/** One row's printed fields → a validated row, or the reason it cannot be used. */
+function buildRow(f) {
+  const where = `${f.symbol || 'A row'} paid ${f.pay}`;
+  const payment = isoFromDmy(f.pay);
+  if (!payment) return { error: `${where}: the payment date is not a real date. Row skipped.` };
+  if (!f.symbol) return { error: `A row paid ${f.pay}: no stock symbol could be read. Row skipped.` };
+  let q; let g; let tx; let j; let z; let n;
+  try { [q, g, tx, j, z, n] = [f.qty, f.gross, f.tax, f.jh, f.zakat, f.net].map(dec); } catch { return { error: `${where}: an amount could not be read. Row skipped.` }; }
+  if (!q.gt(0)) return { error: `${where}: the number of securities is zero. Row skipped.` };
+  if (tx.plus(j).plus(z).gt(g)) return { error: `${where}: deductions are more than the gross dividend. Row skipped.` };
+  const issued = isoFromDmy(f.issue);
+  return {
+    row: {
+      payment_date: payment,
+      issue_date: issued && issued <= payment ? issued : null,
+      symbol: f.symbol,
+      company_name: String(f.name ?? '').replace(/\s+/g, ' ').trim() || null,
+      account_ref: f.account ?? null,
+      warrant_no: f.warrant ? String(f.warrant).trim() : null,
+      filer_status: normFiler(f.filerRaw),
+      filer_status_raw: String(f.filerRaw ?? '').trim() || null,
+      shares: q.toString(),
+      gross_amount: g.toFixed(2),
+      tax_amount: tx.toFixed(2),
+      jh_tax_amount: j.toFixed(2),
+      zakat_amount: z.toFixed(2),
+      net_amount: n.toFixed(2),
+      source: 'statement',
+      netGap: r2(n.minus(g.minus(tx).minus(j).minus(z))),
+    },
+  };
+}
+
+/** Chunks of rows (one per printed "Total") → rows, reconciliation per statement, warnings. */
+function assemble(chunks, errors) {
+  const warnings = [...errors];
   const rows = [];
   const statements = [];
-  for (const chunk of chunks) {
-    const found = [];
-    for (const m of chunk.matchAll(ROW)) {
-      const [, pay, issue, symbol, name, account, warrant, filerRaw, qty, gross, tax, jh, zakat, net] = m;
-      const payment = isoFromDmy(pay);
-      const issued = isoFromDmy(issue);
-      if (!payment) { warnings.push(`Skipped a ${symbol} row: payment date ${pay} is not a real date`); continue; }
-      const g = dec(gross); const tx = dec(tax); const j = dec(jh); const z = dec(zakat); const n = dec(net);
-      const gap = n.minus(g.minus(tx).minus(j).minus(z));
-      found.push({
-        payment_date: payment,
-        issue_date: issued && issued <= payment ? issued : null,
-        symbol,
-        company_name: name.replace(/\s+/g, ' ').trim(),
-        account_ref: account,
-        warrant_no: warrant,
-        filer_status: normFiler(filerRaw),
-        filer_status_raw: filerRaw.trim(),
-        shares: dec(qty).toString(),
-        gross_amount: g.toFixed(2),
-        tax_amount: tx.toFixed(2),
-        jh_tax_amount: j.toFixed(2),
-        zakat_amount: z.toFixed(2),
-        net_amount: n.toFixed(2),
-        source: 'statement',
-        netGap: r2(gap),
-      });
-    }
+  for (const { found, totals } of chunks) {
     if (!found.length) continue;
-    const t = chunk.match(TOTAL);
-    const totals = t ? { gross: r2(dec(t[1])), tax: r2(dec(t[2])), jhTax: r2(dec(t[3])), zakat: r2(dec(t[4])), net: r2(dec(t[5])) } : null;
     const sum = (k) => r2(found.reduce((s, x) => s.plus(x[k]), ZERO));
     const parsed = { gross: sum('gross_amount'), tax: sum('tax_amount'), jhTax: sum('jh_tax_amount'), zakat: sum('zakat_amount'), net: sum('net_amount') };
     const matches = totals ? ['gross', 'tax', 'jhTax', 'zakat', 'net'].every((k) => Math.abs(totals[k] - parsed[k]) < 0.005) : null;
@@ -118,11 +110,147 @@ export function parseDividendStatement(text) {
   for (const x of rows) {
     if (Math.abs(x.netGap) > NET_ROUNDING) warnings.push(`${x.symbol} ${x.payment_date}: net ${x.net_amount} differs from gross − deductions by ${x.netGap}. Saved as printed.`);
   }
-  // The same warrant twice in one paste (statement pasted twice) is kept once.
+  // The same warrant twice (statement pasted or uploaded twice) is kept once.
   const seen = new Set();
   const unique = rows.filter((x) => { const k = dividendKey(x); if (seen.has(k)) return false; seen.add(k); return true; });
   if (unique.length < rows.length) warnings.push(`${rows.length - unique.length} repeated row${rows.length - unique.length === 1 ? '' : 's'} ignored`);
   return { rows: unique, statements, warnings };
+}
+
+const totalsFrom = (nums) => {
+  const v = nums.slice(-5).map((s) => r2(dec(s)));
+  return { gross: v[0], tax: v[1], jhTax: v[2], zakat: v[3], net: v[4] };
+};
+
+// ── Pasted text ────────────────────────────────────────────────────────────
+const NUM = '((?:\\d{1,3}(?:,\\d{3})+|\\d+)(?:\\.\\d+)?)';
+// Name text may wrap, but never runs across a date or an account number.
+const NAME = '((?:(?!\\d{2}/\\d{2}/\\d{4})(?!\\d{3,8}-\\d{3,12}\\b).)+?)';
+const ROW = new RegExp(
+  '(\\d{2}/\\d{2}/\\d{4})\\s+(\\d{2}/\\d{2}/\\d{4})\\s+'                     // payment date, issue date
+  + `([A-Z0-9][A-Z0-9.\\-]{0,15})\\s*-\\s*${NAME}\\s+`                      // symbol - name
+  + '(\\d{3,8}-\\d{3,12})\\s+'                                                // participant id - account
+  + '(\\S+)\\s+'                                                               // warrant #
+  + '((?:(?!\\d{2}/\\d{2}/\\d{4}).){1,24}?)\\s+'                              // filer status (free text)
+  + `${NUM}\\s+${NUM}\\s+${NUM}\\s+${NUM}\\s+${NUM}\\s+${NUM}(?=\\s|$)`,     // securities, gross, tax, JH tax, zakat, net
+  'g',
+);
+const ROW_START = /(\d{2}\/\d{2}\/\d{4})\s+\d{2}\/\d{2}\/\d{4}\s+[A-Z0-9]/g;
+const TOTAL = new RegExp(`\\bTotal\\s+${NUM}\\s+${NUM}\\s+${NUM}\\s+${NUM}\\s+${NUM}`);
+
+/**
+ * Text of one or more dividend statements (copy-paste, or a PDF's text) → rows, checks.
+ * @returns {{ rows: object[], statements: object[], warnings: string[] }}
+ *   rows: { payment_date, issue_date, symbol, company_name, account_ref, warrant_no,
+ *           filer_status, filer_status_raw, shares, gross_amount, tax_amount, jh_tax_amount,
+ *           zakat_amount, net_amount, source: 'statement', netGap }  (amounts as strings)
+ *   statements: per statement, { rows, totals (printed) | null, parsed, matches }
+ */
+export function parseDividendStatement(text) {
+  const errors = [];
+  const flat = String(text ?? '').replace(/\s+/g, ' ').trim(); // \s also covers PDF no-break spaces
+  // Several statements pasted together: each table ends with its own "Total" line.
+  const parts = flat.split(/(?<=\bTotal(?:\s+[\d,.]+){5})(?=\s|$)/).map((c) => c.trim()).filter(Boolean);
+  const chunks = parts.map((chunk) => {
+    const found = [];
+    const readAt = new Set();
+    for (const m of chunk.matchAll(ROW)) {
+      const [, pay, issue, symbol, name, account, warrant, filerRaw, qty, gross, tax, jh, zakat, net] = m;
+      readAt.add(m.index);
+      const r = buildRow({ pay, issue, symbol, name, account, warrant, filerRaw, qty, gross, tax, jh, zakat, net });
+      if (r.row) found.push(r.row); else errors.push(r.error);
+    }
+    // A row that starts (two dates) but was not read is reported, never silently dropped.
+    for (const s of chunk.matchAll(ROW_START)) if (!readAt.has(s.index)) errors.push(`A row paid ${s[1]} could not be read and was skipped.`);
+    const t = chunk.match(TOTAL);
+    return { found, totals: t ? totalsFrom(t.slice(1)) : null };
+  });
+  return assemble(chunks, errors);
+}
+
+// ── PDF lines (positioned cells) ───────────────────────────────────────────
+/** A cell holding several space-separated dates ("25/03/2026 25/03/2026") becomes one cell per date. */
+const splitDateCells = (cells) => cells.flatMap((c) => {
+  const parts = c.text.trim().split(/\s+/);
+  return parts.length > 1 && parts.every((p) => DATE_RE.test(p)) ? parts.map((p) => ({ ...c, text: p })) : [{ ...c, text: c.text.trim() }];
+});
+
+/**
+ * Positioned lines of a CDC dividend report (pdfRows.buildPageLines) → rows, checks.
+ * Same result shape as parseDividendStatement.
+ */
+export function parseDividendLines(lines) {
+  const errors = [];
+  const chunks = [];
+  let cur = { found: [], totals: null };
+  let open = null; // the row being read: { f, nameX, page }
+  const close = () => {
+    if (!open) return;
+    const r = buildRow(open.f);
+    if (r.row) cur.found.push(r.row); else errors.push(r.error);
+    open = null;
+  };
+  for (const l of lines ?? []) {
+    const cells = splitDateCells(l.cells ?? []).filter((c) => c.text);
+    const texts = cells.map((c) => c.text);
+    if (texts.length >= 2 && DATE_RE.test(texts[0]) && DATE_RE.test(texts[1])) {
+      close();
+      const acc = texts.findIndex((s, i) => i >= 2 && ACCOUNT_RE.test(s));
+      const nums = [];
+      let k = texts.length - 1;
+      while (k > acc && nums.length < 6 && NUM_RE.test(texts[k])) { nums.unshift(texts[k]); k -= 1; }
+      if (acc < 0 || nums.length < 6 || k < acc + 1) {
+        errors.push(`A row paid ${texts[0]} could not be read${acc < 0 ? ' (no account number)' : nums.length < 6 ? ' (amounts missing)' : ' (no warrant number)'} and was skipped.`);
+        continue;
+      }
+      const nameText = texts.slice(2, acc).join(' ');
+      const sm = nameText.match(SYMBOL_NAME_RE);
+      open = {
+        f: {
+          pay: texts[0], issue: texts[1], symbol: sm?.[1] ?? null, name: sm ? sm[2] : nameText,
+          account: texts[acc], warrant: texts[acc + 1], filerRaw: texts.slice(acc + 2, k + 1).join(' '),
+          qty: nums[0], gross: nums[1], tax: nums[2], jh: nums[3], zakat: nums[4], net: nums[5],
+        },
+        nameX: cells[2]?.x0 ?? null,
+        page: l.page,
+      };
+      continue;
+    }
+    if (/^total$/i.test(texts[0] ?? '')) {
+      close();
+      const nums = texts.filter((s) => NUM_RE.test(s));
+      if (nums.length >= 5) cur.totals = totalsFrom(nums);
+      chunks.push(cur);
+      cur = { found: [], totals: null };
+      continue;
+    }
+    // The open row's company name continues on the lines right below it, in the name column only.
+    const joined = texts.join(' ');
+    if (open && open.nameX !== null && l.page === open.page && cells.length
+      && cells.every((c) => Math.abs(c.x0 - open.nameX) <= 8) && NAME_FRAGMENT_RE.test(joined)) {
+      open.f.name = `${open.f.name} ${joined}`.trim();
+      continue;
+    }
+    close();
+  }
+  close();
+  if (cur.found.length) chunks.push(cur);
+  return assemble(chunks, errors);
+}
+
+/**
+ * A dividend report PDF read both ways; the reading that reconciles with every
+ * printed total wins, then the one with fewer problems, then more rows. The
+ * positioned reading goes first, so it wins ties.
+ */
+export function parseDividendReport({ text, lines }) {
+  const score = (r) => {
+    if (!r.rows.length) return -Infinity;
+    const reconciled = r.statements.length > 0 && r.statements.every((s) => s.matches === true);
+    return (reconciled ? 1e9 : 0) - r.warnings.length * 1e4 + r.rows.length;
+  };
+  const candidates = [parseDividendLines(lines), parseDividendStatement(text)];
+  return candidates.reduce((best, r) => (score(r) > score(best) ? r : best));
 }
 
 /** Identity of a dividend: matches the table's unique key. */
@@ -189,4 +317,29 @@ export function validateDividend(f, today = new Date().toISOString().slice(0, 10
   if (tx + z > g + 1e-9) return 'Tax and zakat cannot be more than the gross dividend';
   if (!(net >= 0) || !Number.isFinite(net)) return 'Enter the net dividend received';
   return null;
+}
+
+/**
+ * Parsed rows vs dividends on file → per dividendKey:
+ *   'saved'    the same warrant is already saved (cannot be added again)
+ *   'possible' same stock and payment date and the same gross or net, saved
+ *              without this warrant (usually entered by hand)
+ */
+export function dividendDuplicates(rows, existing) {
+  const keys = new Set(existing.map(dividendKey));
+  const byDay = new Map();
+  for (const x of existing) {
+    const k = `${x.symbol}|${x.payment_date}`;
+    if (!byDay.has(k)) byDay.set(k, []);
+    byDay.get(k).push(x);
+  }
+  const same = (a, b) => Math.abs(Number(a) - Number(b)) < 0.005;
+  const out = {};
+  for (const r of rows) {
+    const key = dividendKey(r);
+    if (keys.has(key)) { out[key] = 'saved'; continue; }
+    const day = byDay.get(`${r.symbol}|${r.payment_date}`) ?? [];
+    if (day.some((x) => (x.warrant_no ?? null) !== (r.warrant_no ?? null) && (same(x.gross_amount, r.gross_amount) || same(x.net_amount, r.net_amount)))) out[key] = 'possible';
+  }
+  return out;
 }

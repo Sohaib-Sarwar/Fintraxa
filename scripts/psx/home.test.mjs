@@ -22,3 +22,22 @@ test('totals add both sides; split shares follow value', () => {
   assert.deepEqual([t.value, t.invested, t.unrealizedNet, t.unrealizedGross, t.realized, t.held], [400, 370, 22.5, 30, 35, 5]);
   assert.deepEqual([t.split.funds.share, t.split.stocks.share], [0.75, 0.25]);
 });
+
+test('merged series keeps the opening balance first, labelled, and yearly ignores it', async () => {
+  const { mergeSeries } = await import('../../src/lib/home/combine.js');
+  const { fiscalYearEnds } = await import('../../src/lib/psx/portfolio.js');
+  const funds = [
+    { month: '2026-06', date: '2026-06-30', invested: 1000, value: 1100, opening: true, title: 'Opening balance, 30 Jun 2026' },
+    { month: '2026-07', date: '2026-07-31', invested: 1000, value: 1150, priced: 'close' },
+  ];
+  const stocks = [
+    { month: '2026-06', date: '2026-06-30', invested: 500, value: 450, opening: true, title: 'Opening balance, 30 Jun 2026' },
+    { month: '2026-07', date: '2026-07-31', invested: 500, value: 470, priced: 'trade' },
+  ];
+  const m = mergeSeries(funds, stocks);
+  assert.deepEqual(m.map((x) => [x.month, x.invested, x.value, x.label, !!x.opening]), [['2026-06', 1500, 1550, 'Open', true], ['2026-07', 1500, 1620, 'Jul', false]]);
+  assert.equal(m[0].title, 'Opening balance, 30 Jun 2026');
+  assert.equal(m[1].priced, 'mixed');
+  const y = fiscalYearEnds(m);
+  assert.deepEqual(y.map((x) => [x.title, x.value]), [['FY 2026-27', 1620]], 'FY 2026-27 closes on its last month-end, not the opening');
+});

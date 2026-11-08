@@ -172,6 +172,10 @@ const sumAmounts = (list, from, to) => list.filter((x) => x.date >= from && x.da
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const monthEnd = (m) => { const [y, mo] = m.split('-').map(Number); return new Date(Date.UTC(y, mo, 0)).toISOString().slice(0, 10); };
 const nextMonth = (m) => { const [y, mo] = m.split('-').map(Number); return new Date(Date.UTC(y, mo, 1)).toISOString().slice(0, 7); };
+const dayBefore = (iso) => { const [y, mo, d] = iso.split('-').map(Number); return new Date(Date.UTC(y, mo - 1, d - 1)).toISOString().slice(0, 10); };
+const longDate = (iso) => `${Number(iso.slice(8, 10))} ${MON[Number(iso.slice(5, 7)) - 1]} ${iso.slice(0, 4)}`;
+/** Month loops stop here; generous (50 years) so long histories are never cut short. */
+const MAX_MONTHS = 600;
 
 /** Holding state at a date: units, cost of units held, value, unrealized. */
 function stateAt(list, componentsByEntry, priceAt, fundId, date) {
@@ -263,7 +267,9 @@ export function analyzeFunds({ entries, components = [], prices = [], funds = {}
   const sum = (f) => Number(shown.reduce((s, p) => s.plus(f(p) ?? 0), ZERO).toFixed(2));
   const anyNull = (f) => shown.some((p) => f(p) === null);
   const totals = {
-    value: sum((p) => p.value),
+    // A holding with no price at all counts at cost (book value), the same rule as the month-end series;
+    // totals.incomplete tells the screens a figure rests on that fallback.
+    value: sum((p) => p.value ?? (p.isOpen ? p.invested : 0)),
     invested: sum((p) => p.invested),
     deposits: sum((p) => p.deposits),
     withdrawals: sum((p) => p.withdrawals),
@@ -281,7 +287,7 @@ export function analyzeFunds({ entries, components = [], prices = [], funds = {}
   const firstData = live.map((e) => e.trade_date).sort()[0];
   if (firstData) {
     const from = start > firstData ? start : `${firstData.slice(0, 7)}-01`;
-    for (let m = from.slice(0, 7); m <= endEff.slice(0, 7) && months.length < 60; m = nextMonth(m)) {
+    for (let m = from.slice(0, 7); m <= endEff.slice(0, 7) && months.length < MAX_MONTHS; m = nextMonth(m)) {
       const a = m === from.slice(0, 7) ? from : `${m}-01`;
       const b = monthEnd(m) < endEff ? monthEnd(m) : endEff;
       let gross = ZERO; let cgt = ZERO; let charges = ZERO;
@@ -303,23 +309,35 @@ export function analyzeFunds({ entries, components = [], prices = [], funds = {}
   // statement valuations, transaction NAVs); a unit with no price at all
   // counts at cost so the line never drops to zero for a missing quote.
   const series = [];
-  if (firstData) {
-    const from = start > firstData ? start : firstData;
-    for (let m = from.slice(0, 7); m <= endEff.slice(0, 7) && series.length < 120; m = nextMonth(m)) {
-      const at = monthEnd(m) < endEff ? monthEnd(m) : endEff;
-      let inv = ZERO; let val = ZERO; let old = 0;
-      for (const [k, list] of groups) {
-        if (!shownKeys.has(k)) continue;
-        const fundId = k.split('|')[1];
-        const st = stateAt(list, componentsByEntry, priceAt, fundId, at);
-        if (st.units.isZero()) continue;
-        inv = inv.plus(st.cost);
-        val = val.plus(st.value ?? st.cost);
-        if (!st.price || Date.parse(at) - Date.parse(st.price.date) > 7 * 86_400_000) old += 1;
-      }
-      series.push({ month: m, label: MON[Number(m.slice(5, 7)) - 1], date: at, invested: r2(inv), value: r2(val), live: at === today, priced: old ? 'mixed' : 'close' });
+  const pointAt = (at) => {
+    let inv = ZERO; let val = ZERO; let old = 0; let held = 0;
+    for (const [k, list] of groups) {
+      if (!shownKeys.has(k)) continue;
+      const fundId = k.split('|')[1];
+      const st = stateAt(list, componentsByEntry, priceAt, fundId, at);
+      if (st.units.isZero()) continue;
+      held += 1;
+      inv = inv.plus(st.cost);
+      val = val.plus(st.value ?? st.cost);
+      if (!st.price || Date.parse(at) - Date.parse(st.price.date) > 7 * 86_400_000) old += 1;
     }
-    if (series.length > 12) for (const x of series) x.label = `${x.label} ${x.month.slice(2, 4)}`;
+    return { date: at, invested: r2(inv), value: r2(val), live: at === today, priced: old ? 'mixed' : 'close', held };
+  };
+  if (firstData) {
+    // Opening balance: what was held the day before a range that starts on the 1st,
+    // so growth over the period is measured from where the period began.
+    if (start > firstData && start.endsWith('-01')) {
+      const at = dayBefore(start);
+      const { held, ...pt } = pointAt(at);
+      if (held) series.push({ ...pt, month: at.slice(0, 7), opening: true, label: 'Open', tick: 'Open', title: `Opening balance, ${longDate(at)}` });
+    }
+    const from = start > firstData ? start : firstData;
+    for (let m = from.slice(0, 7); m <= endEff.slice(0, 7) && series.length < MAX_MONTHS; m = nextMonth(m)) {
+      const at = monthEnd(m) < endEff ? monthEnd(m) : endEff;
+      const { held: _held, ...pt } = pointAt(at);
+      series.push({ ...pt, month: m, label: MON[Number(m.slice(5, 7)) - 1] });
+    }
+    if (series.length > 12) for (const x of series) if (!x.opening) x.label = `${x.label} ${x.month.slice(2, 4)}`;
   }
 
   return { version: PROFIT_VERSION, start, end: endEff, totals, positions: shown, allPositions: positions, months, series };

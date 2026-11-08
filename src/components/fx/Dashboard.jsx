@@ -1,7 +1,7 @@
 import { Box, ButtonBase, Typography, useTheme } from '@mui/material';
 import { useFx, FONT_NUM } from './tokens';
 import { formatCurrency } from '../../lib/formatters';
-import AnimatedValue from './AnimatedValue';
+import FitMoney from './FitMoney';
 
 /** Card surface used by every block on the dashboards (matches the app's Card). */
 export function Panel({ children, sx, component = 'section' }) {
@@ -33,11 +33,11 @@ export function PanelHeader({ title, sub, right }) {
 export function HeroValue({ value }) {
   const t = useFx();
   return (
-    <Typography data-numeric component="p" sx={{
+    <Typography data-numeric component="div" sx={{
       fontFamily: FONT_NUM, fontWeight: 600, fontSize: { xs: '2.25rem', md: '3.1rem' }, letterSpacing: '-0.045em', lineHeight: 1.05,
-      color: t.ink, mt: 0.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+      color: t.ink, mt: 0.5, minWidth: 0,
     }}>
-      {value === null || value === undefined ? '—' : <AnimatedValue value={value} format={(n) => formatCurrency(n, 2)} split dimColor={t.muted} />}
+      {value === null || value === undefined ? '—' : <FitMoney value={value} digits={2} split dimColor={t.muted} />}
     </Typography>
   );
 }
@@ -85,7 +85,7 @@ function Metric({ label, value, amount, format, note, color, onClick, first, fir
   const body = (
     <>
       <Typography sx={{ fontSize: '0.74rem', color: t.ink2, fontWeight: 500 }}>{label}</Typography>
-      <Typography data-numeric noWrap sx={{ fontFamily: FONT_NUM, fontSize: { xs: '0.98rem', md: '1.2rem' }, fontWeight: 600, letterSpacing: '-0.03em', color: color ?? t.ink, mt: 0.25 }}>{amount !== undefined && amount !== null ? <AnimatedValue value={amount} format={format ?? ((n) => formatCurrency(n))} /> : value}</Typography>
+      <Typography data-numeric component="div" sx={{ fontFamily: FONT_NUM, fontSize: { xs: '0.98rem', md: '1.2rem' }, fontWeight: 600, letterSpacing: '-0.03em', color: color ?? t.ink, mt: 0.25, minWidth: 0 }}>{amount !== undefined && amount !== null ? <FitMoney value={amount} format={format ?? ((n) => formatCurrency(n))} /> : value}</Typography>
       {note && <Typography noWrap sx={{ fontSize: '0.68rem', color: t.muted }}>{note}</Typography>}
     </>
   );

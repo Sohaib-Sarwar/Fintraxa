@@ -1,15 +1,26 @@
 import { useTheme, Box, Typography } from '@mui/material';
 import { ResponsiveContainer, ComposedChart, Area, XAxis, YAxis, Tooltip } from 'recharts';
 import { useFx, FONT_NUM, earningsColors } from './tokens';
-import { formatCurrency } from '../../lib/formatters';
+import { useWidth } from './hooks';
+import { formatCurrency, compactNumber } from '../../lib/formatters';
 
 const PRICED = { live: 'Value at live prices', close: 'Value at closing prices', trade: 'Value at your last trade price', mixed: 'Value at the last known prices' };
 const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-const kAxis = (v) => {
-  const a = Math.abs(v);
-  const s = a >= 1e7 ? `${+(a / 1e7).toFixed(1)}Cr` : a >= 1e5 ? `${+(a / 1e5).toFixed(1)}L` : a >= 1e3 ? `${+(a / 1e3).toFixed(a >= 1e4 ? 0 : 1)}k` : `${Math.round(a)}`;
-  return v < 0 ? `−${s}` : s;
-};
+const kAxis = (v) => compactNumber(v);
+/**
+ * Where the hover card sits relative to its point so it never leaves the chart
+ * (and slides under the next card on the page): centred, or anchored to the
+ * left / right edge near the sides. Returns the foreignObject x, the flex
+ * alignment and where the caret points.
+ */
+function placeCard(cx, width, FW) {
+  const HALF = 118;  // about half a typical card
+  const PAD = 26;    // caret distance from the card's edge
+  if (width && cx + HALF > width) return { x: cx - FW + PAD, justify: 'flex-end', caret: `calc(100% - ${PAD}px)` };
+  if (cx < HALF) return { x: cx - PAD, justify: 'flex-start', caret: `${PAD}px` };
+  return { x: cx - FW / 2, justify: 'center', caret: '50%' };
+}
+
 
 /**
  * Invested vs current value, month by month, in the same line style as the
@@ -22,13 +33,14 @@ const kAxis = (v) => {
  * (secondary, cyan); Finance passes income vs expense. diffLabel names
  * primary − secondary in the hover card; caption is the line under the big figure.
  */
-const DEFAULT_KEYS = { primary: 'value', secondary: 'invested', primaryLabel: 'Value', secondaryLabel: 'Invested', diffLabel: 'Gain' };
+const DEFAULT_KEYS = { primary: 'value', secondary: 'invested', primaryLabel: 'Value', secondaryLabel: 'Invested', diffLabel: 'Unrealized gain' };
 
 export default function GrowthChart({ points, height = 260, keys: keysIn, caption, emptyText = 'No trades yet' }) {
   const keys = { ...DEFAULT_KEYS, ...keysIn };
   const t = useFx();
   const mode = useTheme().palette.mode;
   const c = earningsColors(mode);
+  const [wrapRef, width] = useWidth();
   if (!points.length) {
     return <Box sx={{ height, display: 'grid', placeItems: 'center' }}><Typography sx={{ fontSize: '0.8rem', color: t.muted }}>{emptyText}</Typography></Box>;
   }
@@ -36,7 +48,7 @@ export default function GrowthChart({ points, height = 260, keys: keysIn, captio
   const data = points.map((p) => ({ ...p, tick: p.tick ?? (long ? MONTHS_LONG[Number(p.month.slice(5, 7)) - 1] : p.label) }));
   const axis = { axisLine: false, tickLine: false, tick: { fontSize: 11.5, fill: c.axis, fontFamily: FONT_NUM } };
   return (
-    <Box sx={{ position: 'relative', height, '& .recharts-surface': { overflow: 'visible' }, '& .recharts-wrapper': { overflow: 'visible' } }}>
+    <Box ref={wrapRef} sx={{ position: 'relative', height, '& .recharts-surface': { overflow: 'visible' }, '& .recharts-wrapper': { overflow: 'visible' } }}>
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={data} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
           <defs>
@@ -58,7 +70,7 @@ export default function GrowthChart({ points, height = 260, keys: keysIn, captio
           <Area type="monotone" dataKey={keys.secondary} name={keys.secondaryLabel} stroke={c.net} strokeWidth={3} fill="url(#gr-fill-i)" filter="url(#gr-glow-i)"
             dot={false} activeDot={<Ring color={c.net} surface={t.surface} />} animationDuration={600} />
           <Area type="monotone" dataKey={keys.primary} name={keys.primaryLabel} stroke={c.gross} strokeWidth={3} fill="url(#gr-fill-v)" filter="url(#gr-glow-v)"
-            dot={false} activeDot={(p) => <Card {...p} colors={c} surface={t.surface} keys={keys} caption={caption} key={`gc-${p.index}`} />} animationDuration={600} />
+            dot={false} activeDot={(p) => <Card {...p} colors={c} surface={t.surface} keys={keys} caption={caption} chartWidth={width} key={`gc-${p.index}`} />} animationDuration={600} />
         </ComposedChart>
       </ResponsiveContainer>
     </Box>
@@ -70,9 +82,10 @@ function Ring({ cx, cy, color, surface }) {
   return <circle cx={cx} cy={cy} r={6.5} fill={surface} stroke={color} strokeWidth={3} />;
 }
 
-function Card({ cx, cy, payload: p, colors, surface, keys, caption }) {
+function Card({ cx, cy, payload: p, colors, surface, keys, caption, chartWidth }) {
   if (cx === undefined || cy === undefined || !p) return null;
   const FW = 360; const FH = 220;
+  const place = placeCard(cx, chartWidth, FW);
   const primary = p[keys.primary] ?? 0;
   const secondary = p[keys.secondary] ?? 0;
   const pl = primary - secondary;
@@ -86,12 +99,12 @@ function Card({ cx, cy, payload: p, colors, surface, keys, caption }) {
   return (
     <g style={{ pointerEvents: 'none' }}>
       <circle cx={cx} cy={cy} r={6.5} fill={surface} stroke={colors.gross} strokeWidth={3} />
-      <foreignObject x={cx - FW / 2} y={cy - FH - 16} width={FW} height={FH} style={{ overflow: 'visible' }}>
-        <Box sx={{ width: FW, height: FH, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+      <foreignObject x={place.x} y={cy - FH - 16} width={FW} height={FH} style={{ overflow: 'visible' }}>
+        <Box sx={{ width: FW, height: FH, display: 'flex', alignItems: 'flex-end', justifyContent: place.justify }}>
           <Box sx={{
             position: 'relative', width: 'max-content', minWidth: 176, boxSizing: 'border-box', borderRadius: '12px', px: 1.75, py: 1.25,
             bgcolor: colors.tip, color: '#fff', whiteSpace: 'nowrap', boxShadow: '0 12px 28px -10px rgba(5,10,30,.55)',
-            '&::after': { content: '""', position: 'absolute', left: '50%', bottom: -6, width: 12, height: 12, bgcolor: colors.tip, transform: 'translateX(-50%) rotate(45deg)', borderRadius: '2px' },
+            '&::after': { content: '""', position: 'absolute', left: place.caret, bottom: -6, width: 12, height: 12, bgcolor: colors.tip, transform: 'translateX(-50%) rotate(45deg)', borderRadius: '2px' },
           }}>
             <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: 'rgba(255,255,255,0.9)' }}>
               {p.title ?? (p.live ? 'Today' : `${MONTHS_LONG[Number(p.month.slice(5, 7)) - 1]} ${p.month.slice(0, 4)}`)}

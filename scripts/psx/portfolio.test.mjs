@@ -50,7 +50,9 @@ test('date range: realized counts sales inside it; holdings and value are as at 
   // FY 2026-27 to date: realized 2 × (130 − 100) = 60; 4 shares at live 140 = 560.
   const cur = analyzeStocks(trades, { live: { OGDC: { current: 140 } }, history, start: '2026-07-01', end: '2027-06-30', today: '2026-11-07' });
   assert.deepEqual([cur.totals.realized, cur.positions[0].shares, cur.totals.value, cur.end], [60, 4, 560, '2026-11-07']);
-  assert.deepEqual(cur.series.map((s) => s.month), ['2026-07', '2026-08', '2026-09', '2026-10', '2026-11']);
+  // Opening balance on 30 Jun (6 shares at the 30 Jun close 118), then each month-end to today.
+  assert.deepEqual(cur.series.map((s) => s.month), ['2026-06', '2026-07', '2026-08', '2026-09', '2026-10', '2026-11']);
+  assert.deepEqual([cur.series[0].opening, cur.series[0].date, cur.series[0].value], [true, '2026-06-30', 708]);
 });
 
 test('growth series: captured close where there is one, trade price before capture, live today', () => {

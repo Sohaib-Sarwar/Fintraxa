@@ -2,7 +2,7 @@ import { Box, Typography, Tooltip } from '@mui/material';
 import { InfoOutlined } from '@mui/icons-material';
 import { formatCurrency } from '../../lib/formatters';
 import { useFx, FONT_NUM, FONT_DISPLAY, signColor } from './tokens';
-import AnimatedValue from './AnimatedValue';
+import FitMoney from './FitMoney';
 
 const signed = (v) => (v === null || v === undefined ? '—' : `${v > 0 ? '+' : v < 0 ? '−' : ''}${formatCurrency(Math.abs(v), 2)}`);
 
@@ -32,8 +32,8 @@ export default function GainCard({ kind, net, gross, tax, title, compact, grossL
         <Tooltip title={c.hint} arrow><InfoOutlined sx={{ fontSize: 16, color: t.muted }} /></Tooltip>
       </Box>
       <Typography sx={{ fontSize: '0.7rem', color: t.muted, mt: compact ? 0.75 : 2 }}>Net</Typography>
-      <Typography data-numeric sx={{ fontFamily: FONT_NUM, fontWeight: 650, fontSize: compact ? '1.5rem' : 'clamp(1.8rem, 3vw, 2.5rem)', letterSpacing: '-0.045em', lineHeight: 1.05, color: signColor(t, net ?? 0) }}>
-        {net === null || net === undefined ? '—' : <AnimatedValue value={net} format={signed} />}
+      <Typography data-numeric component="div" sx={{ fontFamily: FONT_NUM, fontWeight: 650, fontSize: compact ? '1.5rem' : 'clamp(1.8rem, 3vw, 2.5rem)', letterSpacing: '-0.045em', lineHeight: 1.05, color: signColor(t, net ?? 0), minWidth: 0 }}>
+        {net === null || net === undefined ? '—' : <FitMoney value={net} format={signed} />}
       </Typography>
       <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, mt: compact ? 1.25 : 2.25 }}>
         <Tile label={grossLabel ?? 'Gross'} amount={gross} format={signed} />
@@ -48,7 +48,7 @@ function Tile({ label, amount, format }) {
   return (
     <Box sx={{ bgcolor: t.surface2, border: `1px solid ${t.hairline}`, borderRadius: '14px', px: 1.5, py: 1 }}>
       <Typography sx={{ fontSize: '0.66rem', color: t.muted, fontWeight: 600, whiteSpace: 'nowrap' }}>{label}</Typography>
-      <Typography data-numeric noWrap sx={{ fontFamily: FONT_NUM, fontSize: '0.98rem', fontWeight: 650, letterSpacing: '-0.03em', color: t.ink }}>{amount === null || amount === undefined ? '—' : <AnimatedValue value={amount} format={format} />}</Typography>
+      <Typography data-numeric component="div" sx={{ fontFamily: FONT_NUM, fontSize: '0.98rem', fontWeight: 650, letterSpacing: '-0.03em', color: t.ink, minWidth: 0 }}>{amount === null || amount === undefined ? '—' : <FitMoney value={amount} format={format} />}</Typography>
     </Box>
   );
 }

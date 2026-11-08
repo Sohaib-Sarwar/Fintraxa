@@ -30,6 +30,8 @@ const ZERO = new Decimal(0);
 const D = (v) => new Decimal(String(v ?? 0));
 const r2 = (d) => (d === null ? null : Number(d.toFixed(2)));
 const DUST = new Decimal('0.0001');
+/** Month loops stop here; generous (50 years) so long histories are never cut short. */
+const MAX_MONTHS = 600;
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const byTime = (a, b) => String(a.date).localeCompare(String(b.date)) || String(a.created_at ?? '').localeCompare(String(b.created_at ?? ''));
 export const normSymbol = (s) => String(s ?? '').trim().toUpperCase();
@@ -173,32 +175,43 @@ export function analyzeStocks(trades, { live = {}, history = {}, start = '0000-0
     unpriced: open.filter((p) => p.value === null).length,
   };
 
-  // Month-end growth inside the range.
+  // Month-end growth inside the range: value at that day's price vs cost of the shares held.
   const series = [];
   const first = [...bySymbol.values()].map((l) => l[0].date).sort()[0];
+  const pointAt = (at) => {
+    let inv = ZERO; let val = ZERO; let held = 0; const used = new Set();
+    for (const [symbol, list] of bySymbol) {
+      if (!shownSet.has(symbol)) continue;
+      const r = replay(list, at);
+      if (r.shares.isZero()) continue;
+      held += 1;
+      inv = inv.plus(r.cost);
+      const px = priceAt({ symbol, date: at, today, live, history, lastTradePrice: r.lastPrice });
+      if (px) { val = val.plus(r.shares.times(px.price)); used.add(px.source); } else val = val.plus(r.cost);
+    }
+    return {
+      date: at, invested: r2(inv), value: r2(val), live: at === today, held,
+      priced: used.size === 0 ? (at === today ? 'live' : 'trade') : used.size === 1 ? [...used][0] : 'mixed',
+    };
+  };
   if (first && first <= endEff) {
+    // Opening balance: holdings the day before a range that starts on the 1st.
+    if (start > first && /-01$/.test(start)) {
+      const [sy, sm, sd] = start.split('-').map(Number);
+      const at = new Date(Date.UTC(sy, sm - 1, sd - 1)).toISOString().slice(0, 10);
+      const { held, ...pt } = pointAt(at);
+      if (held) series.push({ ...pt, month: at.slice(0, 7), opening: true, label: 'Open', tick: 'Open', title: `Opening balance, ${Number(at.slice(8, 10))} ${MON[Number(at.slice(5, 7)) - 1]} ${at.slice(0, 4)}` });
+    }
     const from = start > first ? start : first;
     let [y, m] = from.slice(0, 7).split('-').map(Number);
     const [ty, tm] = endEff.slice(0, 7).split('-').map(Number);
-    while ((y < ty || (y === ty && m <= tm)) && series.length < 120) {
+    while ((y < ty || (y === ty && m <= tm)) && series.length < MAX_MONTHS) {
       const monthEnd = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
-      const at = monthEnd < endEff ? monthEnd : endEff;
-      let inv = ZERO; let val = ZERO; const used = new Set();
-      for (const [symbol, list] of bySymbol) {
-        if (!shownSet.has(symbol)) continue;
-        const r = replay(list, at);
-        if (r.shares.isZero()) continue;
-        inv = inv.plus(r.cost);
-        const px = priceAt({ symbol, date: at, today, live, history, lastTradePrice: r.lastPrice });
-        if (px) { val = val.plus(r.shares.times(px.price)); used.add(px.source); } else val = val.plus(r.cost);
-      }
-      series.push({
-        month: `${y}-${String(m).padStart(2, '0')}`, label: MON[m - 1], date: at, invested: r2(inv), value: r2(val), live: at === today,
-        priced: used.size === 0 ? (at === today ? 'live' : 'trade') : used.size === 1 ? [...used][0] : 'mixed',
-      });
+      const { held: _held, ...pt } = pointAt(monthEnd < endEff ? monthEnd : endEff);
+      series.push({ ...pt, month: `${y}-${String(m).padStart(2, '0')}`, label: MON[m - 1] });
       m += 1; if (m > 12) { m = 1; y += 1; }
     }
-    if (series.length > 12) for (const s of series) s.label = `${s.label} ${s.month.slice(2, 4)}`;
+    if (series.length > 12) for (const s of series) if (!s.opening) s.label = `${s.label} ${s.month.slice(2, 4)}`;
   }
 
   // Realized by month inside the range: gross, broker fees, net — shaped for the earnings chart.
@@ -208,7 +221,7 @@ export function analyzeStocks(trades, { live = {}, history = {}, start = '0000-0
     let [y, m] = from.slice(0, 7).split('-').map(Number);
     const [ty, tm] = endEff.slice(0, 7).split('-').map(Number);
     const allSales = shown.flatMap((p) => p.sales);
-    while ((y < ty || (y === ty && m <= tm)) && months.length < 120) {
+    while ((y < ty || (y === ty && m <= tm)) && months.length < MAX_MONTHS) {
       const key = `${y}-${String(m).padStart(2, '0')}`;
       const inMonth = allSales.filter((x) => x.date.slice(0, 7) === key && x.date >= start && x.date <= endEff);
       const g = inMonth.reduce((s, x) => s.plus(x.gross), ZERO);
@@ -230,6 +243,7 @@ export function analyzeStocks(trades, { live = {}, history = {}, start = '0000-0
 export function fiscalYearEnds(series) {
   const byFy = new Map();
   for (const pt of series) {
+    if (pt.opening) continue;
     const [y, m] = pt.month.split('-').map(Number);
     byFy.set(m >= 7 ? y : y - 1, pt);   // series is oldest first, so the last one wins
   }

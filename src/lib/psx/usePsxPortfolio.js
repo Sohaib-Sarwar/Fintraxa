@@ -11,6 +11,7 @@ import { useAuthStore } from '../../store/authStore';
 import { psxStocksQuery, stockPriceMap } from '../marketQueries';
 import { analyzeStocks, normSymbol } from './portfolio';
 import { getStockSector } from '../psxSectors';
+import { todayIso } from '../dateRange';
 
 /** Same key the Trades/Analytics pages use, so the trades are fetched once. */
 export const stockTradesQuery = (userId) => ({
@@ -59,7 +60,7 @@ export function usePsxPortfolio(range, filter = {}) {
     if (!trades.data) return null;
     const rows = trades.data.filter((t) => (symbol === 'all' || normSymbol(t.symbol) === symbol)
       && (sector === 'all' || getStockSector(normSymbol(t.symbol)) === sector));
-    return analyzeStocks(rows, { live, history: closes.data ?? {}, start, end });
+    return analyzeStocks(rows, { live, history: closes.data ?? {}, start, end, today: todayIso() });
   }, [trades.data, live, closes.data, start, end, sector, symbol]);
   return {
     portfolio,

@@ -20,20 +20,23 @@ export function mergeSeries(...sides) {
   const byMonth = new Map();
   for (const side of sides) {
     for (const pt of side ?? []) {
-      const cur = byMonth.get(pt.month) ?? { month: pt.month, invested: 0, value: 0, live: false, priced: new Set() };
+      const cur = byMonth.get(pt.month) ?? { month: pt.month, invested: 0, value: 0, live: false, opening: false, priced: new Set() };
       cur.invested = add(cur.invested, pt.invested);
       cur.value = add(cur.value, pt.value);
       cur.live = cur.live || !!pt.live;
+      if (pt.opening) { cur.opening = true; cur.title = pt.title; cur.date = pt.date; }
+      else if (pt.date && (!cur.date || pt.date > cur.date)) cur.date = pt.date;
       if (pt.priced) cur.priced.add(pt.priced);
       byMonth.set(pt.month, cur);
     }
   }
   const out = [...byMonth.values()].sort((a, b) => a.month.localeCompare(b.month)).map((pt) => ({
     ...pt,
-    label: MON[Number(pt.month.slice(5, 7)) - 1],
+    label: pt.opening ? 'Open' : MON[Number(pt.month.slice(5, 7)) - 1],
+    ...(pt.opening ? { tick: 'Open' } : {}),
     priced: pt.live ? 'live' : pt.priced.size === 1 ? [...pt.priced][0] : pt.priced.size ? 'mixed' : undefined,
   }));
-  if (out.length > 12) for (const pt of out) pt.label = `${pt.label} ${pt.month.slice(2, 4)}`;
+  if (out.length > 12) for (const pt of out) if (!pt.opening) pt.label = `${pt.label} ${pt.month.slice(2, 4)}`;
   return out;
 }
 

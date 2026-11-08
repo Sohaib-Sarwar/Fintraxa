@@ -26,20 +26,9 @@
     <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
 
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <!-- The font is render-blocking as a plain stylesheet, and the shell shows
-         a logo and a spinner before any of it is read. Loaded asynchronously,
-         with a <noscript> copy so it still arrives without JavaScript. -->
-    <link
-      rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..800&family=Inter+Tight:wght@500..800&display=swap"
-      media="print"
-      onload="this.media='all'"
-    />
-    <noscript>
-      <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..800&family=Inter+Tight:wght@500..800&display=swap" rel="stylesheet" />
-    </noscript>
+    <!-- Fonts are bundled (@fontsource-variable, imported in src/main.jsx) and served
+         from this origin. Google Fonts was blocked in production by the CSP
+         (style-src/font-src 'self'), so text fell back to each OS's system font. -->
 
     <!-- The login plate is the largest paint on the first screen an unknown
          visitor sees, so it is fetched alongside the bundle rather than after
@@ -79,7 +68,7 @@
             stroke: #fff;
           }
           #initial-loader .brand {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-family: 'Inter Variable', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
             font-size: 0.72rem;
             font-weight: 600;
             letter-spacing: 0.12em;

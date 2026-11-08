@@ -12,3 +12,4 @@ export { default as GrowthChart, GrowthLegend } from './GrowthChart';
 export { default as GainCard } from './GainCard';
 export { default as AllocationDonut } from './AllocationDonut';
 export { default as AnimatedValue } from './AnimatedValue';
+export { default as FitMoney } from './FitMoney';

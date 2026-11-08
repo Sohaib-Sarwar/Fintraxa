@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Box, Typography, useTheme } from '@mui/material';
 import { useFx, FONT_NUM } from './tokens';
-import { formatCurrency } from '../../lib/formatters';
+import FitMoney from './FitMoney';
 
 /**
  * Drawn from the app's own palette so the ring belongs to the theme: the
@@ -129,8 +129,9 @@ export default function AllocationDonut({ items, centerLabel = 'Total' }) {
         <Box sx={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none', textAlign: 'center' }}>
           <Box sx={{ maxWidth: R * 1.35 }}>
             <Typography noWrap sx={{ fontSize: '0.7rem', color: t.muted }}>{active ? active.label : centerLabel}</Typography>
-            <Typography data-numeric noWrap sx={{ fontFamily: FONT_NUM, fontSize: size > 220 ? '1.08rem' : '0.92rem', fontWeight: 650, letterSpacing: '-0.03em', color: t.ink }}>
-              {formatCurrency(active ? active.value : total)}
+            {/* Full figure while it fits the hole, else 1.4M / 2.35B; exact value on hover. */}
+            <Typography data-numeric component="div" sx={{ fontFamily: FONT_NUM, fontSize: size > 220 ? '1.08rem' : '0.92rem', fontWeight: 650, letterSpacing: '-0.03em', color: t.ink }}>
+              <FitMoney value={active ? active.value : total} />
             </Typography>
             {active && <Typography data-numeric sx={{ fontFamily: FONT_NUM, fontSize: '0.68rem', color: t.muted }}>{(active.share * 100).toFixed(1)}%</Typography>}
           </Box>

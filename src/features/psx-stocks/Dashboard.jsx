@@ -3,7 +3,7 @@ import { Box, Skeleton, Typography, Button, useMediaQuery } from '@mui/material'
 import { useNavigate } from 'react-router-dom';
 import { usePsxPortfolio } from '../../lib/psx/usePsxPortfolio';
 import { useDividends } from '../../lib/psx/useDividends';
-import { useDateRange, rangeLabel } from '../../lib/dateRange';
+import { useDateRange, rangeLabel, todayIso } from '../../lib/dateRange';
 import { fiscalYearEnds } from '../../lib/psx/portfolio';
 import { formatCurrency, formatNumber } from '../../lib/formatters';
 import {
@@ -29,6 +29,9 @@ export default function PSXDashboard() {
   const label = rangeLabel(range);
   const { portfolio: p, isLoading, pricesLoading, pricesFailed, pricesAsOf } = usePsxPortfolio(range);
   const { summary: divs, all: divAll } = useDividends(range);
+  // Yearly view: every fiscal year's close from the whole history, not just the selected range.
+  const { portfolio: allTime } = usePsxPortfolio();
+  const yearly = useMemo(() => fiscalYearEnds(allTime?.series ?? []), [allTime]);
   const [stock, setStock] = useState(null);
   const [view, setView] = useState('month');
 
@@ -79,7 +82,7 @@ export default function PSXDashboard() {
       <SummaryCard
         label="Portfolio value"
         value={pricesLoading && !tt.value ? null : tt.value}
-        sub={tt.held ? `${tt.held} stock${tt.held === 1 ? '' : 's'} held${dayText}${fallbackText}, ${p.end === new Date().toISOString().slice(0, 10) ? priceNote : `at the end of ${label}`}` : `Nothing held at the end of ${label}`}
+        sub={tt.held ? `${tt.held} stock${tt.held === 1 ? '' : 's'} held${dayText}${fallbackText}, ${p.end === todayIso() ? priceNote : `at the end of ${label}`}` : `Nothing held at the end of ${label}`}
         metrics={[
           { label: 'Invested', amount: tt.invested, note: 'average cost of shares held' },
           { label: 'Unrealized', amount: tt.unrealized, format: SIGNED, color: signColor(t, tt.unrealized), note: tt.unrealizedPct !== null ? `${pct(tt.unrealizedPct)} on cost` : 'on shares held' },
@@ -99,7 +102,7 @@ export default function PSXDashboard() {
               <Seg size="sm" label="Chart period" value={view} onChange={setView} options={[{ value: 'month', label: 'Monthly' }, { value: 'year', label: 'Yearly' }]} />
             </Box>
           )} />
-          <GrowthChart points={view === 'month' ? p.series : fiscalYearEnds(p.series)} height={isMobile ? 230 : CHART_H} />
+          <GrowthChart points={view === 'month' ? p.series : yearly} height={isMobile ? 230 : CHART_H} />
           <Typography sx={{ fontSize: '0.66rem', color: t.muted, mt: 1 }}>
             Month-ends use the PSX closing price, captured daily. Months before capture began use your last trade price.
           </Typography>

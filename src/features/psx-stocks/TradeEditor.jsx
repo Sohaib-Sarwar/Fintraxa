@@ -9,9 +9,12 @@ import { formatCurrency, formatNumber } from '../../lib/formatters';
 import { getStockName } from '../../lib/stockMeta';
 import { useFx, FONT_NUM } from '../../components/fx';
 import StockLogo from '../../components/StockLogo';
+import BrokerLogo from './BrokerLogo';
+import { BROKERS } from '../../lib/psx/confirmations';
 
 const DECIMAL = /^\d+(\.\d+)?$/;
 const today = () => new Date().toISOString().slice(0, 10);
+const CHARGE_LABELS = { commission: 'Commission', cvt_wht: 'CVT / WHT', secp_levy: 'SECP levy', psx_levy: 'PSX levy', sales_tax: 'Sales tax', nccpl: 'NCCPL', advance_tax: 'Advance tax', cdc: 'CDC charges', sst: 'SST', cvt: 'CVT' };
 const fmtDate = (d) => (d ? new Date(`${d}T00:00:00`).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
 
 /** One trade: a receipt you can download, the fields to correct it, and delete. */
@@ -59,6 +62,7 @@ export default function TradeEditor({ trade, onClose }) {
     if (!DECIMAL.test(f.price.trim()) || Number(f.price) <= 0) return setErr('Price must be more than zero');
     if (f.fee.trim() && !DECIMAL.test(f.fee.trim())) return setErr('Fee must be a plain number');
     if (!f.date || f.date > today()) return setErr('The date cannot be empty or in the future');
+    if (trade.settlement_date && f.date > trade.settlement_date) return setErr(`The trade date cannot be after its settlement date (${fmtDate(trade.settlement_date)})`);
     return save.mutate();
   };
 
@@ -96,6 +100,17 @@ export default function TradeEditor({ trade, onClose }) {
 
         {/* Receipt — also what "Download" captures */}
         <Box ref={slip} sx={{ p: 1.75, borderRadius: '16px', border: `1px solid ${t.border}`, bgcolor: t.surface }}>
+          {trade.broker && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, pb: 1.25, mb: 1.25, borderBottom: `1px solid ${t.hairline}` }}>
+              <BrokerLogo broker={trade.broker} size={26} />
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography noWrap sx={{ fontSize: '0.76rem', fontWeight: 700 }}>{BROKERS[trade.broker]?.name}</Typography>
+                <Typography noWrap sx={{ fontSize: '0.66rem', color: t.muted, fontFamily: FONT_NUM }}>
+                  {trade.account_ref ? `Account ${trade.account_ref}` : ''}{trade.confirmation_no ? `, confirmation ${trade.confirmation_no}` : ''}
+                </Typography>
+              </Box>
+            </Box>
+          )}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
             <StockLogo symbol={trade.symbol} size="lg" />
             <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -105,10 +120,16 @@ export default function TradeEditor({ trade, onClose }) {
             <Box component="span" sx={{ px: 1, py: '2px', borderRadius: 999, fontSize: '0.68rem', fontWeight: 700, color: isBuy ? t.pos : t.neg, bgcolor: isBuy ? t.posSoft : t.negSoft }}>{isBuy ? 'Buy' : 'Sell'}</Box>
           </Box>
           <Box sx={{ mt: 1.5 }}>
-            {[['Date', fmtDate(f.date)], ['Shares', formatNumber(qty, qty % 1 ? 2 : 0)], ['Price', formatNumber(price, 2)], ['Broker fee', formatCurrency(fee, 2)]].map(([k, v]) => (
+            {[['Date', fmtDate(f.date)], ...(trade.settlement_date ? [['Settlement', fmtDate(trade.settlement_date)]] : []), ['Shares', formatNumber(qty, qty % 1 ? 2 : 0)], ['Price', formatNumber(price, 2)], ['Charges', formatCurrency(fee, 2)]].map(([k, v]) => (
               <Box key={k} sx={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.76rem', lineHeight: 1.9 }}>
                 <Box component="span" sx={{ color: t.ink2 }}>{k}</Box>
                 <Box component="span" sx={{ fontFamily: FONT_NUM }}>{v}</Box>
+              </Box>
+            ))}
+            {trade.charges && Object.entries(trade.charges).filter(([, v]) => Number(v)).map(([k, v]) => (
+              <Box key={k} sx={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', lineHeight: 1.7, pl: 1.25, color: t.muted }}>
+                <span>{CHARGE_LABELS[k] ?? k.replace(/_/g, ' ')}</span>
+                <Box component="span" sx={{ fontFamily: FONT_NUM }}>{formatCurrency(Number(v), 2)}</Box>
               </Box>
             ))}
             <Box sx={{ display: 'flex', justifyContent: 'space-between', borderTop: `1px solid ${t.hairline}`, mt: 0.5, pt: 0.75 }}>
