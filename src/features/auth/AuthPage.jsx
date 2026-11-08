@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useSyncExternalStore } from 'react';
 import { Box, Button, Typography, Alert, CircularProgress, IconButton, InputBase, useMediaQuery } from '@mui/material';
 import { User, Eye, EyeOff, Mail, Download, Share, X, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
@@ -8,6 +8,7 @@ import { useAuthStore } from '../../store/authStore';
    to use), picked at random on each visit: see ./backdrops.js and
    scripts/build-auth-bg.mjs. */
 import { pickBackdrop } from './backdrops';
+import { getInstallEvent, onInstallEvent, promptInstall } from '../../lib/installPrompt';
 
 /** The Fintraxa mark on its own (transparent PNG), centred. */
 function Mark({ size }) {
@@ -83,7 +84,8 @@ export default function AuthPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(null); // { title, text } shown as a glass notification
-  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  // The browser's install offer, caught at page load (lib/installPrompt.js).
+  const deferredPrompt = useSyncExternalStore(onInstallEvent, getInstallEvent, () => null);
   const [installDismissed, setInstallDismissed] = useState(false);
   const signIn = useAuthStore((s) => s.signIn);
   const signInWithUsername = useAuthStore((s) => s.signInWithUsername);
@@ -95,18 +97,8 @@ export default function AuthPage() {
   const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
   const showInstall = isMobile && !isStandalone && !installDismissed;
 
-  useEffect(() => {
-    if (!isMobile) return undefined;
-    const handler = (e) => { e.preventDefault(); setDeferredPrompt(e); };
-    window.addEventListener('beforeinstallprompt', handler);
-    return () => window.removeEventListener('beforeinstallprompt', handler);
-  }, [isMobile]);
-
   const handleInstallClick = async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') { setInstallDismissed(true); setDeferredPrompt(null); }
+    if ((await promptInstall()) === 'accepted') setInstallDismissed(true);
   };
 
 

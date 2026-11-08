@@ -63,13 +63,13 @@ export function combineTotals(mf, psx) {
   };
 }
 
-/* ─── Savings: cash kept, carried from month to month ─────────────────────────
+/* ─── Savings: what a month kept; every month starts fresh ────────────────────
  *
  * Net worth = mutual funds (value now) + PSX stocks (value now) + savings.
  *
- * Savings is a running balance of the money that stayed with you, from the
- * first recorded transaction up to each date, so every month starts with what
- * the previous month left:
+ * Savings belongs to one calendar month only: what that month earned minus what
+ * it spent, from the 1st up to the date. Nothing is carried into the next month,
+ * which starts again at zero:
  *   + active income (salary, business, …)
  *   + passive income paid in cash: bank profit and other passive credits
  *     (income_expense_transactions) and PSX dividends (net, as paid)
@@ -101,10 +101,14 @@ export function cashFlows({ transactions = [], dividends = [] }) {
   return out.sort((a, b) => a.date.localeCompare(b.date));
 }
 
-/** Savings balance at the end of `date` (inclusive). */
+/** Savings of `date`'s month: from its 1st up to the end of `date` (inclusive). Earlier months are not carried in. */
 export function savingsAt(flows, date) {
+  const from = `${date.slice(0, 7)}-01`;
   let s = new Decimal(0);
-  for (const f of flows) { if (f.date > date) break; s = s.plus(f.amount); }
+  for (const f of flows) {
+    if (f.date > date) break;
+    if (f.date >= from) s = s.plus(f.amount);
+  }
   return Number(s.toFixed(2));
 }
 
@@ -131,17 +135,11 @@ export function netWorthSeries({ funds = [], stocks = [], flows = [], start, end
       if (pt.opening) { s.date = pt.date; s.title = pt.title; }
     }
   }
-  // Months with savings but no holdings yet still belong on the chart.
+  // Months with savings but no holdings yet still belong on the chart. Savings never
+  // carry over, so money before the range adds no opening point of its own.
   const first = flows[0]?.date;
   if (first && first <= endEff) {
     for (let m = (start > first ? start : first).slice(0, 7); m <= endEff.slice(0, 7) && slots.size < 600; m = nextMonthKey(m)) slot(m, m);
-    // An opening balance for ranges that start on the 1st, when there was money before it.
-    if (start && /-01$/.test(start) && first < start && !slots.has('open')) {
-      const at = new Date(Date.parse(`${start}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
-      const s = slot('open', at.slice(0, 7));
-      s.date = at;
-      s.title = `Opening balance, ${Number(at.slice(8, 10))} ${MON[Number(at.slice(5, 7)) - 1]} ${at.slice(0, 4)}`;
-    }
   }
   const out = [...slots.entries()]
     .sort(([ka, a], [kb, b]) => (ka === 'open' ? -1 : kb === 'open' ? 1 : a.month.localeCompare(b.month)))

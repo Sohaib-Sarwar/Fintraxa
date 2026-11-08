@@ -7,6 +7,7 @@ import { formatCurrency } from '../../lib/formatters';
 import { validateDividend, NET_ROUNDING } from '../../lib/psx/dividends';
 import { useSaveDividends, useEditDividend, useDeleteDividend } from '../../lib/psx/useDividends';
 import { useFx, Seg, FONT_NUM } from '../../components/fx';
+import DateField from '../../components/fx/DateField';
 import StockLogo from '../../components/StockLogo';
 import DividendUpload from './DividendUpload';
 
@@ -89,10 +90,10 @@ function ManualForm({ dividend, onDone }) {
   const field = (k, label, props = {}) => (
     <Box component="label" sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, minWidth: 0, gridColumn: props.wide ? '1 / -1' : undefined }}>
       <Box component="span" sx={{ fontSize: '0.68rem', fontWeight: 600, color: t.muted }}>{label}</Box>
-      <InputBase value={props.value ?? f[k]} onChange={(e) => (props.onChange ?? set(k))(e.target.value)} type={props.type} placeholder={props.placeholder}
+      {props.type === 'date' ? <DateField value={props.value ?? f[k]} onChange={(v) => (props.onChange ?? set(k))(v)} min={props.inputProps?.min} max={props.inputProps?.max} label={label} /> : <InputBase value={props.value ?? f[k]} onChange={(e) => (props.onChange ?? set(k))(e.target.value)} type={props.type} placeholder={props.placeholder}
         inputProps={{ inputMode: props.decimal ? 'decimal' : undefined, 'aria-label': label, ...props.inputProps }}
         sx={{ height: 40, px: 1.25, borderRadius: '12px', border: `1px solid ${t.border}`, bgcolor: t.surface2, color: t.ink, fontSize: '0.84rem',
-          fontFamily: props.decimal || props.type === 'date' ? FONT_NUM : 'inherit', '&.Mui-focused': { borderColor: t.ink }, '& input': { colorScheme: 'inherit' } }} />
+          fontFamily: props.decimal || props.type === 'date' ? FONT_NUM : 'inherit', '&.Mui-focused': { borderColor: t.ink }, '& input': { colorScheme: 'inherit' } }} />}
     </Box>
   );
 

@@ -15,6 +15,7 @@ import { dbErrorHandler } from '../../lib/dbErrors';
 import { useAppStore } from '../../store/appStore';
 import { formatCurrency, formatNumber } from '../../lib/formatters';
 import { useFx, PageHeader, Seg, FONT_NUM } from '../../components/fx';
+import DateField from '../../components/fx/DateField';
 import ImportDialog from './ImportDialog';
 
 const DECIMAL = /^\d+(\.\d+)?$/;
@@ -150,7 +151,10 @@ function ManualEntry({ onBack }) {
           <TextField label={side === 'purchase' ? 'Offer price' : 'Repurchase price'} value={price} onChange={(e) => setPrice(e.target.value)} inputProps={{ inputMode: 'decimal' }}
             helperText={fund ? 'Use the price on the date below' : ' '} />
         </Box>
-        <TextField label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} fullWidth sx={{ mb: 1.75 }} slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: today() } }} />
+        <Box sx={{ mb: 1.75 }}>
+          <Typography component="span" sx={{ display: 'block', fontSize: '0.68rem', fontWeight: 600, color: t.muted, mb: 0.5 }}>Date</Typography>
+          <DateField value={date} onChange={setDate} max={today()} label="Date" />
+        </Box>
 
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 1.5, borderRadius: '14px', bgcolor: t.surface2, mb: 2 }}>
           <Typography sx={{ fontSize: '0.78rem', color: t.ink2 }}>Units</Typography>

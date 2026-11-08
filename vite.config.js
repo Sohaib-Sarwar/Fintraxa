@@ -22,6 +22,7 @@ export default defineConfig({
         background_color: '#000000',
         display: 'standalone',
         orientation: 'portrait',
+        id: '/',
         start_url: '/',
         scope: '/',
         // These three entries already named icon-192.png and icon-512.png, and

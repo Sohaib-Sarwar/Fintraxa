@@ -1,7 +1,8 @@
 import { useTheme, Box, Typography } from '@mui/material';
 import { ResponsiveContainer, ComposedChart, Area, Line, XAxis, YAxis, Tooltip } from 'recharts';
 import { useFx, FONT_NUM, earningsColors } from './tokens';
-import { useWidth } from './hooks';
+import { useWidth, useHoverLayer } from './hooks';
+import { HoverLayerHost, HoverPortal } from './HoverLayer';
 import { formatCurrency, compactNumber } from '../../lib/formatters';
 
 const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -30,6 +31,7 @@ export default function FlowChart({ points, series, height = 260, headline, rows
   const mode = useTheme().palette.mode;
   const c = earningsColors(mode);
   const [wrapRef, width] = useWidth();
+  const [layer, layerRef] = useHoverLayer();
   const any = points.some((p) => series.some((s) => Number(p[s.key])));
   if (!points.length || !any) {
     return <Box sx={{ height, display: 'grid', placeItems: 'center' }}><Typography sx={{ fontSize: '0.8rem', color: t.muted }}>{emptyText}</Typography></Box>;
@@ -68,9 +70,10 @@ export default function FlowChart({ points, series, height = 260, headline, rows
           ))}
           {/* Invisible line along the highest series: its hover point anchors the card above every line. */}
           <Line dataKey="__top" stroke="transparent" dot={false} isAnimationActive={false} legendType="none"
-            activeDot={(p) => <Card {...p} colors={c} series={series} headline={headline} rows={rows} chartWidth={width} key={`fc-${p.index}`} />} />
+            activeDot={(p) => <Card {...p} layer={layer} colors={c} series={series} headline={headline} rows={rows} chartWidth={width} key={`fc-${p.index}`} />} />
         </ComposedChart>
       </ResponsiveContainer>
+      <HoverLayerHost ref={layerRef} />
     </Box>
   );
 }
@@ -80,7 +83,7 @@ function Ring({ cx, cy, color, surface }) {
   return <circle cx={cx} cy={cy} r={6.5} fill={surface} stroke={color} strokeWidth={3} />;
 }
 
-function Card({ cx, cy, payload: p, colors, series, headline, rows, chartWidth }) {
+function Card({ layer, cx, cy, payload: p, colors, series, headline, rows, chartWidth }) {
   if (cx === undefined || cy === undefined || !p) return null;
   const FW = 360; const FH = 300;
   const place = placeCard(cx, chartWidth, FW);
@@ -98,7 +101,7 @@ function Card({ cx, cy, payload: p, colors, series, headline, rows, chartWidth }
   const big = head ? `${head.signed && head.value > 0 ? '+' : head.value < 0 ? '−' : ''}${formatCurrency(Math.abs(head.value), 2)}` : null;
   return (
     <g style={{ pointerEvents: 'none' }}>
-      <foreignObject x={place.x} y={cy - FH - 16} width={FW} height={FH} style={{ overflow: 'visible' }}>
+      <HoverPortal layer={layer} x={place.x} y={cy - FH - 16} width={FW} height={FH}>
         <Box sx={{ width: FW, height: FH, display: 'flex', alignItems: 'flex-end', justifyContent: place.justify }}>
           <Box sx={{
             position: 'relative', width: 'max-content', minWidth: 196, boxSizing: 'border-box', borderRadius: '12px', px: 1.75, py: 1.25,
@@ -120,7 +123,7 @@ function Card({ cx, cy, payload: p, colors, series, headline, rows, chartWidth }
             </Box>
           </Box>
         </Box>
-      </foreignObject>
+      </HoverPortal>
     </g>
   );
 }

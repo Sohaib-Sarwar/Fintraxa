@@ -12,6 +12,7 @@ import {
   usernameAvailable, validateProfile, validatePassword, ageFrom, USERNAME_RE,
 } from '../../lib/profile/useProfile';
 import { useFx, Seg, PillSelect, FONT_NUM } from '../../components/fx';
+import DateField from '../../components/fx/DateField';
 import { SavingsAccountsManager } from '../income-expense/SavingsAccountsDialog';
 import CategoriesManager from './CategoriesManager';
 import XyroSettings from '../xyro/XyroSettings';
@@ -97,7 +98,7 @@ export default function SettingsDialog({ open, onClose, initialSection = 'profil
       <Box sx={{ width: isMobile ? '100%' : 260, flexShrink: 0, bgcolor: t.surface2, borderRight: isMobile ? 0 : `1px solid ${t.hairline}`, borderBottom: isMobile ? `1px solid ${t.hairline}` : 0,
         display: 'flex', flexDirection: 'column', p: isMobile ? 1.5 : 2.25 }}>
         <Box sx={{ display: 'flex', flexDirection: isMobile ? 'row' : 'column', alignItems: 'center', gap: isMobile ? 1.5 : 0, textAlign: isMobile ? 'left' : 'center', mb: isMobile ? 1.25 : 2.5 }}>
-          {avatar(isMobile ? 56 : 88)}
+          {avatar(isMobile ? 72 : 108)}
           <Box sx={{ minWidth: 0, flex: isMobile ? 1 : 'none', mt: isMobile ? 0 : 1.5 }}>
             <Typography noWrap sx={{ fontSize: '1rem', fontWeight: 750 }}>{name}</Typography>
             <Typography noWrap sx={{ fontSize: '0.74rem', color: t.muted }}>{profile?.username ? `@${profile.username}` : user?.email}</Typography>
@@ -215,7 +216,7 @@ function ProfileSection() {
       </Field>
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.75 }}>
         <Field label="Date of birth" hint={age !== null && age >= 0 ? `${age} years old` : null}>
-          <InputBase type="date" value={f.date_of_birth} onChange={(e) => setF({ ...f, date_of_birth: e.target.value })} inputProps={{ max: today(), min: '1900-01-01' }} sx={inputSx} />
+          <DateField value={f.date_of_birth} onChange={(v) => setF({ ...f, date_of_birth: v })} min="1900-01-01" max={today()} label="Date of birth" placeholder="Not set" sx={inputSx} />
         </Field>
         <Field label="Email" hint="Used to sign in and to recover your account.">
           <InputBase value={user?.email ?? ''} disabled sx={inputSx} />

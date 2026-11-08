@@ -1,7 +1,8 @@
 import { useTheme, Box, Typography } from '@mui/material';
 import { ResponsiveContainer, ComposedChart, Area, XAxis, YAxis, Tooltip } from 'recharts';
 import { useFx, FONT_NUM, earningsColors } from './tokens';
-import { useWidth } from './hooks';
+import { useWidth, useHoverLayer } from './hooks';
+import { HoverLayerHost, HoverPortal } from './HoverLayer';
 import { formatCurrency, compactNumber } from '../../lib/formatters';
 
 const PRICED = { live: 'Value at live prices', close: 'Value at closing prices', trade: 'Value at your last trade price', mixed: 'Value at the last known prices' };
@@ -10,7 +11,7 @@ const kAxis = (v) => compactNumber(v);
 /**
  * Where the hover card sits relative to its point so it never leaves the chart
  * (and slides under the next card on the page): centred, or anchored to the
- * left / right edge near the sides. Returns the foreignObject x, the flex
+ * left / right edge near the sides. Returns the card x, the flex
  * alignment and where the caret points.
  */
 function placeCard(cx, width, FW) {
@@ -41,6 +42,7 @@ export default function GrowthChart({ points, height = 260, keys: keysIn, captio
   const mode = useTheme().palette.mode;
   const c = earningsColors(mode);
   const [wrapRef, width] = useWidth();
+  const [layer, layerRef] = useHoverLayer();
   if (!points.length) {
     return <Box sx={{ height, display: 'grid', placeItems: 'center' }}><Typography sx={{ fontSize: '0.8rem', color: t.muted }}>{emptyText}</Typography></Box>;
   }
@@ -70,9 +72,10 @@ export default function GrowthChart({ points, height = 260, keys: keysIn, captio
           <Area type="monotone" dataKey={keys.secondary} name={keys.secondaryLabel} stroke={c.net} strokeWidth={3} fill="url(#gr-fill-i)" filter="url(#gr-glow-i)"
             dot={false} activeDot={<Ring color={c.net} surface={t.surface} />} animationDuration={600} />
           <Area type="monotone" dataKey={keys.primary} name={keys.primaryLabel} stroke={c.gross} strokeWidth={3} fill="url(#gr-fill-v)" filter="url(#gr-glow-v)"
-            dot={false} activeDot={(p) => <Card {...p} colors={c} surface={t.surface} keys={keys} caption={caption} chartWidth={width} key={`gc-${p.index}`} />} animationDuration={600} />
+            dot={false} activeDot={(p) => <Card {...p} layer={layer} colors={c} surface={t.surface} keys={keys} caption={caption} chartWidth={width} key={`gc-${p.index}`} />} animationDuration={600} />
         </ComposedChart>
       </ResponsiveContainer>
+      <HoverLayerHost ref={layerRef} />
     </Box>
   );
 }
@@ -82,7 +85,7 @@ function Ring({ cx, cy, color, surface }) {
   return <circle cx={cx} cy={cy} r={6.5} fill={surface} stroke={color} strokeWidth={3} />;
 }
 
-function Card({ cx, cy, payload: p, colors, surface, keys, caption, chartWidth }) {
+function Card({ layer, cx, cy, payload: p, colors, surface, keys, caption, chartWidth }) {
   if (cx === undefined || cy === undefined || !p) return null;
   const FW = 360; const FH = 220;
   const place = placeCard(cx, chartWidth, FW);
@@ -99,7 +102,7 @@ function Card({ cx, cy, payload: p, colors, surface, keys, caption, chartWidth }
   return (
     <g style={{ pointerEvents: 'none' }}>
       <circle cx={cx} cy={cy} r={6.5} fill={surface} stroke={colors.gross} strokeWidth={3} />
-      <foreignObject x={place.x} y={cy - FH - 16} width={FW} height={FH} style={{ overflow: 'visible' }}>
+      <HoverPortal layer={layer} x={place.x} y={cy - FH - 16} width={FW} height={FH}>
         <Box sx={{ width: FW, height: FH, display: 'flex', alignItems: 'flex-end', justifyContent: place.justify }}>
           <Box sx={{
             position: 'relative', width: 'max-content', minWidth: 176, boxSizing: 'border-box', borderRadius: '12px', px: 1.75, py: 1.25,
@@ -117,7 +120,7 @@ function Card({ cx, cy, payload: p, colors, surface, keys, caption, chartWidth }
             </Box>
           </Box>
         </Box>
-      </foreignObject>
+      </HoverPortal>
     </g>
   );
 }

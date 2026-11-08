@@ -2,7 +2,8 @@ import { useTheme, Box, Typography } from '@mui/material';
 import { NorthEastRounded, SouthEastRounded } from '@mui/icons-material';
 import { ResponsiveContainer, ComposedChart, Area, XAxis, YAxis, Tooltip } from 'recharts';
 import { useFx, FONT_NUM, earningsColors } from './tokens';
-import { useWidth } from './hooks';
+import { useWidth, useHoverLayer } from './hooks';
+import { HoverLayerHost, HoverPortal } from './HoverLayer';
 import { formatCurrency, compactNumber } from '../../lib/formatters';
 
 const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -10,7 +11,7 @@ const kAxis = (v) => compactNumber(v);
 /**
  * Where the hover card sits relative to its point so it never leaves the chart
  * (and slides under the next card on the page): centred, or anchored to the
- * left / right edge near the sides. Returns the foreignObject x, the flex
+ * left / right edge near the sides. Returns the card x, the flex
  * alignment and where the caret points.
  */
 function placeCard(cx, width, FW) {
@@ -34,6 +35,7 @@ export default function EarningsChart({ months, height = 260, taxLabel = 'CGT' }
   const mode = useTheme().palette.mode;
   const c = earningsColors(mode);
   const [wrapRef, width] = useWidth();
+  const [layer, layerRef] = useHoverLayer();
   const empty = !months.some((m) => m.gross || m.cgt || m.net);
   if (empty) {
     return (
@@ -74,9 +76,10 @@ export default function EarningsChart({ months, height = 260, taxLabel = 'CGT' }
             dot={false} activeDot={<Ring color={c.gross} surface={t.surface} />} animationDuration={600} />
           {/* Net is drawn last so its hover card sits above both lines. */}
           <Area type="monotone" dataKey="net" name="Net" stroke={c.net} strokeWidth={3} fill="url(#fx-fill-n)" filter="url(#fx-glow-n)"
-            dot={false} activeDot={(p) => <HoverCard {...p} colors={c} surface={t.surface} taxLabel={taxLabel} chartWidth={width} key={`hc-${p.index}`} />} animationDuration={600} />
+            dot={false} activeDot={(p) => <HoverCard {...p} layer={layer} colors={c} surface={t.surface} taxLabel={taxLabel} chartWidth={width} key={`hc-${p.index}`} />} animationDuration={600} />
         </ComposedChart>
       </ResponsiveContainer>
+      <HoverLayerHost ref={layerRef} />
     </Box>
   );
 }
@@ -90,9 +93,9 @@ function Ring({ cx, cy, color, surface }) {
 /**
  * Ring on the net line plus the dark card pinned above it, caret down: net
  * large, gross and CGT small. The card sizes to its content (no fixed box),
- * inside a generous foreignObject anchored bottom-centre on the point.
+ * inside a generous box anchored bottom-centre on the point.
  */
-function HoverCard({ cx, cy, payload, colors, surface, taxLabel, chartWidth }) {
+function HoverCard({ layer, cx, cy, payload, colors, surface, taxLabel, chartWidth }) {
   if (cx === undefined || cy === undefined || !payload) return null;
   const m = payload;
   const FW = 360;   // room the card may use; the card itself is only as wide as its text
@@ -109,7 +112,7 @@ function HoverCard({ cx, cy, payload, colors, surface, taxLabel, chartWidth }) {
   return (
     <g style={{ pointerEvents: 'none' }}>
       <circle cx={cx} cy={cy} r={6.5} fill={surface} stroke={colors.net} strokeWidth={3} />
-      <foreignObject x={place.x} y={cy - FH - 16} width={FW} height={FH} style={{ overflow: 'visible' }}>
+      <HoverPortal layer={layer} x={place.x} y={cy - FH - 16} width={FW} height={FH}>
         <Box sx={{ width: FW, height: FH, display: 'flex', alignItems: 'flex-end', justifyContent: place.justify }}>
           <Box sx={{
             position: 'relative', width: 'max-content', minWidth: 176, maxWidth: FW, boxSizing: 'border-box', borderRadius: '12px',
@@ -142,7 +145,7 @@ function HoverCard({ cx, cy, payload, colors, surface, taxLabel, chartWidth }) {
             </Box>
           </Box>
         </Box>
-      </foreignObject>
+      </HoverPortal>
     </g>
   );
 }

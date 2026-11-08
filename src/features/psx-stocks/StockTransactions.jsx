@@ -8,7 +8,7 @@ import { getStockName } from '../../lib/stockMeta';
 import { stockTradesQuery } from '../../lib/psx/usePsxPortfolio';
 import { useDateRange, inRange, rangeLabel } from '../../lib/dateRange';
 import StockLogo from '../../components/StockLogo';
-import { useFx, PageHeader, Seg, PillSelect, FitPage, FONT_NUM } from '../../components/fx';
+import { useFx, PageHeader, Seg, PillSelect, FitPage, FONT_NUM, usePaged, Pagination } from '../../components/fx';
 import TradeEditor from './TradeEditor';
 import TradeImportDialog from './TradeImportDialog';
 import BrokerLogo from './BrokerLogo';
@@ -63,6 +63,7 @@ export default function StockTransactions() {
     return s;
   }, { bought: 0, sold: 0, fees: 0 });
   const filtered = type !== 'all' || sym !== 'all' || broker !== 'all' || q;
+  const pg = usePaged(rows, `${type}|${sym}|${broker}|${q}|${range.start}|${range.end}`);
 
   return (
     <FitPage>
@@ -90,7 +91,7 @@ export default function StockTransactions() {
         )}
       </Box>
 
-      <Box sx={{ bgcolor: t.surface, border: `1px solid ${t.border}`, borderRadius: '20px', boxShadow: t.shadow, display: 'flex', flexDirection: 'column', minHeight: 0, flex: isMobile ? 'none' : '1 1 0', height: isMobile ? '68dvh' : 'auto', overflow: 'hidden' }}>
+      <Box sx={{ bgcolor: t.surface, border: `1px solid ${t.border}`, borderRadius: '20px', boxShadow: t.shadow, display: 'flex', flexDirection: 'column', minHeight: 0, flex: isMobile ? 'none' : '1 1 0', height: 'auto', overflow: 'hidden' }}>
         <Box sx={{ display: 'flex', gap: 2.5, flexWrap: 'wrap', px: 2.25, pt: 1.5, pb: 1, fontSize: '0.74rem', color: t.muted, flexShrink: 0 }}>
           <span><b style={{ color: t.ink }}>{rows.length}</b> trade{rows.length === 1 ? '' : 's'} in {rangeLabel(range)}</span>
           <span>Bought <Box component="b" sx={{ color: t.ink, fontFamily: FONT_NUM }}>{formatCurrency(sums.bought)}</Box></span>
@@ -105,10 +106,11 @@ export default function StockTransactions() {
           </Box>
         )}
         <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', px: { xs: 1, md: 1.25 }, py: 0.5, scrollbarWidth: 'thin', scrollbarColor: `${t.border} transparent` }}>
-          {isLoading ? Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} height={50} sx={{ mx: 1 }} />)
+          {isLoading ? Array.from({ length: 10 }).map((_, i) => <Skeleton key={i} height={56} sx={{ mx: 1 }} />)
             : rows.length === 0 ? <Typography sx={{ textAlign: 'center', color: t.muted, fontSize: '0.82rem', py: 6 }}>No trades in {rangeLabel(range)}.</Typography>
-              : rows.map((x) => <TradeRow key={x.id} x={x} mobile={isMobile} onOpen={() => setEditing(x)} />)}
+              : pg.shown.map((x) => <TradeRow key={x.id} x={x} mobile={isMobile} onOpen={() => setEditing(x)} />)}
         </Box>
+        {!isLoading && <Pagination page={pg.page} pages={pg.pages} total={rows.length} size={pg.size} onPage={pg.setPage} noun="trades" />}
       </Box>
 
       {editing && <TradeEditor trade={editing} onClose={() => setEditing(null)} />}
@@ -130,7 +132,7 @@ function TradeRow({ x, mobile, onOpen }) {
   );
   if (mobile) {
     return (
-      <ButtonBase onClick={onOpen} sx={{ display: 'flex', width: '100%', alignItems: 'center', gap: 1.25, py: 1, px: 0.75, borderBottom: `1px solid ${t.hairline}`, textAlign: 'left', fontFamily: 'inherit' }}>
+      <ButtonBase onClick={onOpen} sx={{ display: 'flex', width: '100%', alignItems: 'center', gap: 1.25, py: 1.4, px: 0.75, borderBottom: `1px solid ${t.hairline}`, textAlign: 'left', fontFamily: 'inherit' }}>
         <StockLogo symbol={sym} size="md" />
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}><Typography sx={{ fontSize: '0.84rem', fontWeight: 650 }}>{sym}</Typography>{typeTag}{x.broker && <BrokerLogo broker={x.broker} size={16} />}</Box>
@@ -142,7 +144,7 @@ function TradeRow({ x, mobile, onOpen }) {
   }
   return (
     <ButtonBase component="div" onClick={onOpen} aria-label={`${sym} ${x.type} on ${x.date}: edit`} sx={{
-      display: 'grid', gridTemplateColumns: COLS, columnGap: 2, alignItems: 'center', width: '100%', px: 1, py: 0.9,
+      display: 'grid', gridTemplateColumns: COLS, columnGap: 2, alignItems: 'center', width: '100%', px: 1, py: 1.35,
       borderBottom: `1px solid ${t.hairline}`, borderRadius: '10px', textAlign: 'left', fontFamily: 'inherit',
       '@media (hover: hover)': { '&:hover': { bgcolor: t.surface2 }, '&:hover .edit': { opacity: 1 } }, '&:focus-visible': { outline: `2px solid ${t.ink}`, outlineOffset: -2 },
     }}>

@@ -4,7 +4,7 @@ import { SearchRounded, EditRounded, CloseRounded } from '@mui/icons-material';
 import { useMfPortfolio } from '../../lib/mf/useMfPortfolio';
 import { useDateRange, rangeLabel, inRange } from '../../lib/dateRange';
 import { formatNumber, formatCurrency } from '../../lib/formatters';
-import { useFx, PageHeader, FxCard, Seg, PillSelect, usePageSize, Pager, FitPage, FONT_NUM, Chip } from '../../components/fx';
+import { useFx, PageHeader, FxCard, Seg, PillSelect, usePaged, Pagination, FitPage, FONT_NUM, Chip } from '../../components/fx';
 import { TYPE_LABEL, fmtDate } from './mfLabels';
 import AmcLogo from './AmcLogo';
 import EntryEditor from './EntryEditor';
@@ -29,7 +29,6 @@ export default function MFTransactions() {
   const [group, setGroup] = useState('all');
   const [q, setQ] = useState('');
   const [editing, setEditing] = useState(null);
-  const [pageState, setPageState] = useState({ sig: '', n: 0 });
 
   const all = useMemo(() => {
     if (!ledger) return [];
@@ -68,15 +67,8 @@ export default function MFTransactions() {
       .sort((a, b) => b.trade_date.localeCompare(a.trade_date) || (b.seq - a.seq));
   }, [inPeriod, amc, fund, group, q]);
 
-  // Any filter change starts again at page one.
-  const sig = [amc, fund, group, q, range.start, range.end].join('|');
-  const page = pageState.sig === sig ? pageState.n : 0;
-  const setPage = (n) => setPageState({ sig, n });
-
-  const [ref, size] = usePageSize(isMobile ? 64 : 48, { min: 4 });
-  const pages = Math.max(1, Math.ceil(rows.length / size));
-  const p = Math.min(page, pages - 1);
-  const shown = isMobile ? rows : rows.slice(p * size, p * size + size);
+  // Ten per page; any filter change starts again at page one.
+  const pg = usePaged(rows, [amc, fund, group, q, range.start, range.end].join('|'));
   const totals = rows.reduce((s, r) => {
     const u = r.unit_delta !== null ? Number(r.unit_delta) : 0;
     if (r.reversed || r.reverses_entry_id) return s;
@@ -119,12 +111,12 @@ export default function MFTransactions() {
             <span>Date</span><span>Fund</span><span>Type</span><Box sx={{ textAlign: 'right' }}>Units</Box><Box sx={{ textAlign: 'right' }}>NAV</Box><Box sx={{ textAlign: 'right' }}>Amount</Box><Box sx={{ textAlign: 'right' }}>CGT</Box><span>Source</span><span />
           </Box>
         )}
-        <Box ref={ref} sx={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+        <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', scrollbarWidth: 'thin', scrollbarColor: `${t.border} transparent` }}>
           {isLoading ? <Skeleton variant="rounded" height={200} /> : rows.length === 0 ? (
             <Typography sx={{ textAlign: 'center', py: 5, color: t.muted, fontSize: '0.8rem' }}>No transactions match in {rangeLabel(range)}.</Typography>
-          ) : shown.map((r) => <TxRow key={r.id} r={r} mobile={isMobile} onEdit={() => setEditing(r)} />)}
+          ) : pg.shown.map((r) => <TxRow key={r.id} r={r} mobile={isMobile} onEdit={() => setEditing(r)} />)}
         </Box>
-        {!isMobile && <Pager page={p} pages={pages} total={rows.length} size={size} onPage={setPage} />}
+        {!isLoading && <Box sx={{ mx: { xs: -1.5, md: -2 }, mb: { xs: -1.5, md: -2 } }}><Pagination page={pg.page} pages={pg.pages} total={rows.length} size={pg.size} onPage={pg.setPage} noun="transactions" /></Box>}
       </FxCard>
 
       {editing && <EntryEditor entry={editing} onClose={() => setEditing(null)} />}
@@ -143,7 +135,7 @@ function TxRow({ r, mobile, onEdit }) {
   const uColor = units < 0 ? t.neg : units > 0 ? t.pos : t.ink2;
   if (mobile) {
     return (
-      <ButtonBase onClick={onEdit} sx={{ display: 'flex', width: '100%', alignItems: 'center', gap: 1.25, py: 1, borderBottom: `1px solid ${t.hairline}`, textAlign: 'left', fontFamily: 'inherit', opacity: struck ? 0.5 : 1 }}>
+      <ButtonBase onClick={onEdit} sx={{ display: 'flex', width: '100%', alignItems: 'center', gap: 1.25, py: 1.4, borderBottom: `1px solid ${t.hairline}`, textAlign: 'left', fontFamily: 'inherit', opacity: struck ? 0.5 : 1 }}>
         <AmcLogo code={r.amcCode} name={r.amcName} size={32} />
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography noWrap sx={{ fontSize: '0.78rem', fontWeight: 650, textDecoration: r.reversed ? 'line-through' : 'none' }}>{r.fundName}</Typography>
@@ -159,7 +151,7 @@ function TxRow({ r, mobile, onEdit }) {
   return (
     <Box onClick={onEdit} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onEdit(); } }}
       sx={{
-        display: 'grid', gridTemplateColumns: COLS, gap: 1.5, alignItems: 'center', height: 48, px: 1, borderBottom: `1px solid ${t.hairline}`,
+        display: 'grid', gridTemplateColumns: COLS, gap: 1.5, alignItems: 'center', height: 58, px: 1, borderBottom: `1px solid ${t.hairline}`,
         fontSize: '0.74rem', cursor: 'pointer', opacity: struck ? 0.5 : 1, borderRadius: '10px', transition: 'background-color .16s',
         '&:hover': { bgcolor: t.surface2 }, '&:hover .edit': { opacity: 1 }, '&:focus-visible': { outline: `2px solid ${t.ink}` },
       }}>

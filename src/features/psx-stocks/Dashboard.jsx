@@ -94,8 +94,7 @@ export default function PSXDashboard() {
       />
 
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 7fr) minmax(0, 5fr)' }, gap: 2 }}>
-        <ValueChart rows={assetRows(snaps, 'stocks', p)} range={range} height={isMobile ? 230 : CHART_H}
-          note="Value of the shares held at each close against their average cost. Days before PSX closes were captured (6 Nov 2026) use your trade price." />
+        <ValueChart rows={assetRows(snaps, 'stocks', p)} range={range} height={isMobile ? 230 : CHART_H} />
 
         <HoldingsCard
           formatMoney={(v) => formatCurrency(v)}

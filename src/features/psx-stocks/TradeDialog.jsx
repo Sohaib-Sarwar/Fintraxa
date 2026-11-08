@@ -10,6 +10,7 @@ import { formatCurrency, formatNumber, calcBrokerFee } from '../../lib/formatter
 import { getStockName } from '../../lib/stockMeta';
 import { getStockSector } from '../../lib/psxSectors';
 import { useFx, Seg, FONT_NUM, signColor } from '../../components/fx';
+import DateField from '../../components/fx/DateField';
 import StockLogo from '../../components/StockLogo';
 
 const DECIMAL = /^\d+(\.\d+)?$/;
@@ -74,10 +75,10 @@ export default function TradeDialog({ stock, position, onClose }) {
   const field = (label, value, onChange, props = {}) => (
     <Box component="label" sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, minWidth: 0 }}>
       <Box component="span" sx={{ fontSize: '0.68rem', fontWeight: 600, color: t.muted }}>{label}</Box>
-      <InputBase value={value} onChange={(e) => onChange(e.target.value)} inputProps={{ inputMode: props.type === 'date' ? undefined : 'decimal', 'aria-label': label, ...props.inputProps }}
+      {props.type === 'date' ? <DateField value={value} onChange={onChange} min={props.inputProps?.min} max={props.inputProps?.max} label={label} sx={{ height: 42, fontSize: '0.86rem' }} /> : <InputBase value={value} onChange={(e) => onChange(e.target.value)} inputProps={{ inputMode: props.type === 'date' ? undefined : 'decimal', 'aria-label': label, ...props.inputProps }}
         type={props.type} endAdornment={props.end}
         sx={{ height: 42, px: 1.25, borderRadius: '12px', border: `1px solid ${t.border}`, bgcolor: t.surface2, color: t.ink, fontSize: '0.86rem',
-          fontFamily: props.type === 'date' ? 'inherit' : FONT_NUM, '&.Mui-focused': { borderColor: t.ink }, '& input': { colorScheme: 'inherit' } }} />
+          fontFamily: props.type === 'date' ? 'inherit' : FONT_NUM, '&.Mui-focused': { borderColor: t.ink }, '& input': { colorScheme: 'inherit' } }} />}
     </Box>
   );
 

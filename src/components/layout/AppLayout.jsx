@@ -309,13 +309,13 @@ export default function AppLayout() {
                   onClick={() => setProfileOpen(true)}
                   aria-label="Open profile and settings"
                   sx={{
-                    width: 38, height: 38, borderRadius: 2.5,
+                    width: 44, height: 44, borderRadius: 2.5,
                     transition: 'transform 0.2s ease',
                     '&:hover': { transform: 'scale(1.08)' },
                     '@media (prefers-reduced-motion: reduce)': { transition: 'none', '&:hover': { transform: 'none' } },
                   }}
                 >
-                  <Avatar src={avatarUrl || undefined} alt="" sx={{ width: 28, height: 28, bgcolor: isDark ? '#fff' : '#000', color: isDark ? '#000' : '#fff', fontSize: '0.7rem', fontWeight: 700 }}>
+                  <Avatar src={avatarUrl || undefined} alt="" sx={{ width: 34, height: 34, bgcolor: isDark ? '#fff' : '#000', color: isDark ? '#000' : '#fff', fontSize: '0.84rem', fontWeight: 700 }}>
                     {initial}
                   </Avatar>
                 </IconButton>

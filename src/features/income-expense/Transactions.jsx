@@ -4,7 +4,7 @@ import { SearchRounded, CloseRounded, EditRounded } from '@mui/icons-material';
 import { formatCurrency } from '../../lib/formatters';
 import { useFinanceTransactions } from '../../lib/finance/useFinance';
 import { useDateRange, inRange, rangeLabel } from '../../lib/dateRange';
-import { useFx, PageHeader, Seg, PillSelect, FitPage, FONT_NUM } from '../../components/fx';
+import { useFx, PageHeader, Seg, PillSelect, FitPage, FONT_NUM, usePaged, Pagination } from '../../components/fx';
 import CategoryBadge from './CategoryBadge';
 import TransactionEditor from './TransactionEditor';
 import StockLogo from '../../components/StockLogo';
@@ -42,6 +42,7 @@ export default function Transactions() {
 
   const sums = rows.reduce((s, x) => { if (x.type === 'credit') s.in += Number(x.amount); else s.out += Number(x.amount); return s; }, { in: 0, out: 0 });
   const filtered = type !== 'all' || cat !== 'all' || q;
+  const pg = usePaged(rows, `${type}|${cat}|${q}|${range.start}|${range.end}`);
 
   return (
     <FitPage>
@@ -61,7 +62,7 @@ export default function Transactions() {
         )}
       </Box>
 
-      <Box sx={{ bgcolor: t.surface, border: `1px solid ${t.border}`, borderRadius: '20px', boxShadow: t.shadow, display: 'flex', flexDirection: 'column', minHeight: 0, flex: isMobile ? 'none' : '1 1 0', height: isMobile ? '68dvh' : 'auto', overflow: 'hidden' }}>
+      <Box sx={{ bgcolor: t.surface, border: `1px solid ${t.border}`, borderRadius: '20px', boxShadow: t.shadow, display: 'flex', flexDirection: 'column', minHeight: 0, flex: isMobile ? 'none' : '1 1 0', height: 'auto', overflow: 'hidden' }}>
         <Box sx={{ display: 'flex', gap: 2.5, flexWrap: 'wrap', px: 2.25, pt: 1.5, pb: 1, fontSize: '0.74rem', color: t.muted, flexShrink: 0 }}>
           <span><b style={{ color: t.ink }}>{rows.length}</b> in {rangeLabel(range)}</span>
           <span>Income <Box component="b" sx={{ color: t.pos, fontFamily: FONT_NUM }}>{formatCurrency(sums.in)}</Box></span>
@@ -76,10 +77,11 @@ export default function Transactions() {
           </Box>
         )}
         <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', px: { xs: 1, md: 1.25 }, py: 0.5, scrollbarWidth: 'thin', scrollbarColor: `${t.border} transparent` }}>
-          {isLoading ? Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} height={50} sx={{ mx: 1 }} />)
+          {isLoading ? Array.from({ length: 10 }).map((_, i) => <Skeleton key={i} height={56} sx={{ mx: 1 }} />)
             : rows.length === 0 ? <Typography sx={{ textAlign: 'center', color: t.muted, fontSize: '0.82rem', py: 6 }}>Nothing in {rangeLabel(range)}.</Typography>
-              : rows.map((x) => <Row key={x.id} x={x} mobile={isMobile} onOpen={() => setEditing(x)} />)}
+              : pg.shown.map((x) => <Row key={x.id} x={x} mobile={isMobile} onOpen={() => setEditing(x)} />)}
         </Box>
+        {!isLoading && <Pagination page={pg.page} pages={pg.pages} total={rows.length} size={pg.size} onPage={pg.setPage} noun="transactions" />}
       </Box>
 
       {editing && <TransactionEditor txn={editing} onClose={() => setEditing(null)} />}
@@ -99,7 +101,7 @@ function Row({ x, mobile, onOpen }) {
   const amount = <Typography data-numeric noWrap sx={{ fontFamily: FONT_NUM, fontSize: '0.84rem', fontWeight: 650, letterSpacing: '-0.02em', textAlign: 'right', color: income ? t.pos : t.ink }}>{income ? '+' : '−'}{formatCurrency(Number(x.amount))}</Typography>;
   if (mobile) {
     return (
-      <ButtonBase onClick={onOpen} sx={{ display: 'flex', width: '100%', alignItems: 'center', gap: 1.25, py: 1, px: 0.75, borderBottom: `1px solid ${t.hairline}`, textAlign: 'left', fontFamily: 'inherit' }}>
+      <ButtonBase onClick={onOpen} sx={{ display: 'flex', width: '100%', alignItems: 'center', gap: 1.25, py: 1.4, px: 0.75, borderBottom: `1px solid ${t.hairline}`, textAlign: 'left', fontFamily: 'inherit' }}>
         {logo(34)}
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography noWrap sx={{ fontSize: '0.84rem', fontWeight: 650 }}>{title}</Typography>
@@ -111,7 +113,7 @@ function Row({ x, mobile, onOpen }) {
   }
   return (
     <ButtonBase component="div" onClick={onOpen} aria-label={`${x.categories?.name ?? 'Transaction'} on ${x.date}: edit`} sx={{
-      display: 'grid', gridTemplateColumns: COLS, columnGap: 2, alignItems: 'center', width: '100%', px: 1, py: 0.9,
+      display: 'grid', gridTemplateColumns: COLS, columnGap: 2, alignItems: 'center', width: '100%', px: 1, py: 1.35,
       borderBottom: `1px solid ${t.hairline}`, borderRadius: '10px', textAlign: 'left', fontFamily: 'inherit',
       '@media (hover: hover)': { '&:hover': { bgcolor: t.surface2 }, '&:hover .edit': { opacity: 1 } }, '&:focus-visible': { outline: `2px solid ${t.ink}`, outlineOffset: -2 },
     }}>

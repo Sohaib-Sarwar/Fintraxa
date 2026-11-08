@@ -8,6 +8,7 @@ import {
   InfoOutlined, DeleteOutlineRounded,
 } from '@mui/icons-material';
 import { useFx, FxCard, Seg, Chip as FxChip, FONT_NUM } from '../../components/fx';
+import DateField from '../../components/fx/DateField';
 import { useDeleteImport } from '../../lib/mf/mutations';
 import AmcLogo from './AmcLogo';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -363,7 +364,10 @@ function EditDialog({ row, onClose, onSaved }) {
         <TextField select label="Type" size="small" fullWidth value={f.entry_type} onChange={(e) => setF({ ...f, entry_type: e.target.value })} sx={{ mb: 1.5 }}>
           {Object.entries(TYPE_LABEL).filter(([k]) => k !== 'unknown').map(([k, v]) => <MenuItem key={k} value={k}>{v}</MenuItem>)}
         </TextField>
-        {field('trade_date', 'Date', { type: 'date', slotProps: { inputLabel: { shrink: true } } })}
+        <Box sx={{ mb: 1.5 }}>
+          <Typography component="span" sx={{ display: 'block', fontSize: '0.68rem', fontWeight: 600, color: 'text.secondary', mb: 0.5 }}>Date</Typography>
+          <DateField value={f.trade_date} onChange={(v) => setF({ ...f, trade_date: v })} label="Date" />
+        </Box>
         {field('unit_delta', 'Units (signed)')}
         {field('nav', 'NAV / price')}
         {field('gross_amount', 'Gross amount')}

@@ -14,6 +14,7 @@ import { dbErrorHandler } from '../../lib/dbErrors';
 import { useCategories, useFinanceRefresh, useFinanceTransactions, categoryMatches } from '../../lib/finance/useFinance';
 import { useSavingsAccounts } from '../../lib/finance/useSavingsAccounts';
 import { useFx, PageHeader, Seg, FONT_NUM } from '../../components/fx';
+import DateField from '../../components/fx/DateField';
 import TypeSwitch from './TypeSwitch';
 import StockLogo from '../../components/StockLogo';
 import CategoryBadge from './CategoryBadge';
@@ -250,8 +251,8 @@ export default function AddTransaction() {
           <Box sx={{ display: 'flex', gap: 0.6, alignItems: 'center', flexWrap: 'wrap' }}>
             {chip('Today', date === today(), () => setDate(today()))}
             {chip('Yesterday', date === daysAgo(1), () => setDate(daysAgo(1)))}
-            <InputBase type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} inputProps={{ max: today(), 'aria-label': 'Date' }}
-              sx={{ height: 30, px: 1.1, borderRadius: 999, border: `1px solid ${t.border}`, fontSize: '0.72rem', '& input': { colorScheme: 'inherit', p: 0 } }} />
+            <DateField value={date} onChange={setDate} max={today()} label="Date"
+              sx={{ height: 30, width: 'auto', px: 1.1, borderRadius: 999, bgcolor: 'transparent', fontSize: '0.72rem', fontWeight: 600 }} />
           </Box>
           <InputBase value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Note (optional)" inputProps={{ 'aria-label': 'Note', maxLength: 200 }}
             sx={{ height: 34, px: 1.25, borderRadius: '12px', border: `1px solid ${t.border}`, bgcolor: t.surface2, fontSize: '0.8rem', '&.Mui-focused': { borderColor: t.ink } }} />

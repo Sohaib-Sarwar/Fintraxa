@@ -2,7 +2,8 @@ export { useFx, fxTokens, signColor, earningsColors, flowColors, passiveColors, 
 export { default as Seg } from './Seg';
 export { default as RangeFilter } from './RangeFilter';
 export { PageHeader, FxCard, Num, Delta, Chip, Kpi, Pager, FitPage } from './Layout';
-export { usePageSize } from './hooks';
+export { usePageSize, usePaged, PAGE_SIZE } from './hooks';
+export { default as Pagination } from './Pagination';
 export { compactNum } from './format';
 export { default as PillSelect } from './PillSelect';
 export { default as EarningsChart, EarningsLegend } from './EarningsChart';

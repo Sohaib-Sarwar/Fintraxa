@@ -39,3 +39,26 @@ export function usePageSize(rowHeight, { min = 3, columns = 1, gap = 0 } = {}) {
   return [ref, size];
 }
 
+
+/** The element line-chart hover cards are portalled into (see ./HoverLayer.jsx): [element, ref callback]. */
+export function useHoverLayer() {
+  const [layer, setLayer] = useState(null);
+  return [layer, setLayer];
+}
+
+/**
+ * Fixed-size pages over a list: { page, pages, shown, setPage, size }.
+ * Changing `resetKey` (the filters) starts again at page one; a page past the end
+ * (after a delete) falls back to the last one.
+ */
+export const PAGE_SIZE = 10;
+export function usePaged(rows, resetKey, size = PAGE_SIZE) {
+  const [state, setState] = useState({ key: resetKey, page: 0 });
+  const pages = Math.max(1, Math.ceil(rows.length / size));
+  const page = Math.min(state.key === resetKey ? state.page : 0, pages - 1);
+  return {
+    page, pages, size,
+    shown: rows.slice(page * size, page * size + size),
+    setPage: (n) => setState({ key: resetKey, page: n }),
+  };
+}

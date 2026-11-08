@@ -5,7 +5,7 @@ import { formatCurrency, formatNumber } from '../../lib/formatters';
 import { useDividends } from '../../lib/psx/useDividends';
 import { summarizeDividends } from '../../lib/psx/dividends';
 import { useDateRange, rangeLabel } from '../../lib/dateRange';
-import { useFx, Seg, FONT_NUM } from '../../components/fx';
+import { useFx, Seg, FONT_NUM, usePaged, Pagination } from '../../components/fx';
 import StockLogo from '../../components/StockLogo';
 import DividendDialog from './DividendDialog';
 
@@ -36,15 +36,22 @@ export default function DividendTransactions({ onClose }) {
     return needle ? base.filter((x) => `${x.symbol} ${x.company_name ?? ''} ${x.warrant_no ?? ''}`.toLowerCase().includes(needle)) : base;
   }, [all, range, scope, q]);
   const totals = useMemo(() => summarizeDividends(rows), [rows]);
+  // Ten warrants per page, grouped by month; a month's total is the whole month, even across pages.
+  const pg = usePaged(rows, `${scope}|${q}|${range.start}|${range.end}`);
+  const monthNet = useMemo(() => {
+    const m = new Map();
+    for (const x of rows) { const k = x.payment_date.slice(0, 7); m.set(k, (m.get(k) ?? 0) + Number(x.net_amount)); }
+    return m;
+  }, [rows]);
   const groups = useMemo(() => {
     const m = new Map();
-    for (const x of rows) {
+    for (const x of pg.shown) {
       const k = x.payment_date.slice(0, 7);
       if (!m.has(k)) m.set(k, []);
       m.get(k).push(x);
     }
-    return [...m.entries()].map(([month, list]) => ({ month, list, net: list.reduce((s, x) => s + Number(x.net_amount), 0) }));
-  }, [rows]);
+    return [...m.entries()].map(([month, list]) => ({ month, list, net: monthNet.get(month) ?? 0 }));
+  }, [pg.shown, monthNet]);
 
   const exportCsv = () => {
     const esc = (v) => { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
@@ -137,6 +144,8 @@ export default function DividendTransactions({ onClose }) {
         )}
       </Box>
 
+      <Pagination page={pg.page} pages={pg.pages} total={rows.length} size={pg.size} onPage={pg.setPage} noun="warrants" />
+
       {editing && <DividendDialog dividend={editing} existing={all} onClose={() => setEditing(null)} />}
     </Dialog>
   );
@@ -195,7 +204,7 @@ function DesktopRow({ x, onOpen }) {
   const mono = { fontFamily: FONT_NUM, fontSize: '0.74rem', letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' };
   return (
     <ButtonBase component="div" onClick={onOpen} aria-label={`${x.symbol} dividend paid ${fmtDate(x.payment_date)}: edit`} sx={{
-      display: 'grid', gridTemplateColumns: GRID, columnGap: 2, alignItems: 'center', width: '100%', px: 1.5, py: 1.1,
+      display: 'grid', gridTemplateColumns: GRID, columnGap: 2, alignItems: 'center', width: '100%', px: 1.5, py: 1.35,
       borderRadius: '12px', textAlign: 'left', fontFamily: 'inherit',
       '& + &': { borderTop: `1px solid ${t.hairline}` },
       '@media (hover: hover)': { '&:hover': { bgcolor: t.surface2 }, '&:hover .chev': { opacity: 1 } },

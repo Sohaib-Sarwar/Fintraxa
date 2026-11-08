@@ -6,6 +6,8 @@ import { queryClient, persistOptions } from './lib/queryClient';
 // Self-hosted variable fonts: same files on every browser, allowed by the CSP (font-src 'self').
 import '@fontsource-variable/inter/opsz.css';
 import '@fontsource-variable/inter-tight/wght.css';
+// Catch the browser's install offer before anything else loads (it fires once, early).
+import './lib/installPrompt';
 import App from './App';
 import './index.css';
 

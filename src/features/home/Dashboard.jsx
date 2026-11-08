@@ -47,7 +47,7 @@ function SavingsMark({ size = 28 }) {
 
 /**
  * Home: net worth = mutual funds (value now) + PSX stocks (value now) +
- * savings (cash kept from income, carried month to month; see
+ * savings (what this month kept; each month starts fresh; see
  * src/lib/home/combine.js for exactly what moves it). Month-end values of the
  * three parts on the chart, and where the money is.
  * Desktop fits one screen; phones scroll normally.
@@ -96,7 +96,7 @@ export default function HomeDashboard() {
       key: `s-${p.symbol}`, label: p.symbol, sub: 'Stock', value: p.value,
       logo: <StockLogo symbol={p.symbol} size="sm" />, onClick: () => setStock(p),
     }));
-    const cash = worth.savings > 0 ? [{ key: 'savings', label: 'Savings', sub: 'Cash kept', value: worth.savings, logo: <SavingsMark />, onClick: () => navigate('/') }] : [];
+    const cash = worth.savings > 0 ? [{ key: 'savings', label: 'Savings', sub: 'This month', value: worth.savings, logo: <SavingsMark />, onClick: () => navigate('/') }] : [];
     return {
       asOf, worth,
       series: netWorthSeries({ funds: mf.series, stocks: psx.series, flows, start: range.start, end: range.end, today }),
@@ -152,14 +152,14 @@ export default function HomeDashboard() {
         label="Net worth"
         background={ART}
         value={pricesLoading && !w.value ? null : w.value}
-        sub={`Mutual funds, PSX stocks and savings on ${fmtDay(data.asOf)}`}
+        sub={`Mutual funds, PSX stocks and this month's savings on ${fmtDay(data.asOf)}`}
         metrics={[
           { label: 'Mutual funds', amount: w.funds, note: pctOf(w.share.funds), onClick: () => navigate('/funds') },
           { label: 'PSX stocks', amount: w.stocks, note: pctOf(w.share.stocks), onClick: () => navigate('/stocks') },
           {
-            label: 'Savings', amount: w.savings, color: w.savings < 0 ? signColor(t, w.savings) : undefined,
+            label: 'Saved this month', amount: w.savings, color: w.savings < 0 ? signColor(t, w.savings) : undefined,
             note: w.savings < 0 ? 'spent more than earned' : pctOf(w.share.savings),
-            tooltip: 'Cash kept, carried month to month: income and cash passive income (bank profit, dividends), minus spending and money moved into funds or shares.',
+            tooltip: 'This month only: income and cash passive income (bank profit, dividends) minus spending and money moved into funds or shares. Each month starts fresh; nothing carries over.',
           },
         ]}
       />

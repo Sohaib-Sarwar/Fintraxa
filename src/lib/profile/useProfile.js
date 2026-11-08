@@ -92,9 +92,16 @@ export function useAvatarUrl(path) {
   });
 }
 
-/** Square-crop and shrink a picture to a 256 px WebP in the browser before upload. */
-async function toAvatarWebp(file) {
-  if (!/^image\/(png|jpe?g|webp|heic|heif)$/i.test(file.type)) throw Object.assign(new Error('Choose a JPG, PNG or WebP picture'), { friendly: true });
+/**
+ * Square-crop and shrink a picture to 256 px in the browser before upload.
+ * WebP where the browser can encode it; Safari cannot (toBlob quietly returns
+ * PNG), so the result is uploaded as whatever it really is.
+ * Some Android and Windows pickers give a file no type: the extension decides then.
+ */
+async function toAvatarImage(file) {
+  const typeOk = /^image\/(png|jpe?g|webp|heic|heif)$/i.test(file.type);
+  const extOk = !file.type && /\.(png|jpe?g|webp|heic|heif)$/i.test(file.name ?? '');
+  if (!typeOk && !extOk) throw Object.assign(new Error('Choose a JPG, PNG or WebP picture'), { friendly: true });
   if (file.size > 15 * 1024 * 1024) throw Object.assign(new Error('That picture is larger than 15 MB'), { friendly: true });
   const bitmap = await createImageBitmap(file).catch(() => { throw Object.assign(new Error('That picture could not be read'), { friendly: true }); });
   const side = Math.min(bitmap.width, bitmap.height);
@@ -102,7 +109,8 @@ async function toAvatarWebp(file) {
   canvas.width = 256; canvas.height = 256;
   canvas.getContext('2d').drawImage(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side, 0, 0, 256, 256);
   bitmap.close?.();
-  const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/webp', 0.86));
+  let blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/webp', 0.86));
+  if (!blob || !/^image\/(webp|png|jpeg)$/.test(blob.type)) blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.9));
   if (!blob) throw Object.assign(new Error('That picture could not be converted'), { friendly: true });
   return blob;
 }
@@ -112,9 +120,10 @@ export function useUploadAvatar() {
   const refresh = useRefreshProfile();
   return useMutation({
     mutationFn: async ({ file, previous }) => {
-      const blob = await toAvatarWebp(file);
-      const path = `${user.id}/avatar-${Date.now()}.webp`; // a new name each time: no stale caches
-      const { error: upErr } = await supabase.storage.from('avatars').upload(path, blob, { contentType: 'image/webp', upsert: false });
+      const blob = await toAvatarImage(file);
+      const ext = { 'image/webp': 'webp', 'image/png': 'png', 'image/jpeg': 'jpg' }[blob.type] ?? 'jpg';
+      const path = `${user.id}/avatar-${Date.now()}.${ext}`; // a new name each time: no stale caches
+      const { error: upErr } = await supabase.storage.from('avatars').upload(path, blob, { contentType: blob.type || 'image/jpeg', upsert: false });
       if (upErr) throw upErr;
       const { error } = await supabase.from('profiles').upsert({ user_id: user.id, avatar_path: path }, { onConflict: 'user_id' });
       if (error) { await supabase.storage.from('avatars').remove([path]); throw error; }

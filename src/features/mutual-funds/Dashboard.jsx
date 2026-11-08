@@ -82,8 +82,7 @@ export default function MFDashboard() {
       />
 
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 7fr) minmax(0, 5fr)' }, gap: 2 }}>
-        <ValueChart rows={assetRows(snaps, 'funds', a)} range={range} height={isMobile ? 230 : CHART_H}
-          note="Value of the units held at each close (latest NAV) against what they cost (FIFO). Hover for the unrealized gain and what was realized." />
+        <ValueChart rows={assetRows(snaps, 'funds', a)} range={range} height={isMobile ? 230 : CHART_H} />
 
         <HoldingsPanel held={held} previous={previous} onOpen={setFund} emptyText={`Nothing held at the end of ${label}`} />
       </Box>

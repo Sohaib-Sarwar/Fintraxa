@@ -5,7 +5,7 @@
  *
  *   Mutual funds  src/lib/mf/profit.js    replayHolding (FIFO lots) + priceBook
  *   PSX stocks    src/lib/psx/portfolio.js replayStock (average cost) + stockPriceAt
- *   Savings       src/lib/home/combine.js  (cash kept, carried day to day)
+ *   Savings       src/lib/home/combine.js  (what the month kept so far; resets each month)
  *
  * For a day D, a holding's row is its state at the end of D: units, cost of the
  * units held (FIFO for funds, average cost for shares), the latest price on or
@@ -25,7 +25,7 @@ import { liveEntries, replayHolding, priceBook } from './profit.js';
 import { normSymbol, replayStock, stockPriceAt, stockByTime } from './portfolio.js';
 import { cashFlows, savingsAt } from './combine.js';
 
-export const SNAPSHOT_VERSION = 'snap-1.1.0';
+export const SNAPSHOT_VERSION = 'snap-1.2.0'; // 1.2: savings are per month, not carried over
 const DAY = 86_400_000;
 const ZERO = new Decimal(0);
 const DUST_UNITS = new Decimal('0.01');

@@ -62,7 +62,7 @@ test('savings: income + cash passive - spending - money moved into investments; 
   assert.equal(savingsAt(flows, '2026-06-30'), 0);
 });
 
-test('savings carry forward: each month starts with what the previous month left', async () => {
+test('savings do not carry over: every month starts fresh', async () => {
   const { cashFlows, netWorthSeries } = await import('../../src/lib/home/combine.js');
   const flows = cashFlows({ transactions: [
     tx('2026-07-03', 'credit', 50000, 'Salary', 'active'), tx('2026-07-20', 'debit', 10000, 'Food', 'spend'),
@@ -72,8 +72,8 @@ test('savings carry forward: each month starts with what the previous month left
   const s = netWorthSeries({ flows, start: '2026-07-01', end: '2026-09-30', today: '2026-09-15' });
   assert.deepEqual(s.map((p) => [p.month, p.date, p.savings, p.live]), [
     ['2026-07', '2026-07-31', 40000, false],
-    ['2026-08', '2026-08-31', 20000, false],   // 40,000 carried in, then 50,000 - 70,000
-    ['2026-09', '2026-09-15', 70000, true],    // the open month runs to today
+    ['2026-08', '2026-08-31', -20000, false],  // July's 40,000 is not carried in: 50,000 - 70,000
+    ['2026-09', '2026-09-15', 50000, true],    // the open month runs to today, from zero
   ]);
 });
 
@@ -87,16 +87,18 @@ test('net worth series: funds + stocks + savings per month, with the opening bal
   const stocks = [{ month: '2026-07', date: '2026-07-31', value: 200.1 }];
   const s = netWorthSeries({ funds, stocks, flows, start: '2026-07-01', end: '2026-07-31', today: '2026-08-10' });
   assert.deepEqual(s.map((p) => [p.label, p.funds, p.stocks, p.savings, p.value]), [
-    ['Open', 500, 0, 1000.1, 1500.1],
-    ['Jul', 550, 200.1, 1000.3, 1750.4],     // 0.1 + 0.2 stays exact
+    ['Open', 500, 0, 0, 500],                // June kept nothing; May's 1000.10 is not carried
+    ['Jul', 550, 200.1, 0.2, 750.3],         // July alone
   ]);
   assert.equal(netWorth({ funds: 550, stocks: 200.1, savings: 1000.3 }).value, 1750.4);
   assert.equal(netWorth({ funds: 100, stocks: 0, savings: -50 }).share.savings, 0); // a shortfall has no share
 });
 
-test('net worth series: an opening point is added from savings alone when nothing was held yet', async () => {
-  const { cashFlows, netWorthSeries } = await import('../../src/lib/home/combine.js');
-  const flows = cashFlows({ transactions: [tx('2026-06-15', 'credit', 900, 'Salary', 'active')] });
+test('net worth series: savings before the range add no opening point, and a new month starts at zero', async () => {
+  const { cashFlows, netWorthSeries, savingsAt } = await import('../../src/lib/home/combine.js');
+  const flows = cashFlows({ transactions: [tx('2026-06-15', 'credit', 900, 'Salary', 'active'), tx('2026-07-10', 'debit', 100, 'Food', 'spend')] });
   const s = netWorthSeries({ flows, start: '2026-07-01', end: '2026-07-31', today: '2026-08-01' });
-  assert.deepEqual(s.map((p) => [p.label, p.date, p.savings]), [['Open', '2026-06-30', 900], ['Jul', '2026-07-31', 900]]);
+  assert.deepEqual(s.map((p) => [p.label, p.date, p.savings]), [['Jul', '2026-07-31', -100]]);
+  assert.equal(savingsAt(flows, '2026-06-30'), 900);
+  assert.equal(savingsAt(flows, '2026-07-01'), 0);
 });
