@@ -9,11 +9,10 @@
  *   public/brand/mark.png          transparent, 512px (invoices, splash)
  *   public/brand/mark-256.png      transparent, 256px (navbar, auth: FintraxaLogo)
  *   public/fintraxa-mark.webp      256px tile: the mark on pitch black, rounded (navbar, auth)
- *   public/icons/icon-{32,192,512}.png, icon-maskable-512.png, favicon.ico,
- *   public/apple-touch-icon.png    on pitch black (installed app)
+ *   …then runs build-app-icons.mjs for public/icons/* and apple-touch-icon.png
  */
 import sharp from 'sharp';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 
 const src = process.argv[2];
 if (!src) { console.error('usage: node scripts/build-brand-logo.mjs <source image>'); process.exit(1); }
@@ -53,17 +52,6 @@ const tile = async (size, pad, radius = 0) => {
 };
 
 await (await tile(256, 0.2, 56)).webp({ quality: 90 }).toFile('public/fintraxa-mark.webp');
-await (await tile(32, 0.12)).png().toFile('public/icons/icon-32.png');
-await (await tile(192, 0.18)).png().toFile('public/icons/icon-192.png');
-await (await tile(512, 0.18)).png().toFile('public/icons/icon-512.png');
-await (await tile(512, 0.26)).png().toFile('public/icons/icon-maskable-512.png'); // maskable safe zone: inner 80%
-await (await tile(180, 0.18)).png().toFile('public/apple-touch-icon.png');
-
-// favicon.ico: a single 48px PNG inside an ICO container.
-const png48 = await (await tile(48, 0.12)).png().toBuffer();
-const head = Buffer.alloc(22);
-head.writeUInt16LE(0, 0); head.writeUInt16LE(1, 2); head.writeUInt16LE(1, 4);
-head.writeUInt8(48, 6); head.writeUInt8(48, 7); head.writeUInt8(0, 8); head.writeUInt8(0, 9);
-head.writeUInt16LE(1, 10); head.writeUInt16LE(32, 12); head.writeUInt32LE(png48.length, 14); head.writeUInt32LE(22, 18);
-await writeFile('public/icons/favicon.ico', Buffer.concat([head, png48]));
+// Installed-app icons (rounded, larger mark) are built from public/brand/mark.png.
+await import('./build-app-icons.mjs');
 console.log('brand files written');
