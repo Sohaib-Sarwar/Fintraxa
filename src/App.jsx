@@ -16,6 +16,8 @@ const IEDashboard = lazy(() => import('./features/income-expense/Dashboard'));
 const HomeDashboard = lazy(() => import('./features/home/Dashboard'));
 const AddTransaction = lazy(() => import('./features/income-expense/AddTransaction'));
 const Transactions = lazy(() => import('./features/income-expense/Transactions'));
+const PassiveIncome = lazy(() => import('./features/income-expense/PassiveIncome'));
+const SpendingInsights = lazy(() => import('./features/income-expense/SpendingInsights'));
 /* The Funds and Stocks sub-pages are no longer routed to their leaf
    components. Each section wrapper owns its own paths so that the URL and the
    mobile carousel stay in step — see MFSection / PSXSection. The wrappers lazy
@@ -79,6 +81,8 @@ export default function App() {
           {/* Income/Expense (Finance) — keep "/" paths for backward compatibility */}
           <Route path="add-transaction" element={page(AddTransaction)} />
           <Route path="transactions" element={page(Transactions)} />
+          <Route path="spending" element={page(SpendingInsights)} />
+          <Route path="passive-income" element={page(PassiveIncome)} />
           {/* Mutual Funds — every path renders the section, which picks the page */}
           <Route path="funds" element={page(MFSection)} />
           <Route path="funds/add" element={page(MFSection)} />

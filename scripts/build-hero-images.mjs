@@ -1,27 +1,29 @@
 /**
- * Home "Net worth" card backgrounds → public/hero/*.webp
+ * Home "Net worth" card artwork → public/hero/networth-{dark,light}.webp
  *
- *   node scripts/build-hero-images.mjs <source.png>
+ *   node scripts/build-hero-images.mjs <dark.png> <light.png>
  *
- * The source is the dark artwork (graphite ribbons on black, generated with
- * Higgsfield Z Image). The light variant is the same artwork inverted and
- * lifted, so both themes share one composition.
+ * Two separate renders (one per theme), not an inverted copy: the light one
+ * is desaturated a little so its background sits neutral against the white
+ * card; both are resized for a ~1200 px wide card at 1.3x and saved as WebP.
+ * The card fades the art in from the right (SummaryCard), so the subject
+ * belongs on the right half of the source image.
  */
 import sharp from 'sharp';
 import { mkdirSync } from 'node:fs';
 
-const src = process.argv[2];
-if (!src) { console.error('usage: node scripts/build-hero-images.mjs <source.png>'); process.exit(1); }
+const [, , dark, light] = process.argv;
+if (!dark || !light) {
+  console.error('usage: node scripts/build-hero-images.mjs <dark.png> <light.png>');
+  process.exit(1);
+}
 mkdirSync('public/hero', { recursive: true });
+const WIDTH = 1600;
 
-const base = sharp(src).resize({ width: 1600, withoutEnlargement: true });
-await base.clone().webp({ quality: 74 }).toFile('public/hero/networth-dark.webp');
-// Invert (black → white, silver ribbons → grey), then compress the range so
-// the ribbons stay soft on a near-white card.
-// Two passes: sharp would otherwise apply linear() before negate().
-const inverted = await base.clone().negate({ alpha: false }).png().toBuffer();
-await sharp(inverted).linear(0.42, 255 * 0.58).webp({ quality: 74 }).toFile('public/hero/networth-light.webp');
+await sharp(dark).resize({ width: WIDTH }).webp({ quality: 80, effort: 6 }).toFile('public/hero/networth-dark.webp');
+await sharp(light).resize({ width: WIDTH }).modulate({ saturation: 0.55, brightness: 1.01 }).webp({ quality: 82, effort: 6 }).toFile('public/hero/networth-light.webp');
+
 for (const f of ['networth-dark', 'networth-light']) {
   const m = await sharp(`public/hero/${f}.webp`).metadata();
-  console.log(f, `${m.width}x${m.height}`);
+  console.log(`${f}.webp ${m.width}x${m.height}`);
 }

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { Fragment, useState, useMemo, useEffect, useCallback } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   Box, Typography, IconButton, Avatar, useMediaQuery, useTheme, Tooltip,
@@ -6,14 +6,16 @@ import {
 } from '@mui/material';
 import {
   Home, LayoutDashboard, CandlestickChart, PieChart, Plus,
-  ReceiptText, TrendingUp, Compass, Wallet, FlaskConical, Wrench, FileUp, HandCoins,
+  ReceiptText, TrendingUp, Compass, Wallet, FlaskConical, Wrench, FileUp, HandCoins, Radar,
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '../../store/authStore';
 import { useAppStore } from '../../store/appStore';
-import FintraxaLogo from '../FintraxaLogo';
-import ProfilePanel from '../ProfilePanel';
+import { BrandLockup } from '../FintraxaLogo';
+import SettingsDialog from '../../features/settings/SettingsDialog';
+import XyroLauncher from '../../features/xyro/XyroLauncher';
+import { useProfile, useAvatarUrl } from '../../lib/profile/useProfile';
 import PullToRefresh from '../PullToRefresh';
 import SubNav from '../SubNav';
 import { clickable } from '../../lib/a11y';
@@ -25,6 +27,8 @@ import { clickable } from '../../lib/a11y';
    orphan every saved category. */
 const icon = (I) => <I size={19} strokeWidth={1.9} />;
 const pageIcon = (I) => <I size={18} strokeWidth={1.9} />;
+/** The Passive Income leaf, sized like the line icons beside it. */
+const passiveIcon = <img src="/passive-logo.png" alt="" width={26} height={26} style={{ objectFit: 'contain', display: 'block', margin: -4 }} />;
 
 /* ─── Section Definitions ─── */
 const sections = [
@@ -48,6 +52,8 @@ const sections = [
       { label: 'Dashboard', path: '/', icon: pageIcon(LayoutDashboard) },
       { label: 'Add', path: '/add-transaction', icon: pageIcon(Plus) },
       { label: 'Transactions', path: '/transactions', icon: pageIcon(ReceiptText) },
+      { label: 'Insights', path: '/spending', icon: pageIcon(Radar) },
+      { label: 'Passive income', path: '/passive-income', icon: passiveIcon },
     ],
   },
   {
@@ -82,6 +88,9 @@ const sections = [
   },
 ];
 
+/** The active highlight glides between items (shared layout), like the sidebar labels slide in. */
+const NAV_SPRING = { type: 'spring', stiffness: 520, damping: 40, mass: 0.8 };
+
 /* ─── Glass Style Helper ─── */
 const glass = (isDark, opacity = 0.6) => ({
   bgcolor: isDark ? `rgba(10,10,10,${opacity})` : `rgba(255,255,255,${opacity})`,
@@ -104,8 +113,19 @@ export default function AppLayout() {
   const user = useAuthStore((s) => s.user);
   const loadUserPreferences = useAppStore((s) => s.loadUserPreferences);
   const fetchExchangeRates = useAppStore((s) => s.fetchExchangeRates);
+  // Privacy mode changes how every amount is formatted: remount the page so all of them repaint at once.
+  const privacyKey = useAppStore((s) => (s.hideAmounts ? 'amounts-hidden' : 'amounts-shown'));
   const [sidebarHovered, setSidebarHovered] = useState(false);
-  const [profileOpen, setProfileOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false); // false | true | a section id
+  // Anything (e.g. Xyro's "Add your key" button) can open Settings on a given section.
+  useEffect(() => {
+    const open = (e) => setProfileOpen(e.detail?.tab || true);
+    window.addEventListener('fintraxa:open-settings', open);
+    return () => window.removeEventListener('fintraxa:open-settings', open);
+  }, []);
+  const { data: profile } = useProfile();
+  const { data: avatarUrl } = useAvatarUrl(profile?.avatar_path);
+  const initial = (profile?.full_name || user?.email || '?').slice(0, 1).toUpperCase();
 
   /* Pull-to-refresh.
      This used to `window.location.reload()` behind an artificial 600 ms wait:
@@ -142,7 +162,8 @@ export default function AppLayout() {
     [activeSection],
   );
 
-  const isPageActive = (path) => (path === '/' ? location.pathname === '/' : location.pathname === path);
+  // A page stays highlighted on its own sub-pages (e.g. /funds/imports/:id).
+  const isPageActive = (path) => (path === '/' ? location.pathname === '/' : location.pathname === path || location.pathname.startsWith(`${path}/`));
   const sidebarW = sidebarHovered ? SIDEBAR_EXPANDED : SIDEBAR_COLLAPSED;
 
   /* Funds and Stocks carry their own tab strip inside the swipe carousel;
@@ -197,12 +218,15 @@ export default function AppLayout() {
               px: 2.25,
               py: 1,
               borderRadius: '9999px',
-              ...glass(isDark, 0.62),
-              backdropFilter: 'blur(32px) saturate(185%)',
-              WebkitBackdropFilter: 'blur(32px) saturate(185%)',
+              ...glass(isDark, 0.55),
+              backgroundImage: isDark
+                ? 'linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.01))'
+                : 'linear-gradient(180deg, rgba(255,255,255,0.55), rgba(255,255,255,0.2))',
+              backdropFilter: 'blur(28px) saturate(180%)',
+              WebkitBackdropFilter: 'blur(28px) saturate(180%)',
               boxShadow: isDark
-                ? '0 18px 52px rgba(0,0,0,0.62), 0 6px 20px rgba(0,0,0,0.36), inset 0 1px 0 rgba(255,255,255,0.06)'
-                : '0 18px 52px rgba(0,0,0,0.15), 0 6px 20px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.82)',
+                ? '0 18px 52px rgba(0,0,0,0.62), 0 6px 20px rgba(0,0,0,0.36), inset 0 1px 0 rgba(255,255,255,0.08), inset 0 -1px 0 rgba(255,255,255,0.05)'
+                : '0 18px 52px rgba(0,0,0,0.13), 0 6px 20px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.95), inset 0 -1px 0 rgba(0,0,0,0.03)',
               width: 'min(1160px, calc(100vw - 32px))',
             }}
           >
@@ -210,19 +234,13 @@ export default function AppLayout() {
             <Box
               {...clickable(() => navigate('/home'), { label: 'Fintraxa home' })}
               sx={{
-                display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer',
-                mr: 1.25, pr: 1.75, borderRadius: 2,
-                borderRight: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'}`,
+                display: 'flex', alignItems: 'center', cursor: 'pointer', mr: 1.25, borderRadius: 999,
+                transition: 'transform .2s ease', '&:hover': { transform: 'translateY(-1px)' },
+                '@media (prefers-reduced-motion: reduce)': { transition: 'none', '&:hover': { transform: 'none' } },
                 ...focusRing,
               }}
             >
-              <FintraxaLogo size={26} />
-              <Typography sx={{
-                fontSize: '0.95rem', fontWeight: 800, letterSpacing: '-0.04em',
-                color: 'text.primary',
-              }}>
-                Fintraxa
-              </Typography>
+              <BrandLockup height={40} isDark={isDark} />
             </Box>
 
             {/* Centered Section Buttons */}
@@ -234,6 +252,8 @@ export default function AppLayout() {
                     <Box
                       {...clickable(() => navigate(sec.basePath), { label: sec.label, selected: isActive })}
                       sx={{
+                        position: 'relative',
+                        isolation: 'isolate',
                         height: 40,
                         px: 1.35,
                         borderRadius: '9999px',
@@ -242,15 +262,11 @@ export default function AppLayout() {
                         gap: 0.9,
                         cursor: 'pointer',
                         color: isActive ? (isDark ? '#000' : '#fff') : 'text.secondary',
-                        bgcolor: isActive ? (isDark ? '#fff' : '#000') : 'transparent',
-                        border: `1px solid ${isActive
-                          ? (isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.7)')
-                          : (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)')}`,
-                        transition: 'background-color 0.2s ease, color 0.2s ease, transform 0.2s ease',
+                        border: `1px solid ${isActive ? 'transparent' : (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)')}`,
+                        background: isActive ? 'transparent' : (isDark ? 'linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))' : 'linear-gradient(180deg, rgba(255,255,255,0.7), rgba(255,255,255,0.3))'),
+                        transition: 'color 0.25s ease, transform 0.2s ease, background-color 0.2s ease',
                         '&:hover': {
-                          bgcolor: isActive
-                            ? (isDark ? 'rgba(255,255,255,0.88)' : 'rgba(0,0,0,0.86)')
-                            : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'),
+                          bgcolor: isActive ? 'transparent' : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'),
                           color: isActive ? (isDark ? '#000' : '#fff') : 'text.primary',
                           transform: 'translateY(-1px)',
                         },
@@ -261,6 +277,13 @@ export default function AppLayout() {
                         ...focusRing,
                       }}
                     >
+                      {isActive && (
+                        <motion.span layoutId="top-nav-active" transition={NAV_SPRING} aria-hidden style={{
+                          position: 'absolute', inset: -1, borderRadius: 9999, zIndex: -1,
+                          background: isDark ? 'linear-gradient(180deg, #ffffff, #e9e9ec)' : 'linear-gradient(180deg, #1a1a1d, #000000)',
+                          boxShadow: isDark ? '0 4px 14px rgba(255,255,255,0.12)' : '0 6px 16px -4px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.14)',
+                        }} />
+                      )}
                       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         {sec.icon}
                       </Box>
@@ -292,8 +315,8 @@ export default function AppLayout() {
                     '@media (prefers-reduced-motion: reduce)': { transition: 'none', '&:hover': { transform: 'none' } },
                   }}
                 >
-                  <Avatar sx={{ width: 28, height: 28, bgcolor: isDark ? '#fff' : '#000', color: isDark ? '#000' : '#fff', fontSize: '0.7rem', fontWeight: 700 }}>
-                    {user?.email?.[0]?.toUpperCase() ?? '?'}
+                  <Avatar src={avatarUrl || undefined} alt="" sx={{ width: 28, height: 28, bgcolor: isDark ? '#fff' : '#000', color: isDark ? '#000' : '#fff', fontSize: '0.7rem', fontWeight: 700 }}>
+                    {initial}
                   </Avatar>
                 </IconButton>
               </Tooltip>
@@ -319,10 +342,13 @@ export default function AppLayout() {
                 width: sidebarW,
                 zIndex: 1200,
                 borderRadius: '28px',
-                ...glass(isDark, 0.55),
+                ...glass(isDark, 0.5),
+                backgroundImage: isDark
+                  ? 'linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.01))'
+                  : 'linear-gradient(180deg, rgba(255,255,255,0.55), rgba(255,255,255,0.2))',
                 boxShadow: isDark
-                  ? '0 22px 56px rgba(0,0,0,0.65), 0 8px 22px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)'
-                  : '0 22px 56px rgba(0,0,0,0.14), 0 8px 22px rgba(0,0,0,0.07), inset 0 1px 0 rgba(255,255,255,0.75)',
+                  ? '0 22px 56px rgba(0,0,0,0.65), 0 8px 22px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.08)'
+                  : '0 22px 56px rgba(0,0,0,0.12), 0 8px 22px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.95)',
                 display: 'flex',
                 flexDirection: 'column',
                 overflow: 'hidden',
@@ -344,23 +370,14 @@ export default function AppLayout() {
                 }}>
                   {currentSection?.icon}
                 </Box>
-                <AnimatePresence>
-                  {sidebarHovered && (
-                    <motion.div
-                      initial={{ opacity: 0, x: -8 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: -8 }}
-                      transition={{ duration: 0.2 }}
-                    >
-                      <Typography sx={{
-                        fontSize: '0.82rem', fontWeight: 700, color: 'text.primary',
-                        whiteSpace: 'nowrap', letterSpacing: '-0.01em',
-                      }}>
-                        {currentSection?.label}
-                      </Typography>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                <Typography aria-hidden={!sidebarHovered} sx={{
+                  fontSize: '0.82rem', fontWeight: 700, color: 'text.primary', whiteSpace: 'nowrap', letterSpacing: '-0.01em',
+                  opacity: sidebarHovered ? 1 : 0, transform: sidebarHovered ? 'none' : 'translateX(-8px)',
+                  transition: sidebarHovered ? 'opacity .2s ease .08s, transform .2s ease .08s' : 'opacity .12s ease, transform .12s ease',
+                  '@media (prefers-reduced-motion: reduce)': { transition: 'none' },
+                }}>
+                  {currentSection?.label}
+                </Typography>
               </Box>
 
               {/* Page Links */}
@@ -372,40 +389,42 @@ export default function AppLayout() {
                       <Box
                         {...clickable(() => navigate(page.path), { label: page.label, selected: isActive })}
                         sx={{
-                          display: 'flex', alignItems: 'center', justifyContent: sidebarHovered ? 'flex-start' : 'center', gap: 1.5,
-                          px: sidebarHovered ? 1.5 : 0.5, py: 1.1,
-                          borderRadius: 2.5, cursor: 'pointer', position: 'relative',
+                          // Fixed left padding (centres the 26px icon in the 46px closed item): nothing re-flows when the bar opens or closes.
+                          display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 1.5,
+                          pl: '10px', pr: 1, py: 1.1, overflow: 'hidden', whiteSpace: 'nowrap',
+                          borderRadius: 2.5, cursor: 'pointer', position: 'relative', isolation: 'isolate',
                           color: isActive ? (isDark ? '#000' : '#fff') : 'text.secondary',
-                          bgcolor: isActive ? (isDark ? '#fff' : '#000') : 'transparent',
-                          transition: 'background-color 0.15s ease, color 0.15s ease',
-                          overflow: 'hidden', minHeight: 42,
+                          transition: 'background-color 0.15s ease, color 0.25s ease',
+                          minHeight: 42,
                           '&:hover': {
-                            bgcolor: isActive ? (isDark ? 'rgba(255,255,255,0.85)' : 'rgba(0,0,0,0.8)') : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'),
+                            bgcolor: isActive ? 'transparent' : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'),
                             color: isActive ? (isDark ? '#000' : '#fff') : 'text.primary',
                           },
-                          ...(isActive && { boxShadow: isDark ? '0 4px 12px rgba(255,255,255,0.15)' : '0 4px 12px rgba(0,0,0,0.2)' }),
                           ...focusRing,
                         }}
                       >
+                        {isActive && (
+                          <motion.span layoutId="side-nav-active" transition={NAV_SPRING} aria-hidden style={{
+                            position: 'absolute', inset: 0, borderRadius: 10, zIndex: -1,
+                            background: isDark ? 'linear-gradient(180deg, #ffffff, #e9e9ec)' : 'linear-gradient(180deg, #1a1a1d, #000000)',
+                            boxShadow: isDark ? '0 4px 12px rgba(255,255,255,0.15)' : '0 4px 12px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.14)',
+                          }} />
+                        )}
                         <Box sx={{
                           flexShrink: 0, width: 26, height: 26,
                           display: 'grid', placeItems: 'center',
                         }}>
                           {page.icon}
                         </Box>
-                        <AnimatePresence>
-                          {sidebarHovered && (
-                            <motion.span
-                              initial={{ opacity: 0, x: -6 }}
-                              animate={{ opacity: 1, x: 0 }}
-                              exit={{ opacity: 0, x: -6 }}
-                              transition={{ duration: 0.18 }}
-                              style={{ whiteSpace: 'nowrap', fontSize: '0.78rem', fontWeight: isActive ? 600 : 500 }}
-                            >
-                              {page.label}
-                            </motion.span>
-                          )}
-                        </AnimatePresence>
+                        {/* Always rendered, so the row never re-lays out; it fades and slides in as the bar opens. */}
+                        <Box component="span" aria-hidden={!sidebarHovered} sx={{
+                          whiteSpace: 'nowrap', fontSize: '0.78rem', fontWeight: isActive ? 600 : 500,
+                          opacity: sidebarHovered ? 1 : 0, transform: sidebarHovered ? 'none' : 'translateX(-6px)',
+                          transition: sidebarHovered ? 'opacity .2s ease .08s, transform .2s ease .08s' : 'opacity .12s ease, transform .12s ease',
+                          '@media (prefers-reduced-motion: reduce)': { transition: 'none' },
+                        }}>
+                          {page.label}
+                        </Box>
                       </Box>
                     </Tooltip>
                   );
@@ -456,10 +475,8 @@ export default function AppLayout() {
         >
           {isHomeSection ? (
             <>
-              <FintraxaLogo size={30} sx={{ mr: 1 }} />
-              <Typography sx={{ flex: 1, fontSize: '1.05rem', fontWeight: 800, letterSpacing: '-0.04em', color: 'text.primary' }}>
-                Fintraxa
-              </Typography>
+              <BrandLockup height={36} isDark={isDark} />
+              <Box sx={{ flex: 1 }} />
             </>
           ) : (
             <>
@@ -477,8 +494,8 @@ export default function AppLayout() {
             </>
           )}
           <IconButton size="small" onClick={() => setProfileOpen(true)} aria-label="Open profile and settings" sx={{ p: 0.5 }}>
-            <Avatar sx={{ width: 30, height: 30, bgcolor: isDark ? '#fff' : '#000', color: isDark ? '#000' : '#fff', fontSize: '0.7rem', fontWeight: 700 }}>
-              {user?.email?.[0]?.toUpperCase() ?? '?'}
+            <Avatar src={avatarUrl || undefined} alt="" sx={{ width: 30, height: 30, bgcolor: isDark ? '#fff' : '#000', color: isDark ? '#000' : '#fff', fontSize: '0.7rem', fontWeight: 700 }}>
+              {initial}
             </Avatar>
           </IconButton>
         </Box>
@@ -505,10 +522,10 @@ export default function AppLayout() {
           {isMobile ? (
             <PullToRefresh onRefresh={handlePullRefresh}>
               {mobileSubNav && <SubNav links={mobileSubNav} />}
-              <Outlet />
+              <Fragment key={privacyKey}><Outlet /></Fragment>
             </PullToRefresh>
           ) : (
-            <Outlet />
+            <Fragment key={privacyKey}><Outlet /></Fragment>
           )}
         </Box>
       </Box>
@@ -552,7 +569,8 @@ export default function AppLayout() {
       )}
 
       {/* ─── Profile Panel ─── */}
-      <ProfilePanel open={profileOpen} onClose={() => setProfileOpen(false)} />
+      {profileOpen && <SettingsDialog open onClose={() => setProfileOpen(false)} initialSection={typeof profileOpen === 'string' ? profileOpen : 'profile'} />}
+      <XyroLauncher />
     </Box>
   );
 }

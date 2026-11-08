@@ -1,117 +1,100 @@
 import { useState, useEffect } from 'react';
-import { Box, Button, Typography, IconButton, useTheme, useMediaQuery } from '@mui/material';
-import { GetAppRounded, CloseRounded } from '@mui/icons-material';
-import { motion, AnimatePresence } from 'framer-motion';
+import { Box, ButtonBase, Typography, IconButton, useMediaQuery } from '@mui/material';
+import { CloseRounded, IosShareRounded } from '@mui/icons-material';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { useFx } from './fx';
 
+const SNOOZE_KEY = 'fintraxa.install.snoozedUntil';
+const SNOOZE_DAYS = 14;
+const snoozed = () => { try { return Number(localStorage.getItem(SNOOZE_KEY) || 0) > Date.now(); } catch { return false; } };
+const snooze = () => { try { localStorage.setItem(SNOOZE_KEY, String(Date.now() + SNOOZE_DAYS * 86_400_000)); } catch { /* private mode: ask again next visit */ } };
+const standalone = () => window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true;
+// iPhone / iPad Safari never fires beforeinstallprompt; it installs from the Share sheet.
+const isIosSafari = () => /iphone|ipad|ipod/i.test(navigator.userAgent) && /safari/i.test(navigator.userAgent) && !/crios|fxios|edgios/i.test(navigator.userAgent);
+
+/**
+ * "Install Fintraxa" card, on desktop and phones. Chromium browsers hand us
+ * their install prompt (beforeinstallprompt) and the card's button opens it;
+ * on iOS Safari the card explains Share, then Add to Home Screen. "Not now"
+ * hides it for two weeks; an installed app never sees it.
+ * Desktop: bottom-left (Xyro lives bottom-right). Phones: above the tab bar.
+ */
 export default function InstallPrompt() {
-  const [deferredPrompt, setDeferredPrompt] = useState(null);
-  const [showBanner, setShowBanner] = useState(false);
-  const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
-
-  /* Same breakpoint as AuthPage. This banner is a bottom sheet sized for a
-     phone, and desktop Chrome already offers Install from the omnibox, so on
-     desktop we never register the listener at all — calling preventDefault()
-     there would only suppress a prompt we then never replace. */
+  const t = useFx();
+  const reduce = useReducedMotion();
   const isMobile = useMediaQuery('(max-width:900px)');
+  const [deferred, setDeferred] = useState(null);
+  const [mode, setMode] = useState(null); // null | 'prompt' | 'ios'
 
   useEffect(() => {
-    if (!isMobile) return undefined;
-    // Don't show if already installed as PWA
-    if (window.matchMedia('(display-mode: standalone)').matches) return undefined;
-
+    if (standalone() || snoozed()) return undefined;
     let timer;
     const handler = (e) => {
       e.preventDefault();
-      setDeferredPrompt(e);
-      // Show banner after a short delay so it doesn't interrupt initial load
-      timer = setTimeout(() => setShowBanner(true), 3000);
+      setDeferred(e);
+      timer = setTimeout(() => setMode('prompt'), 4000); // not during the first paint
     };
+    const installed = () => { setMode(null); setDeferred(null); };
     window.addEventListener('beforeinstallprompt', handler);
+    window.addEventListener('appinstalled', installed);
+    if (isIosSafari()) timer = setTimeout(() => setMode('ios'), 4000);
     return () => {
       window.removeEventListener('beforeinstallprompt', handler);
+      window.removeEventListener('appinstalled', installed);
       clearTimeout(timer);
     };
-  }, [isMobile]);
+  }, []);
 
-  const handleInstall = async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      setShowBanner(false);
-      setDeferredPrompt(null);
-    }
+  const install = async () => {
+    if (!deferred) return;
+    deferred.prompt();
+    const { outcome } = await deferred.userChoice;
+    setDeferred(null);
+    setMode(null);
+    if (outcome !== 'accepted') snooze();
   };
-
-  const handleDismiss = () => {
-    setShowBanner(false);
-    // Don't show again for this session
-    setDeferredPrompt(null);
-  };
+  const dismiss = () => { snooze(); setMode(null); };
 
   return (
     <AnimatePresence>
-      {showBanner && isMobile && (
-        <motion.div
-          initial={{ opacity: 0, y: 80 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 80 }}
-          transition={{ type: 'spring', damping: 22, stiffness: 260 }}
+      {mode && (
+        <motion.div role="dialog" aria-label="Install Fintraxa"
+          initial={reduce ? false : { opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} exit={reduce ? { opacity: 0 } : { opacity: 0, y: 24 }}
+          transition={{ type: 'spring', damping: 26, stiffness: 300 }}
           style={{
-            position: 'fixed',
-            bottom: 'calc(env(safe-area-inset-bottom, 0px) + 62px)',
-            left: 12,
-            right: 12,
-            zIndex: 1400,
-          }}
-        >
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 1.5,
-              p: 1.5,
-              pl: 2,
-              borderRadius: '16px',
-              bgcolor: isDark ? 'rgba(20,20,20,0.92)' : 'rgba(255,255,255,0.95)',
-              backdropFilter: 'blur(20px)',
-              WebkitBackdropFilter: 'blur(20px)',
-              border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'}`,
-              boxShadow: isDark
-                ? '0 16px 40px rgba(0,0,0,0.6)'
-                : '0 16px 40px rgba(0,0,0,0.12)',
-            }}
-          >
-            <GetAppRounded sx={{ fontSize: 28, color: isDark ? '#fff' : '#000', flexShrink: 0 }} />
+            position: 'fixed', zIndex: 1400,
+            ...(isMobile
+              ? { left: 12, right: 12, bottom: 'calc(env(safe-area-inset-bottom, 0px) + 76px)' }
+              : { left: 24, bottom: 24, width: 360 }),
+          }}>
+          <Box sx={{
+            display: 'flex', alignItems: 'center', gap: 1.5, p: 1.5, borderRadius: '20px',
+            bgcolor: t.surface === '#ffffff' ? 'rgba(255,255,255,0.86)' : 'rgba(18,18,20,0.86)',
+            backdropFilter: 'blur(24px) saturate(170%)', WebkitBackdropFilter: 'blur(24px) saturate(170%)',
+            border: t.glass.border, boxShadow: t.shadowLg,
+          }}>
+            {/* The installed icon itself: the gold mark on black. */}
+            <Box component="img" src="/icons/icon-192.png" alt="" width={48} height={48} sx={{ borderRadius: '12px', flexShrink: 0, display: 'block' }} />
             <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: 'text.primary', lineHeight: 1.3 }}>
-                Install Fintraxa
+              <Typography sx={{ fontSize: '0.86rem', fontWeight: 700, color: t.ink, lineHeight: 1.3 }}>Install Fintraxa</Typography>
+              <Typography sx={{ fontSize: '0.7rem', color: t.muted, lineHeight: 1.35 }}>
+                {mode === 'ios'
+                  ? <>Tap <IosShareRounded sx={{ fontSize: 13, verticalAlign: '-2px' }} /> Share, then Add to Home Screen.</>
+                  : isMobile ? 'Open it from your home screen, full screen.' : 'Open it from your desktop or dock, in its own window.'}
               </Typography>
-              <Typography sx={{ fontSize: '0.68rem', color: 'text.secondary', lineHeight: 1.3 }}>
-                Add to home screen for the full app experience
-              </Typography>
+              {mode === 'prompt' && (
+                <Box sx={{ display: 'flex', gap: 0.75, mt: 1 }}>
+                  <ButtonBase onClick={install} sx={{ height: 30, px: 1.75, borderRadius: 999, bgcolor: t.inv, color: t.invInk, fontSize: '0.74rem', fontWeight: 700, fontFamily: 'inherit' }}>
+                    Install
+                  </ButtonBase>
+                  <ButtonBase onClick={dismiss} sx={{ height: 30, px: 1.5, borderRadius: 999, ...t.glass, color: t.ink2, fontSize: '0.74rem', fontWeight: 650, fontFamily: 'inherit' }}>
+                    Not now
+                  </ButtonBase>
+                </Box>
+              )}
             </Box>
-            <Button
-              onClick={handleInstall}
-              size="small"
-              sx={{
-                borderRadius: '10px',
-                px: 2,
-                py: 0.8,
-                fontSize: '0.72rem',
-                fontWeight: 700,
-                textTransform: 'none',
-                bgcolor: isDark ? '#fff' : '#000',
-                color: isDark ? '#000' : '#fff',
-                flexShrink: 0,
-                '&:hover': { bgcolor: isDark ? '#e0e0e0' : '#222' },
-              }}
-            >
-              Install
-            </Button>
-            <IconButton onClick={handleDismiss} size="small" sx={{ flexShrink: 0 }}>
-              <CloseRounded sx={{ fontSize: 18, color: 'text.secondary' }} />
+            <IconButton onClick={dismiss} size="small" aria-label="Close" sx={{ alignSelf: 'flex-start', flexShrink: 0 }}>
+              <CloseRounded sx={{ fontSize: 18, color: t.muted }} />
             </IconButton>
           </Box>
         </motion.div>

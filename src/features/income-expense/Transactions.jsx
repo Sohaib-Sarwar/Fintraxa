@@ -7,6 +7,7 @@ import { useDateRange, inRange, rangeLabel } from '../../lib/dateRange';
 import { useFx, PageHeader, Seg, PillSelect, FitPage, FONT_NUM } from '../../components/fx';
 import CategoryBadge from './CategoryBadge';
 import TransactionEditor from './TransactionEditor';
+import StockLogo from '../../components/StockLogo';
 
 const fmtDate = (d) => (d ? new Date(`${d}T00:00:00`).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
 
@@ -90,15 +91,19 @@ const COLS = '100px minmax(0, 1.4fr) minmax(0, 2fr) 140px 24px';
 
 function Row({ x, mobile, onOpen }) {
   const t = useFx();
+  const acct = x.savings_accounts; // savings profit credited to a bank account
+  const logo = (size) => (acct ? <StockLogo symbol={acct.bank_symbol} size={size >= 34 ? 'md' : 'sm'} /> : <CategoryBadge icon={x.categories?.icon} name={x.categories?.name} size={size} />);
+  const title = acct ? acct.name : x.categories?.name ?? 'Uncategorized';
+  const detail = acct ? [acct.bank_name, x.notes].filter(Boolean).join(', ') : x.notes;
   const income = x.type === 'credit';
   const amount = <Typography data-numeric noWrap sx={{ fontFamily: FONT_NUM, fontSize: '0.84rem', fontWeight: 650, letterSpacing: '-0.02em', textAlign: 'right', color: income ? t.pos : t.ink }}>{income ? '+' : '−'}{formatCurrency(Number(x.amount))}</Typography>;
   if (mobile) {
     return (
       <ButtonBase onClick={onOpen} sx={{ display: 'flex', width: '100%', alignItems: 'center', gap: 1.25, py: 1, px: 0.75, borderBottom: `1px solid ${t.hairline}`, textAlign: 'left', fontFamily: 'inherit' }}>
-        <CategoryBadge icon={x.categories?.icon} name={x.categories?.name} size={34} />
+        {logo(34)}
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography noWrap sx={{ fontSize: '0.84rem', fontWeight: 650 }}>{x.categories?.name ?? 'Uncategorized'}</Typography>
-          <Typography noWrap sx={{ fontSize: '0.68rem', color: t.muted }}>{fmtDate(x.date)}{x.notes ? `, ${x.notes}` : ''}</Typography>
+          <Typography noWrap sx={{ fontSize: '0.84rem', fontWeight: 650 }}>{title}</Typography>
+          <Typography noWrap sx={{ fontSize: '0.68rem', color: t.muted }}>{fmtDate(x.date)}{detail ? `, ${detail}` : ''}</Typography>
         </Box>
         {amount}
       </ButtonBase>
@@ -112,10 +117,10 @@ function Row({ x, mobile, onOpen }) {
     }}>
       <Typography sx={{ fontFamily: FONT_NUM, fontSize: '0.78rem', color: t.ink2, letterSpacing: '-0.02em' }}>{fmtDate(x.date)}</Typography>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.1, minWidth: 0 }}>
-        <CategoryBadge icon={x.categories?.icon} name={x.categories?.name} size={28} />
-        <Typography noWrap sx={{ fontSize: '0.8rem', fontWeight: 650 }}>{x.categories?.name ?? 'Uncategorized'}</Typography>
+        {logo(28)}
+        <Typography noWrap sx={{ fontSize: '0.8rem', fontWeight: 650 }}>{title}</Typography>
       </Box>
-      <Typography noWrap sx={{ fontSize: '0.76rem', color: t.muted }}>{x.notes || '—'}</Typography>
+      <Typography noWrap sx={{ fontSize: '0.76rem', color: t.muted }}>{detail || '—'}</Typography>
       {amount}
       <EditRounded className="edit" sx={{ fontSize: 15, color: t.muted, opacity: 0, transition: 'opacity .16s' }} />
     </ButtonBase>

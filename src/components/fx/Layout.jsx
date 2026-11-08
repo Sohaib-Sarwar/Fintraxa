@@ -2,10 +2,11 @@ import { Box, ButtonBase, Tooltip, Typography, IconButton, useMediaQuery } from 
 import { InfoOutlined, ChevronLeftRounded, ChevronRightRounded, NorthEastRounded, SouthEastRounded } from '@mui/icons-material';
 import { useFx, FONT_NUM } from './tokens';
 import RangeFilter from './RangeFilter';
+import PrivacyToggle from './PrivacyToggle';
 import { useDateRange, shortDate, effectiveEnd } from '../../lib/dateRange';
 
-/** Page title on the left, the global range filter (and any actions) on the right. */
-export function PageHeader({ title, icon, actions, filter = true, sub }) {
+/** Page title on the left; actions and the global range filter on the right (privacy eye only where asked: dashboards carry it beside their headline figure). */
+export function PageHeader({ title, icon, actions, filter = true, sub, privacy = false }) {
   const t = useFx();
   const isMobile = useMediaQuery('(max-width:768px)');
   const { range } = useDateRange();
@@ -21,6 +22,7 @@ export function PageHeader({ title, icon, actions, filter = true, sub }) {
       </Box>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, ml: 'auto' }}>
         {actions}
+        {privacy && <PrivacyToggle />}
         {filter && <RangeFilter />}
       </Box>
     </Box>

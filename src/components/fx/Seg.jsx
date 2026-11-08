@@ -31,15 +31,14 @@ export default function Seg({ options, value, onChange, label, size = 'md', inve
   return (
     <Box ref={ref} role="group" aria-label={label} sx={{
       position: 'relative', isolation: 'isolate', display: 'inline-flex', gap: '2px', p: '3px', borderRadius: 999,
-      bgcolor: t.surface2, border: `1px solid ${t.border}`, maxWidth: '100%', overflowX: 'auto', scrollbarWidth: 'none',
+      ...t.glass, maxWidth: '100%', overflowX: 'auto', scrollbarWidth: 'none',
       '&::-webkit-scrollbar': { display: 'none' }, flexShrink: 0, ...sx,
     }}>
       {thumb && (
         <Box aria-hidden sx={{
           position: 'absolute', left: 0, top: 0, zIndex: 0, borderRadius: 999, pointerEvents: 'none',
           width: thumb.w, height: thumb.h, transform: `translate(${thumb.x}px, ${thumb.y}px)`,
-          bgcolor: inverse ? t.inv : (t.surface === '#ffffff' ? '#fff' : t.surface3),
-          boxShadow: inverse || t.surface !== '#ffffff' ? 'none' : '0 1px 2px rgba(0,0,0,.08), 0 2px 8px rgba(0,0,0,.06)',
+          ...(inverse ? { bgcolor: t.inv, boxShadow: '0 2px 8px -2px rgba(0,0,0,.35)' } : t.glassThumb),
           transition: animate ? 'transform .34s cubic-bezier(.3,.7,.2,1), width .34s cubic-bezier(.3,.7,.2,1)' : 'none',
         }} />
       )}

@@ -6,6 +6,14 @@ function getCurrencyInfo() {
   return { ...CURRENCIES[code] || CURRENCIES.PKR, code };
 }
 
+/**
+ * Privacy mode: every money figure becomes the same row of dots, so neither
+ * the amount nor its size shows. Read at format time; the layout re-renders
+ * pages when the setting changes (AppLayout keys the outlet on it).
+ */
+export const MASK = '••••••';
+const hidden = () => useAppStore.getState().hideAmounts === true;
+
 /** Convert a PKR amount to the user's selected currency using live exchange rates */
 function convertFromPKR(amount) {
   const { currency, exchangeRates } = useAppStore.getState();
@@ -17,6 +25,7 @@ function convertFromPKR(amount) {
 
 /** 1,423,567 → "1.4M"; 845,231 → "845.2K"; 2,350,000,000 → "2.35B". Trailing zeros dropped. */
 export function compactNumber(n) {
+  if (hidden()) return '•••';
   const a = Math.abs(Number(n) || 0);
   const fmt = (x, dp) => String(+x.toFixed(dp));
   const s = a >= 1e9 ? `${fmt(a / 1e9, 2)}B` : a >= 1e6 ? `${fmt(a / 1e6, a >= 1e8 ? 0 : 1)}M` : a >= 1e3 ? `${fmt(a / 1e3, a >= 1e5 ? 0 : 1)}K` : fmt(a, 0);
@@ -26,12 +35,14 @@ export function compactNumber(n) {
 /** Currency in compact form ("Rs 1.4M"), converted to the user's currency like formatCurrency. */
 export function formatCompactCurrency(amount) {
   const { symbol } = getCurrencyInfo();
+  if (hidden()) return `${symbol} ${MASK}`;
   if (amount == null || isNaN(amount)) return `${symbol} 0`;
   return `${symbol} ${compactNumber(convertFromPKR(Number(amount)))}`;
 }
 
 /** Format number as currency with the user's selected symbol (auto-converts from PKR) */
 export function formatCurrency(amount, decimals = 0) {
+  if (hidden()) return `${getCurrencyInfo().symbol} ${MASK}`;
   if (amount == null || isNaN(amount)) {
     const { symbol } = getCurrencyInfo();
     return `${symbol} 0`;

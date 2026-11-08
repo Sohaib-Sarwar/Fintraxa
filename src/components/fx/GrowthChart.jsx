@@ -103,8 +103,8 @@ function Card({ cx, cy, payload: p, colors, surface, keys, caption, chartWidth }
         <Box sx={{ width: FW, height: FH, display: 'flex', alignItems: 'flex-end', justifyContent: place.justify }}>
           <Box sx={{
             position: 'relative', width: 'max-content', minWidth: 176, boxSizing: 'border-box', borderRadius: '12px', px: 1.75, py: 1.25,
-            bgcolor: colors.tip, color: '#fff', whiteSpace: 'nowrap', boxShadow: '0 12px 28px -10px rgba(5,10,30,.55)',
-            '&::after': { content: '""', position: 'absolute', left: place.caret, bottom: -6, width: 12, height: 12, bgcolor: colors.tip, transform: 'translateX(-50%) rotate(45deg)', borderRadius: '2px' },
+            bgcolor: colors.tip, color: '#fff', whiteSpace: 'nowrap', border: `1px solid ${colors.tipBorder}`, boxShadow: '0 14px 32px -12px rgba(0,0,0,.6)',
+            '&::after': { content: '""', position: 'absolute', left: place.caret, bottom: -6, width: 12, height: 12, bgcolor: colors.tip, borderRight: `1px solid ${colors.tipBorder}`, borderBottom: `1px solid ${colors.tipBorder}`, transform: 'translateX(-50%) rotate(45deg)', borderRadius: '2px' },
           }}>
             <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: 'rgba(255,255,255,0.9)' }}>
               {p.title ?? (p.live ? 'Today' : `${MONTHS_LONG[Number(p.month.slice(5, 7)) - 1]} ${p.month.slice(0, 4)}`)}

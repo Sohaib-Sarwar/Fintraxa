@@ -1,7 +1,8 @@
-import { Box, ButtonBase, Typography, useTheme } from '@mui/material';
+import { Box, ButtonBase, Typography, Tooltip, useTheme } from '@mui/material';
 import { useFx, FONT_NUM } from './tokens';
 import { formatCurrency } from '../../lib/formatters';
 import FitMoney from './FitMoney';
+import PrivacyToggle from './PrivacyToggle';
 
 /** Card surface used by every block on the dashboards (matches the app's Card). */
 export function Panel({ children, sx, component = 'section' }) {
@@ -30,14 +31,14 @@ export function PanelHeader({ title, sub, right }) {
 }
 
 /** The one large figure on a page; paisa set back in the muted ink. */
-export function HeroValue({ value }) {
+export function HeroValue({ value, after }) {
   const t = useFx();
   return (
     <Typography data-numeric component="div" sx={{
       fontFamily: FONT_NUM, fontWeight: 600, fontSize: { xs: '2.25rem', md: '3.1rem' }, letterSpacing: '-0.045em', lineHeight: 1.05,
       color: t.ink, mt: 0.5, minWidth: 0,
     }}>
-      {value === null || value === undefined ? '—' : <FitMoney value={value} digits={2} split dimColor={t.muted} />}
+      {value === null || value === undefined ? '—' : <FitMoney value={value} digits={2} split dimColor={t.muted} after={after} />}
     </Typography>
   );
 }
@@ -45,7 +46,7 @@ export function HeroValue({ value }) {
 /**
  * The long summary card: a headline amount on the left, the figures behind
  * it on the right as a ledger separated by hairlines.
- * metrics: [{ label, amount?, format?, value?, note?, color?, onClick? }] — amount + format animates; value is shown as is
+ * metrics: [{ label, amount?, format?, value?, note?, color?, onClick?, tooltip? }] — amount + format animates; value is shown as is; tooltip shows a breakdown on hover
  */
 export function SummaryCard({ label, value, sub, metrics = [], extra, background, labelSx }) {
   const t = useFx();
@@ -60,10 +61,12 @@ export function SummaryCard({ label, value, sub, metrics = [], extra, background
         backgroundSize: 'auto, cover', backgroundPosition: '0 0, 70% 62%', backgroundRepeat: 'no-repeat',
       } : {}),
     }}>
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 1fr) auto' }, alignItems: 'end', gap: { xs: 2.5, md: 4 } }}>
+      {/* The headline keeps at least 420px (or half the card); the figures on the right give way first (their notes truncate). */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'minmax(min(420px, 50%), 1fr) minmax(0, max-content)' }, alignItems: 'end', gap: { xs: 2.5, md: 4 } }}>
         <Box sx={{ minWidth: 0 }}>
           <Typography sx={{ fontSize: '0.82rem', color: t.ink2, fontWeight: 500, ...labelSx }}>{label}</Typography>
-          <HeroValue value={value} />
+          {/* The figure with the eye right after it: show / hide every amount in the app. */}
+          <HeroValue value={value} after={<PrivacyToggle compact />} />
           {sub && <Typography sx={{ fontSize: '0.74rem', color: t.muted, mt: 0.75 }}>{sub}</Typography>}
           {extra}
         </Box>
@@ -80,7 +83,7 @@ export function SummaryCard({ label, value, sub, metrics = [], extra, background
   );
 }
 
-function Metric({ label, value, amount, format, note, color, onClick, first, firstXs = first }) {
+function Metric({ label, value, amount, format, note, color, onClick, tooltip, first, firstXs = first }) {
   const t = useFx();
   const body = (
     <>
@@ -94,7 +97,9 @@ function Metric({ label, value, amount, format, note, color, onClick, first, fir
     px: { xs: firstXs ? 0 : 1.25, md: 2.25 }, py: 0.5,
     borderLeft: { xs: firstXs ? 0 : `1px solid ${t.hairline}`, md: first ? 0 : `1px solid ${t.hairline}` },
   };
-  return onClick ? (
+  const el = onClick ? (
     <ButtonBase onClick={onClick} aria-label={`${label}: open details`} sx={{ ...sx, borderRadius: 0, '@media (hover: hover)': { '&:hover p:nth-of-type(2)': { textDecoration: 'underline', textUnderlineOffset: '3px' } } }}>{body}</ButtonBase>
-  ) : <Box sx={sx}>{body}</Box>;
+  ) : <Box sx={{ ...sx, ...(tooltip ? { cursor: 'help' } : {}) }} tabIndex={tooltip ? 0 : undefined}>{body}</Box>;
+  // tooltip: a breakdown shown on hover or keyboard focus.
+  return tooltip ? <Tooltip title={tooltip} arrow placement="bottom">{el}</Tooltip> : el;
 }

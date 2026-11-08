@@ -28,9 +28,10 @@ const arc = (cx, cy, r, a0, a1) => {
  * The largest holdings get their own segment; the rest fold into "Others".
  * Hover (or tap) a segment to see its name, value and share in the centre.
  *
- * items: [{ key, label, sub?, value, logo?, onClick? }]
+ * items: [{ key, label, sub?, value, logo?, color?, onClick? }]
+ * palette: optional colours by rank (default: the theme's ink-led palette)
  */
-export default function AllocationDonut({ items, centerLabel = 'Total' }) {
+export default function AllocationDonut({ items, centerLabel = 'Total', palette }) {
   const t = useFx();
   const mode = useTheme().palette.mode;
   const wrap = useRef(null);
@@ -47,10 +48,14 @@ export default function AllocationDonut({ items, centerLabel = 'Total' }) {
 
   const sorted = [...items].filter((i) => i.value > 0).sort((a, b) => b.value - a.value);
   const total = sorted.reduce((s, i) => s + i.value, 0);
-  const head = sorted.slice(0, sorted.length > MAX_SLICES + 1 ? MAX_SLICES : sorted.length);
+  // With a fixed palette, every slice past its colours folds into Others (never a repeated colour).
+  const head = palette
+    ? sorted.slice(0, sorted.length > palette.length ? palette.length : sorted.length)
+    : sorted.slice(0, sorted.length > MAX_SLICES + 1 ? MAX_SLICES : sorted.length);
   const rest = sorted.slice(head.length);
   const slices = [
-    ...head.map((i, k) => ({ ...i, color: PALETTE[mode][k] })),
+    // An item may carry its own colour (e.g. the matching line on a chart beside it); otherwise the theme palette by rank.
+    ...head.map((i, k) => ({ ...i, color: i.color ?? (palette ?? PALETTE[mode])[k] })),
     ...(rest.length ? [{ key: 'others', label: `Others (${rest.length})`, value: rest.reduce((s, i) => s + i.value, 0), color: OTHERS[mode] }] : []),
   ].map((s) => ({ ...s, share: total > 0 ? s.value / total : 0 }));
 
@@ -127,10 +132,11 @@ export default function AllocationDonut({ items, centerLabel = 'Total' }) {
           })}
         </svg>
         <Box sx={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none', textAlign: 'center' }}>
-          <Box sx={{ maxWidth: R * 1.35 }}>
+          {/* A fixed width (not max-width) so the centre figure measures against the hole, not its own text. */}
+          <Box sx={{ width: R * 1.35, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
             <Typography noWrap sx={{ fontSize: '0.7rem', color: t.muted }}>{active ? active.label : centerLabel}</Typography>
             {/* Full figure while it fits the hole, else 1.4M / 2.35B; exact value on hover. */}
-            <Typography data-numeric component="div" sx={{ fontFamily: FONT_NUM, fontSize: size > 220 ? '1.08rem' : '0.92rem', fontWeight: 650, letterSpacing: '-0.03em', color: t.ink }}>
+            <Typography data-numeric component="div" sx={{ width: '100%', justifyContent: 'center', fontFamily: FONT_NUM, fontSize: size > 220 ? '1.08rem' : '0.92rem', fontWeight: 650, letterSpacing: '-0.03em', color: t.ink }}>
               <FitMoney value={active ? active.value : total} />
             </Typography>
             {active && <Typography data-numeric sx={{ fontFamily: FONT_NUM, fontSize: '0.68rem', color: t.muted }}>{(active.share * 100).toFixed(1)}%</Typography>}

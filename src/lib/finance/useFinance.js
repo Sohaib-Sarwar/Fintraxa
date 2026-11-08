@@ -9,12 +9,21 @@ import { useAuthStore } from '../../store/authStore';
 import { DEFAULT_CATEGORIES } from '../defaultCategories';
 
 /** Every query a finance write can change (the MF cash hint reads these deposits too). */
-const AFFECTED = ['ie-all-transactions', 'ie-transactions', 'ie-free-cash', 'mf-free-cash', 'home-ie-txns', 'home-ie-txns-all'];
+const AFFECTED = ['ie-all-transactions', 'ie-transactions', 'ie-free-cash', 'mf-free-cash', 'home-ie-txns', 'home-ie-txns-all', 'categories'];
 
 export function useFinanceRefresh() {
   const qc = useQueryClient();
   return () => AFFECTED.forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
 }
+
+/**
+ * True when PostgREST says a column or table is missing: the app is newer than
+ * the database (the personal-finance migration not applied yet). Reads then
+ * fall back to the older shape instead of failing the whole page.
+ */
+const isSchemaLag = (e) => !!e && (['42703', '42P01', 'PGRST204', 'PGRST205', 'PGRST200'].includes(e.code) || /does not exist|schema cache/i.test(e.message ?? ''));
+const TXN_SELECT = '*, categories(name, icon, kind, default_tax_rate), savings_accounts(name, bank_symbol, bank_name)';
+const TXN_SELECT_LEGACY = '*, categories(name, icon)';
 
 export function useFinanceTransactions() {
   const user = useAuthStore((s) => s.user);
@@ -24,10 +33,17 @@ export function useFinanceTransactions() {
     staleTime: 60_000,
     queryFn: async () => {
       const out = [];
+      let select = TXN_SELECT;
       for (let from = 0; ; from += 1000) {
-        const { data, error } = await supabase.from('income_expense_transactions')
-          .select('*, categories(name, icon)').eq('user_id', user.id)
+        let { data, error } = await supabase.from('income_expense_transactions')
+          .select(select).eq('user_id', user.id)
           .order('date', { ascending: false }).order('created_at', { ascending: false }).range(from, from + 999);
+        if (error && isSchemaLag(error) && select === TXN_SELECT) {
+          select = TXN_SELECT_LEGACY; // kinds then come from category names (summary.kindOf)
+          ({ data, error } = await supabase.from('income_expense_transactions')
+            .select(select).eq('user_id', user.id)
+            .order('date', { ascending: false }).order('created_at', { ascending: false }).range(from, from + 999));
+        }
         if (error) throw error;
         out.push(...(data ?? []));
         if (!data || data.length < 1000) return out;
@@ -49,9 +65,12 @@ export function useCategories() {
       const have = new Set(data.map((c) => c.name.toLowerCase()));
       const missing = DEFAULT_CATEGORIES.filter((c) => !have.has(c.name.toLowerCase()));
       if (missing.length) {
-        const { data: seeded, error: seedErr } = await supabase.from('categories')
-          .upsert(missing.map((c) => ({ ...c, user_id: user.id, is_default: true })), { onConflict: 'user_id,name', ignoreDuplicates: true })
-          .select();
+        const seed = (rows) => supabase.from('categories').upsert(rows, { onConflict: 'user_id,name', ignoreDuplicates: true }).select();
+        let { data: seeded, error: seedErr } = await seed(missing.map((c) => ({ ...c, user_id: user.id, is_default: true })));
+        if (seedErr && isSchemaLag(seedErr)) {
+          // Older database: seed without the kind / tax columns.
+          ({ data: seeded, error: seedErr } = await seed(missing.map(({ kind: _k, default_tax_rate: _r, ...c }) => ({ ...c, user_id: user.id, is_default: true }))));
+        }
         if (seedErr) throw seedErr;
         if (seeded?.length) return [...data, ...seeded].sort((a, b) => a.name.localeCompare(b.name));
       }

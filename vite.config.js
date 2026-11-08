@@ -12,7 +12,7 @@ export default defineConfig({
       // actually reference are listed now.
       includeAssets: [
         'icons/favicon.ico', 'icons/icon-32.png', 'apple-touch-icon.png',
-        'fintraxa-mark.webp', 'login-bg.webp', 'login-bg-mobile.webp',
+        'fintraxa-mark.webp', 'brand/mark-256.png', 'login-bg.webp', 'login-bg-mobile.webp',
       ],
       manifest: {
         name: 'Fintraxa',

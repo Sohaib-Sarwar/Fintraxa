@@ -64,6 +64,14 @@ const readCachedRates = () => {
 export { CURRENCIES };
 
 export const useAppStore = create((set, get) => ({
+  // Privacy: money figures shown as dots on every page (remembered on this device).
+  hideAmounts: readLocal('pt-hide-amounts') === '1',
+  toggleHideAmounts: () => {
+    const next = !get().hideAmounts;
+    writeLocal('pt-hide-amounts', next ? '1' : '0');
+    set({ hideAmounts: next });
+  },
+
   // Theme
   themeMode: getInitialTheme(),
   toggleTheme: () => {

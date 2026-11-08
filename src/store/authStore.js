@@ -75,6 +75,25 @@ export const useAuthStore = create((set) => ({
     return data;
   },
 
+  /**
+   * Sign in with a username: the username-login Edge Function finds the email
+   * server-side, signs in, and returns the session, installed here. Its error
+   * messages are already safe to show (identical for unknown name / wrong password).
+   */
+  signInWithUsername: async (username, password) => {
+    const { data, error } = await supabase.functions.invoke('username-login', {
+      body: { username: String(username || '').trim().toLowerCase(), password },
+    });
+    if (error) {
+      let message = 'Sign-in is unavailable right now. Try your email instead.';
+      try { message = (await error.context.json()).error || message; } catch { /* network error: keep the default */ }
+      throw Object.assign(new Error(message), { friendly: true });
+    }
+    const { data: session, error: setErr } = await supabase.auth.setSession({ access_token: data.access_token, refresh_token: data.refresh_token });
+    if (setErr) throw setErr;
+    return session;
+  },
+
   resetPassword: async (email) => {
     const normalizedEmail = String(email || '').trim().toLowerCase();
     const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {

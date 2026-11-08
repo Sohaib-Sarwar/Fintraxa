@@ -132,6 +132,7 @@ export default function AuthPage() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [installDismissed, setInstallDismissed] = useState(false);
   const signIn = useAuthStore((s) => s.signIn);
+  const signInWithUsername = useAuthStore((s) => s.signInWithUsername);
   const signUp = useAuthStore((s) => s.signUp);
   const resetPassword = useAuthStore((s) => s.resetPassword);
 
@@ -172,8 +173,11 @@ export default function AuthPage() {
     const trimmedFullName = fullName.trim();
 
     if (isSignUp && !trimmedFullName) nextErrors.fullName = 'Enter your full name';
-    if (!trimmedEmail) nextErrors.email = 'Enter your email address';
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) nextErrors.email = 'Use a valid email format';
+    // Sign-in takes an email or a username; sign-up needs an email.
+    const byUsername = !isSignUp && trimmedEmail && !trimmedEmail.includes('@');
+    if (!trimmedEmail) nextErrors.email = isSignUp ? 'Enter your email address' : 'Enter your email or username';
+    else if (byUsername && !/^[a-z0-9][a-z0-9._]{1,22}[a-z0-9]$/i.test(trimmedEmail)) nextErrors.email = 'Usernames are 3 to 24 letters, numbers, dots or underscores';
+    else if (!byUsername && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) nextErrors.email = 'Use a valid email format';
 
     if (!password.trim()) nextErrors.password = 'Enter your password';
     else if (password.length < 6) nextErrors.password = 'Use at least 6 characters';
@@ -203,12 +207,14 @@ export default function AuthPage() {
         await signUp(normalizedEmail, password, fullName);
         setSuccess('Account created! Check your email to confirm.');
         setIsSignUp(false);
+      } else if (!normalizedEmail.includes('@')) {
+        await signInWithUsername(normalizedEmail, password);
       } else {
         await signIn(normalizedEmail, password);
       }
     } catch (err) {
-      console.error('[Fintraxa Auth]', err?.message || err, err);
-      setError(getFriendlyAuthError(err, isSignUp));
+      console.error('[Fintraxa Auth]', err?.message || err);
+      setError(err?.friendly ? err.message : getFriendlyAuthError(err, isSignUp));
     } finally { setLoading(false); }
   };
 
@@ -320,14 +326,14 @@ export default function AuthPage() {
                   sx={pillInput}
                 />
               )}
-              <TextField fullWidth placeholder="Email" type="email" value={email}
-                autoComplete="email"
+              <TextField fullWidth placeholder={isSignUp ? 'Email' : 'Email or username'} type={isSignUp ? 'email' : 'text'} value={email}
+                autoComplete={isSignUp ? 'email' : 'username'}
                 onChange={(e) => { setEmail(e.target.value); clearField('email'); }}
                 error={Boolean(fieldErrors.email)}
                 helperText={fieldErrors.email || ' '}
                 slotProps={{
                   formHelperText: { sx: helperSx },
-                  htmlInput: { 'aria-label': 'Email address' },
+                  htmlInput: { 'aria-label': isSignUp ? 'Email address' : 'Email or username', autoCapitalize: 'none', spellCheck: false },
                   input: { endAdornment: <InputAdornment position="end"><Mail size={17} /></InputAdornment> },
                 }}
                 sx={pillInput}

@@ -22,6 +22,19 @@ const LIGHT = {
   warn: '#8f5d00', warnSoft: '#fbf1db', tipBg: '#0b0c0e', tipInk: '#ffffff', track: '#eceef1',
   series: ['#1f8a5c', '#2a78d6', '#eda100', '#7a5af5', '#d6457a', '#0f9fb0', '#c3c8ce'],
   invested: '#9aa0a8',
+  // Glass for small controls (switches, pills, dropdowns): a frosted capsule with a lit top edge,
+  // and a raised, slightly brighter thumb. Kept subtle on purpose.
+  glass: {
+    background: 'linear-gradient(180deg, rgba(255,255,255,0.72) 0%, rgba(240,242,245,0.72) 100%)',
+    border: '1px solid rgba(10,12,16,0.08)',
+    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.95), inset 0 -1px 0 rgba(10,12,16,0.03), 0 1px 2px rgba(10,12,16,0.04)',
+    backdropFilter: 'blur(14px) saturate(160%)', WebkitBackdropFilter: 'blur(14px) saturate(160%)',
+  },
+  glassHover: 'linear-gradient(180deg, rgba(255,255,255,0.9) 0%, rgba(236,238,241,0.9) 100%)',
+  glassThumb: {
+    background: 'linear-gradient(180deg, #ffffff 0%, #f5f6f8 100%)',
+    boxShadow: 'inset 0 1px 0 #ffffff, 0 1px 2px rgba(10,12,16,0.10), 0 4px 12px -4px rgba(10,12,16,0.18)',
+  },
   shadow: '0 1px 2px rgba(10,12,16,.04), 0 6px 20px -8px rgba(10,12,16,.08)',
   shadowLg: '0 24px 60px -16px rgba(10,12,16,.28)',
 };
@@ -34,6 +47,17 @@ const DARK = {
   warn: '#f0b44c', warnSoft: 'rgba(240,180,76,.1)', tipBg: '#1e1e21', tipInk: '#f5f5f7', track: '#1e1e21',
   series: ['#22a86f', '#3987e5', '#c98500', '#9b85ff', '#e86a97', '#29b6c6', '#3a3a3f'],
   invested: '#6f6f76',
+  glass: {
+    background: 'linear-gradient(180deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.03) 100%)',
+    border: '1px solid rgba(255,255,255,0.10)',
+    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.07), inset 0 -1px 0 rgba(255,255,255,0.12), 0 6px 18px -10px rgba(0,0,0,0.8)',
+    backdropFilter: 'blur(14px) saturate(150%)', WebkitBackdropFilter: 'blur(14px) saturate(150%)',
+  },
+  glassHover: 'linear-gradient(180deg, rgba(255,255,255,0.11) 0%, rgba(255,255,255,0.05) 100%)',
+  glassThumb: {
+    background: 'linear-gradient(180deg, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0.07) 100%)',
+    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.14), 0 4px 14px -4px rgba(0,0,0,0.7)',
+  },
   shadow: 'none',
   shadowLg: '0 24px 60px -16px rgba(0,0,0,.8)',
 };
@@ -55,5 +79,32 @@ export const signColor = (t, v) => (v > 0 ? t.pos : v < 0 ? t.neg : t.ink2);
  * for a loss.
  */
 export const earningsColors = (mode) => (mode === 'dark'
-  ? { gross: '#9c8cff', net: '#5fdcef', axis: '#7d8699', tip: '#1a2140', grossOnTip: '#b7acff', loss: '#ff7a70' }
-  : { gross: '#4f3fa6', net: '#3fc8de', axis: '#8a98b2', tip: '#0d1530', grossOnTip: '#b7acff', loss: '#c4302b' });
+  ? { gross: '#9c8cff', net: '#5fdcef', axis: '#7d8699', tip: '#111114', tipBorder: 'rgba(255,255,255,0.10)', grossOnTip: '#b7acff', loss: '#ff7a70' }
+  : { gross: '#4f3fa6', net: '#3fc8de', axis: '#8a98b2', tip: '#0d1530', tipBorder: 'transparent', grossOnTip: '#b7acff', loss: '#c4302b' });
+
+/**
+ * Personal finance lines: active income, passive income, expenses.
+ * Validated with the dataviz palette checker (lightness band, chroma, CVD,
+ * contrast) on the light and dark chart surfaces; do not swap by eye.
+ */
+export const flowColors = (mode) => (mode === 'dark'
+  ? { active: '#9085e9', passive: '#199e70', expenses: '#d95926' }
+  : { active: '#6250d6', passive: '#1baf7a', expenses: '#eb6834' });
+
+/**
+ * Categorical slices for category donuts (validated in this order, adjacent
+ * pairs, both modes): blue, orange, aqua, yellow, magenta; "Others" is grey.
+ */
+export const categoryColors = (mode) => (mode === 'dark'
+  ? ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181']
+  : ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4']);
+
+/** Net worth parts on Home: mutual funds, PSX stocks, savings (validated, all pairs). */
+export const worthColors = (mode) => (mode === 'dark'
+  ? { funds: '#3987e5', stocks: '#d95926', savings: '#199e70' }
+  : { funds: '#2a78d6', stocks: '#eb6834', savings: '#1baf7a' });
+
+/** Passive income sources (validated the same way). `other` is a neutral grey. */
+export const passiveColors = (mode) => (mode === 'dark'
+  ? { mutual_funds: '#22a86f', dividends: '#3987e5', savings: '#c98500', other: '#8b8b93' }
+  : { mutual_funds: '#1f8a5c', dividends: '#2a78d6', savings: '#b07400', other: '#6b7079' });

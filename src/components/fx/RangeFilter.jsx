@@ -41,11 +41,11 @@ export default function RangeFilter({ compact = false }) {
         onClick={(e) => setAnchor(anchor ? null : e.currentTarget)}
         sx={{
           display: 'inline-flex', alignItems: 'center', gap: 0.75, height: 34, pl: 0.5, pr: 1, borderRadius: 999,
-          border: `1px solid ${t.border}`, bgcolor: t.surface, color: t.ink, fontWeight: 600, fontSize: '0.76rem',
-          whiteSpace: 'nowrap', fontFamily: 'inherit', transition: 'background-color .16s ease',
-          '@media (hover: hover)': { '&:hover': { bgcolor: t.surface2 } },
+          ...t.glass, color: t.ink, fontWeight: 600, fontSize: '0.76rem',
+          whiteSpace: 'nowrap', fontFamily: 'inherit', transition: 'background .16s ease',
+          '@media (hover: hover)': { '&:hover': { background: t.glassHover } },
         }}>
-        <Box sx={{ width: 26, height: 26, borderRadius: 999, display: 'grid', placeItems: 'center', border: `1px solid ${t.border}` }}>
+        <Box sx={{ width: 26, height: 26, borderRadius: 999, display: 'grid', placeItems: 'center', ...t.glassThumb }}>
           <CalendarMonthRounded sx={{ fontSize: 15 }} />
         </Box>
         <Box component="span" sx={{ maxWidth: isMobile ? 120 : 'none', overflow: 'hidden', textOverflow: 'ellipsis' }}>

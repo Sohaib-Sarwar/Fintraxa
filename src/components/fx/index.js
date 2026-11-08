@@ -1,4 +1,4 @@
-export { useFx, fxTokens, signColor, earningsColors, FONT_TEXT, FONT_DISPLAY, FONT_NUM } from './tokens';
+export { useFx, fxTokens, signColor, earningsColors, flowColors, passiveColors, categoryColors, worthColors, FONT_TEXT, FONT_DISPLAY, FONT_NUM } from './tokens';
 export { default as Seg } from './Seg';
 export { default as RangeFilter } from './RangeFilter';
 export { PageHeader, FxCard, Num, Delta, Chip, Kpi, Pager, FitPage } from './Layout';
@@ -13,3 +13,5 @@ export { default as GainCard } from './GainCard';
 export { default as AllocationDonut } from './AllocationDonut';
 export { default as AnimatedValue } from './AnimatedValue';
 export { default as FitMoney } from './FitMoney';
+export { default as PrivacyToggle } from './PrivacyToggle';
+export { default as FlowChart } from './FlowChart';

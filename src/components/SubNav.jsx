@@ -31,7 +31,7 @@ export default function SubNav({ links }) {
       }}
     >
       {links.map((l) => {
-        const isActive = location.pathname === l.path;
+        const isActive = location.pathname === l.path || (l.path !== '/' && location.pathname.startsWith(`${l.path}/`));
         return (
           <Chip
             key={l.path}

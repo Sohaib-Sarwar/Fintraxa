@@ -62,3 +62,105 @@ export function combineTotals(mf, psx) {
     },
   };
 }
+
+/* ─── Savings: cash kept, carried from month to month ─────────────────────────
+ *
+ * Net worth = mutual funds (value now) + PSX stocks (value now) + savings.
+ *
+ * Savings is a running balance of the money that stayed with you, from the
+ * first recorded transaction up to each date, so every month starts with what
+ * the previous month left:
+ *   + active income (salary, business, …)
+ *   + passive income paid in cash: bank profit and other passive credits
+ *     (income_expense_transactions) and PSX dividends (net, as paid)
+ *   − spending
+ *   − money moved into mutual funds or shares (categories "Investment - …"):
+ *     it now sits in the fund or stock value, so keeping it in savings too
+ *     would count it twice
+ * Moves between your own accounts (other transfer categories, e.g. Savings)
+ * change nothing. Mutual-fund profit is not added: it stays inside the fund's
+ * value until redeemed.
+ */
+const isInvestmentTransfer = (t) => /^investment\b/i.test(t.categories?.name ?? '');
+const kindOfRow = (t) => t.categories?.kind ?? (t.type === 'credit' ? 'active' : isInvestmentTransfer(t) || /^savings$/i.test(t.categories?.name ?? '') ? 'transfer' : 'spend');
+
+/**
+ * Every movement in or out of savings, oldest first.
+ * @param {{ transactions?: object[], dividends?: object[] }} a
+ * @returns {{ date: string, amount: Decimal, kind: string }[]}
+ */
+export function cashFlows({ transactions = [], dividends = [] }) {
+  const out = [];
+  for (const t of transactions) {
+    const k = kindOfRow(t);
+    if (t.type === 'credit') out.push({ date: t.date, amount: D(t.amount), kind: k === 'passive' ? 'passive' : 'income' });
+    else if (k === 'transfer') { if (isInvestmentTransfer(t)) out.push({ date: t.date, amount: D(t.amount).negated(), kind: 'invested' }); }
+    else out.push({ date: t.date, amount: D(t.amount).negated(), kind: 'spend' });
+  }
+  for (const d of dividends) out.push({ date: d.payment_date, amount: D(d.net_amount), kind: 'dividend' });
+  return out.sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/** Savings balance at the end of `date` (inclusive). */
+export function savingsAt(flows, date) {
+  let s = new Decimal(0);
+  for (const f of flows) { if (f.date > date) break; s = s.plus(f.amount); }
+  return Number(s.toFixed(2));
+}
+
+const monthEndIso = (m) => { const [y, mo] = m.split('-').map(Number); return new Date(Date.UTC(y, mo, 0)).toISOString().slice(0, 10); };
+const nextMonthKey = (m) => { const [y, mo] = m.split('-').map(Number); return mo === 12 ? `${y + 1}-01` : `${y}-${String(mo + 1).padStart(2, '0')}`; };
+
+/**
+ * Month-end net worth: mutual funds, PSX stocks and savings side by side.
+ * funds / stocks: the engines' series ([{ month, date, value, opening?, title?, live? }]).
+ * A month only one side covers counts the others as nothing held.
+ * @returns {{ month, date, label, tick?, title?, opening, live, funds, stocks, savings, value }[]}
+ */
+export function netWorthSeries({ funds = [], stocks = [], flows = [], start, end, today }) {
+  const endEff = end && end < today ? end : today;
+  const slots = new Map(); // 'open' | 'YYYY-MM'
+  const slot = (key, month) => {
+    if (!slots.has(key)) slots.set(key, { month, funds: 0, stocks: 0, opening: key === 'open', live: false });
+    return slots.get(key);
+  };
+  for (const [side, list] of [['funds', funds], ['stocks', stocks]]) {
+    for (const pt of list ?? []) {
+      const s = slot(pt.opening ? 'open' : pt.month, pt.month);
+      s[side] = add(s[side], pt.value);
+      if (pt.opening) { s.date = pt.date; s.title = pt.title; }
+    }
+  }
+  // Months with savings but no holdings yet still belong on the chart.
+  const first = flows[0]?.date;
+  if (first && first <= endEff) {
+    for (let m = (start > first ? start : first).slice(0, 7); m <= endEff.slice(0, 7) && slots.size < 600; m = nextMonthKey(m)) slot(m, m);
+    // An opening balance for ranges that start on the 1st, when there was money before it.
+    if (start && /-01$/.test(start) && first < start && !slots.has('open')) {
+      const at = new Date(Date.parse(`${start}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
+      const s = slot('open', at.slice(0, 7));
+      s.date = at;
+      s.title = `Opening balance, ${Number(at.slice(8, 10))} ${MON[Number(at.slice(5, 7)) - 1]} ${at.slice(0, 4)}`;
+    }
+  }
+  const out = [...slots.entries()]
+    .sort(([ka, a], [kb, b]) => (ka === 'open' ? -1 : kb === 'open' ? 1 : a.month.localeCompare(b.month)))
+    .map(([, s]) => {
+      const date = s.opening ? s.date : (monthEndIso(s.month) < endEff ? monthEndIso(s.month) : endEff);
+      const savings = savingsAt(flows, date);
+      return {
+        month: s.month, date, opening: s.opening, live: !s.opening && date === today,
+        ...(s.opening ? { title: s.title, label: 'Open', tick: 'Open' } : { label: MON[Number(s.month.slice(5, 7)) - 1] }),
+        funds: s.funds, stocks: s.stocks, savings, value: add(s.funds, s.stocks, savings),
+      };
+    });
+  if (out.length > 12) for (const pt of out) if (!pt.opening) pt.label = `${pt.label} ${pt.month.slice(2, 4)}`;
+  return out;
+}
+
+/** Net worth now: the three parts, their total and each one's share. */
+export function netWorth({ funds = 0, stocks = 0, savings = 0 }) {
+  const value = add(funds, stocks, savings);
+  const share = (v) => (value > 0 && v > 0 ? v / value : 0);
+  return { value, funds, stocks, savings, share: { funds: share(funds), stocks: share(stocks), savings: share(savings) } };
+}
