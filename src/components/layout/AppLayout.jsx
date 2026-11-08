@@ -163,7 +163,11 @@ export default function AppLayout() {
   );
 
   // A page stays highlighted on its own sub-pages (e.g. /funds/imports/:id).
-  const isPageActive = (path) => (path === '/' ? location.pathname === '/' : location.pathname === path || location.pathname.startsWith(`${path}/`));
+  // A section's own root page (/, /funds, /stocks) is active only on exactly that path;
+  // a prefix match made Portfolio "active" on /funds/analytics too, so two rows claimed
+  // the sliding highlight and Portfolio turned white on white.
+  const sectionRoots = useMemo(() => new Set(sections.map((s) => s.basePath)), []);
+  const isPageActive = (path) => (sectionRoots.has(path) ? location.pathname === path : location.pathname === path || location.pathname.startsWith(`${path}/`));
   const sidebarW = sidebarHovered ? SIDEBAR_EXPANDED : SIDEBAR_COLLAPSED;
 
   /* Funds and Stocks carry their own tab strip inside the swipe carousel;
@@ -309,13 +313,13 @@ export default function AppLayout() {
                   onClick={() => setProfileOpen(true)}
                   aria-label="Open profile and settings"
                   sx={{
-                    width: 44, height: 44, borderRadius: 2.5,
+                    width: 46, height: 46, borderRadius: '50%', p: 0.25,
                     transition: 'transform 0.2s ease',
                     '&:hover': { transform: 'scale(1.08)' },
                     '@media (prefers-reduced-motion: reduce)': { transition: 'none', '&:hover': { transform: 'none' } },
                   }}
                 >
-                  <Avatar src={avatarUrl || undefined} alt="" sx={{ width: 34, height: 34, bgcolor: isDark ? '#fff' : '#000', color: isDark ? '#000' : '#fff', fontSize: '0.84rem', fontWeight: 700 }}>
+                  <Avatar src={avatarUrl || undefined} alt="" sx={{ width: 38, height: 38, bgcolor: isDark ? '#fff' : '#000', color: isDark ? '#000' : '#fff', fontSize: '0.92rem', fontWeight: 700 }}>
                     {initial}
                   </Avatar>
                 </IconButton>

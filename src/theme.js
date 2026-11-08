@@ -71,12 +71,50 @@ export function buildTheme(mode = 'light') {
         styleOverrides: {
           // 44px is the smallest comfortable touch target; the default dense
           // button fell under it on phones.
-          root: { borderRadius: 10, padding: '10px 24px', minHeight: 40 },
+          root: { borderRadius: 999, padding: '10px 24px', minHeight: 40, textTransform: 'none', fontWeight: 650, transition: 'background .18s ease, box-shadow .18s ease, transform .12s ease', '&:active': { transform: 'scale(0.98)' } },
+          // Glass, not colour: buttons follow the app's monochrome look (no teal).
+          // Filled = dark frosted glass on light, light frosted glass on dark.
           contained: {
-            boxShadow: 'none',
-            '&:hover': { boxShadow: 'none' },
+            color: isDark ? '#0b0c0e' : '#ffffff',
+            background: isDark
+              ? 'linear-gradient(180deg, rgba(255,255,255,0.94) 0%, rgba(232,234,238,0.86) 100%)'
+              : 'linear-gradient(180deg, rgba(28,30,34,0.92) 0%, rgba(11,12,14,0.86) 100%)',
+            backdropFilter: 'blur(16px) saturate(170%)', WebkitBackdropFilter: 'blur(16px) saturate(170%)',
+            border: isDark ? '1px solid rgba(255,255,255,0.5)' : '1px solid rgba(255,255,255,0.10)',
+            boxShadow: isDark
+              ? 'inset 0 1px 0 rgba(255,255,255,0.9), 0 8px 22px -12px rgba(0,0,0,0.8)'
+              : 'inset 0 1px 0 rgba(255,255,255,0.18), 0 8px 22px -12px rgba(10,12,16,0.55)',
+            '&:hover': {
+              background: isDark
+                ? 'linear-gradient(180deg, #ffffff 0%, rgba(240,242,245,0.92) 100%)'
+                : 'linear-gradient(180deg, rgba(40,42,47,0.94) 0%, rgba(18,19,22,0.9) 100%)',
+              boxShadow: isDark
+                ? 'inset 0 1px 0 #ffffff, 0 10px 26px -12px rgba(0,0,0,0.85)'
+                : 'inset 0 1px 0 rgba(255,255,255,0.22), 0 10px 26px -12px rgba(10,12,16,0.6)',
+            },
+            '&.Mui-disabled': { color: isDark ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.6)', opacity: 0.6 },
           },
-          outlined: { borderColor: isDark ? '#333' : '#e0e0e0' },
+          // Outlined and text = clear frosted glass with ink text.
+          outlined: {
+            color: isDark ? '#f5f5f7' : '#0b0c0e',
+            background: isDark
+              ? 'linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%)'
+              : 'linear-gradient(180deg, rgba(255,255,255,0.78) 0%, rgba(240,242,245,0.72) 100%)',
+            backdropFilter: 'blur(14px) saturate(160%)', WebkitBackdropFilter: 'blur(14px) saturate(160%)',
+            borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(10,12,16,0.10)',
+            boxShadow: isDark ? 'inset 0 1px 0 rgba(255,255,255,0.08)' : 'inset 0 1px 0 rgba(255,255,255,0.95), 0 1px 2px rgba(10,12,16,0.05)',
+            '&:hover': {
+              borderColor: isDark ? 'rgba(255,255,255,0.22)' : 'rgba(10,12,16,0.18)',
+              background: isDark
+                ? 'linear-gradient(180deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.05) 100%)'
+                : 'linear-gradient(180deg, rgba(255,255,255,0.95) 0%, rgba(236,238,241,0.9) 100%)',
+            },
+          },
+          text: { color: isDark ? '#f5f5f7' : '#0b0c0e', '&:hover': { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(10,12,16,0.05)' } },
+          // Error buttons (delete) keep their meaning colour.
+          containedError: { color: '#fff', background: 'linear-gradient(180deg, rgba(229,72,77,0.95) 0%, rgba(196,48,43,0.92) 100%)', border: '1px solid rgba(255,255,255,0.14)', '&:hover': { background: 'linear-gradient(180deg, #e5484d 0%, #c4302b 100%)' } },
+          outlinedError: { color: isDark ? '#ff7a70' : '#c4302b' },
+          textError: { color: isDark ? '#ff7a70' : '#c4302b' },
         },
       },
       MuiChip: {

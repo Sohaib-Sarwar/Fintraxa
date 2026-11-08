@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useMfAnalysis } from '../../lib/mf/useMfPortfolio';
 import { useDateRange, rangeLabel, shortDate } from '../../lib/dateRange';
 import { formatCurrency } from '../../lib/formatters';
-import { useFx, PageHeader, signColor, SummaryCard, ValueChart } from '../../components/fx';
+import { useFx, PageHeader, Panel, signColor, SummaryCard, ValueChart } from '../../components/fx';
 import { assetRows } from '../../lib/snapshots/series';
 import { usePortfolioSnapshots } from '../../lib/snapshots/useSnapshots';
 import { FundDetailsDialog } from './MFDetails';

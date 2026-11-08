@@ -173,7 +173,7 @@ export const useAppStore = create((set, get) => ({
   // Snackbar
   snackbar: { open: false, message: '', severity: 'success' },
   showSnackbar: (message, severity = 'success') =>
-    set({ snackbar: { open: true, message, severity } }),
+    set({ snackbar: { open: true, message, severity, at: Date.now() } }),
   hideSnackbar: () =>
     set((s) => ({ snackbar: { ...s.snackbar, open: false } })),
 

@@ -1,13 +1,14 @@
 import { useEffect, useMemo, Suspense, lazy } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, CssBaseline } from '@mui/material';
-import { Snackbar, Alert, Dialog, DialogContent, DialogActions, Button, Typography, Box } from '@mui/material';
+import { Dialog, DialogContent, DialogActions, Button, Typography, Box } from '@mui/material';
 import { useAuthStore } from './store/authStore';
 import { useAppStore } from './store/appStore';
 import { buildTheme } from './theme';
 import AppLayout from './components/layout/AppLayout';
 import AuthPage from './features/auth/AuthPage';
 import InstallPrompt from './components/InstallPrompt';
+import GlassToast from './components/GlassToast';
 import BrandLoader from './components/BrandLoader';
 import PageSkeleton from './components/PageSkeleton';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -125,12 +126,7 @@ export default function App() {
 
       {/* Global Snackbar */}
       <InstallPrompt />
-      <Snackbar open={snackbar.open} autoHideDuration={3000} onClose={hideSnackbar}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
-        <Alert onClose={hideSnackbar} severity={snackbar.severity} variant="filled" sx={{ borderRadius: 3 }}>
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
+      <GlassToast open={snackbar.open} id={snackbar.at} message={snackbar.message} severity={snackbar.severity} onClose={hideSnackbar} />
 
       {/* Confirmation Dialog */}
       <Dialog open={confirmDialog.open} onClose={hideConfirm} maxWidth="xs" fullWidth
@@ -153,21 +149,13 @@ export default function App() {
           </Box>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
-          <Button onClick={hideConfirm} color="inherit"
-            sx={{
-              flex: 1, borderRadius: 2.5, py: 1.2, fontSize: '0.82rem', fontWeight: 600,
-              bgcolor: themeMode === 'dark' ? 'rgba(255,255,255,0.06)' : '#f5f5f5',
-              '&:hover': { bgcolor: themeMode === 'dark' ? 'rgba(255,255,255,0.1)' : '#eee' },
-            }}>
+          <Button onClick={hideConfirm} variant="outlined"
+            sx={{ flex: 1, py: 1.2, fontSize: '0.82rem' }}>
             Cancel
           </Button>
           <Button onClick={() => { confirmDialog.onConfirm?.(); hideConfirm(); }}
-            variant="contained"
-            sx={{
-              flex: 1, borderRadius: 2.5, py: 1.2, fontSize: '0.82rem', fontWeight: 600,
-              bgcolor: '#dc2626',
-              '&:hover': { bgcolor: '#b91c1c' },
-            }}>
+            variant="contained" color="error"
+            sx={{ flex: 1, py: 1.2, fontSize: '0.82rem' }}>
             Confirm
           </Button>
         </DialogActions>
