@@ -8,34 +8,52 @@ import { buildTheme } from './theme';
 import AppLayout from './components/layout/AppLayout';
 import AuthPage from './features/auth/AuthPage';
 import InstallPrompt from './components/InstallPrompt';
-import InfiniteSpinner from './components/InfiniteSpinner';
+import BrandLoader from './components/BrandLoader';
+import PageSkeleton from './components/PageSkeleton';
 import ErrorBoundary from './components/ErrorBoundary';
 
-// Lazy load feature modules
-const IEDashboard = lazy(() => import('./features/income-expense/Dashboard'));
-const HomeDashboard = lazy(() => import('./features/home/Dashboard'));
-const AddTransaction = lazy(() => import('./features/income-expense/AddTransaction'));
-const Transactions = lazy(() => import('./features/income-expense/Transactions'));
-const PassiveIncome = lazy(() => import('./features/income-expense/PassiveIncome'));
-const SpendingInsights = lazy(() => import('./features/income-expense/SpendingInsights'));
+// Lazy load feature modules. The loaders are kept so every page's code can be
+// fetched ahead of time when the browser is idle (see prefetchPages below).
+const LOAD = {
+  ie: () => import('./features/income-expense/Dashboard'),
+  home: () => import('./features/home/Dashboard'),
+  add: () => import('./features/income-expense/AddTransaction'),
+  txns: () => import('./features/income-expense/Transactions'),
+  passive: () => import('./features/income-expense/PassiveIncome'),
+  spending: () => import('./features/income-expense/SpendingInsights'),
+  mf: () => import('./features/mutual-funds/MFSection'),
+  mfReview: () => import('./features/mutual-funds/ImportReview'),
+  psx: () => import('./features/psx-stocks/PSXSection'),
+};
+const IEDashboard = lazy(LOAD.ie);
+const HomeDashboard = lazy(LOAD.home);
+const AddTransaction = lazy(LOAD.add);
+const Transactions = lazy(LOAD.txns);
+const PassiveIncome = lazy(LOAD.passive);
+const SpendingInsights = lazy(LOAD.spending);
 /* The Funds and Stocks sub-pages are no longer routed to their leaf
    components. Each section wrapper owns its own paths so that the URL and the
    mobile carousel stay in step — see MFSection / PSXSection. The wrappers lazy
    load the leaves themselves, so the chunking is unchanged. */
-const MFSection = lazy(() => import('./features/mutual-funds/MFSection'));
-const MFImportReview = lazy(() => import('./features/mutual-funds/ImportReview'));
-const PSXSection = lazy(() => import('./features/psx-stocks/PSXSection'));
+const MFSection = lazy(LOAD.mf);
+const MFImportReview = lazy(LOAD.mfReview);
+const PSXSection = lazy(LOAD.psx);
 
-const Loader = () => <InfiniteSpinner size={80} minHeight="50vh" />;
+/** After the first page is up, fetch every other page's code while the browser is idle, so moving between pages never waits for a download. */
+function prefetchPages() {
+  const run = () => Object.values(LOAD).forEach((load) => load().catch(() => {}));
+  if ('requestIdleCallback' in window) window.requestIdleCallback(run, { timeout: 4000 });
+  else setTimeout(run, 2500);
+}
 
 /** One boundary and one suspense fence per route, so a crash or a failed chunk
  *  load takes down that screen and not the whole shell — the nav stays usable. */
-const page = (Element) => (
+const page = (Element, variant = 'dashboard') => (
   <ErrorBoundary>
-    <Suspense fallback={<Loader />}><Element /></Suspense>
+    <Suspense fallback={<PageSkeleton variant={variant} />}><Element /></Suspense>
   </ErrorBoundary>
 );
-const FullLoader = () => <InfiniteSpinner size={96} minHeight="100dvh" showBrand />;
+const FullLoader = BrandLoader;
 
 function ProtectedRoute({ children }) {
   const user = useAuthStore((s) => s.user);
@@ -58,6 +76,7 @@ export default function App() {
   const theme = useMemo(() => buildTheme(themeMode), [themeMode]);
 
   useEffect(() => { initialize(); }, [initialize]);
+  useEffect(() => { if (user) prefetchPages(); }, [user]);
 
   // Remove the HTML initial-loader once React takes over
   useEffect(() => {
@@ -79,8 +98,8 @@ export default function App() {
           <Route index element={page(IEDashboard)} />
           <Route path="home" element={page(HomeDashboard)} />
           {/* Income/Expense (Finance) — keep "/" paths for backward compatibility */}
-          <Route path="add-transaction" element={page(AddTransaction)} />
-          <Route path="transactions" element={page(Transactions)} />
+          <Route path="add-transaction" element={page(AddTransaction, 'list')} />
+          <Route path="transactions" element={page(Transactions, 'list')} />
           <Route path="spending" element={page(SpendingInsights)} />
           <Route path="passive-income" element={page(PassiveIncome)} />
           {/* Mutual Funds — every path renders the section, which picks the page */}

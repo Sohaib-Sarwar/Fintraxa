@@ -26,6 +26,13 @@
     <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
 
+    <!-- Open the database and market-data connections while the JavaScript loads,
+         so the first queries do not pay for DNS, TCP and TLS on a cold start. -->
+    <link rel="preload" as="image" href="/brand/mark-256.png" fetchpriority="high" />
+    <link rel="preconnect" href="%VITE_SUPABASE_URL%" crossorigin />
+    <link rel="dns-prefetch" href="%VITE_SUPABASE_URL%" />
+    <link rel="preconnect" href="https://sohaib-sarwar.github.io" crossorigin />
+
     <!-- Fonts are bundled (@fontsource-variable, imported in src/main.jsx) and served
          from this origin. Google Fonts was blocked in production by the CSP
          (style-src/font-src 'self'), so text fell back to each OS's system font. -->
@@ -41,56 +48,28 @@
   <body>
     <div id="root">
       <!-- Initial loader — theme-aware via localStorage, removed by React on mount -->
-      <div id="initial-loader">
+      <!-- Boot loader (same as src/components/BrandLoader.jsx, so React takes over without a flicker).
+           transform/opacity animations only: they run on the compositor and never freeze while
+           the app's JavaScript is parsing. Theme from the saved preference, before first paint. -->
+      <div id="initial-loader" role="status" aria-label="Loading Fintraxa">
         <style>
-          @keyframes infinityDash {
-            0%   { stroke-dashoffset: 685; }
-            100% { stroke-dashoffset: -685; }
-          }
-          #initial-loader {
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            min-height: 100dvh;
-            gap: 18px;
-            background: #fff;
-            transition: none;
-          }
-          #initial-loader.dark {
-            background: #000;
-          }
-          #initial-loader .spinner-svg path {
-            stroke: #000;
-            animation: infinityDash 2s linear infinite;
-          }
-          #initial-loader.dark .spinner-svg path {
-            stroke: #fff;
-          }
-          #initial-loader .brand {
-            font-family: 'Inter Variable', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            font-size: 0.72rem;
-            font-weight: 600;
-            letter-spacing: 0.12em;
-            text-transform: uppercase;
-            color: rgba(0,0,0,0.25);
-            margin-top: 2px;
-          }
-          #initial-loader.dark .brand {
-            color: rgba(255,255,255,0.2);
-          }
+          @keyframes fx-breathe { 0%, 100% { opacity: .55; transform: scale(.96); } 50% { opacity: 1; transform: scale(1); } }
+          @keyframes fx-slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(250%); } }
+          #initial-loader { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; min-height: 100dvh; background: #fff; }
+          #initial-loader.dark { background: #000; }
+          #initial-loader img { display: block; width: 64px; height: 64px; will-change: transform, opacity; animation: fx-breathe 1.8s ease-in-out infinite; }
+          #initial-loader .track { position: relative; width: 120px; height: 3px; border-radius: 999px; overflow: hidden; background: rgba(0,0,0,.08); }
+          #initial-loader.dark .track { background: rgba(255,255,255,.10); }
+          #initial-loader .bar { position: absolute; top: 0; bottom: 0; left: 0; width: 40%; border-radius: 999px; will-change: transform;
+            background: linear-gradient(90deg, transparent, #d9b48f, transparent); animation: fx-slide 1.2s cubic-bezier(.45,.05,.55,.95) infinite; }
+          @media (prefers-reduced-motion: reduce) { #initial-loader img, #initial-loader .bar { animation: none; } }
         </style>
-        <svg class="spinner-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 150" width="96" height="48">
-          <path fill="none" stroke="#000" stroke-width="14" stroke-linecap="round"
-            stroke-dasharray="300 385" stroke-dashoffset="0"
-            d="M275 75c0 31-27 50-50 50-58 0-92-100-150-100-28 0-50 22-50 50s23 50 50 50c58 0 92-100 150-100 24 0 50 19 50 50Z"/>
-        </svg>
-        <div class="brand">Fintraxa</div>
+        <img src="/brand/mark-256.png" alt="" width="64" height="64" fetchpriority="high" />
+        <div class="track"><div class="bar"></div></div>
         <script>
-          // Sync initial loader theme with stored preference (avoids flash)
-          (function() {
+          (function () {
             var stored = null;
-            try { stored = localStorage.getItem('pt-theme'); } catch(e) {}
+            try { stored = localStorage.getItem('pt-theme'); } catch (e) {}
             var isDark = stored === 'dark' || (!stored && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
             if (isDark) document.getElementById('initial-loader').classList.add('dark');
           })();

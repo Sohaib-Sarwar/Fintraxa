@@ -1,8 +1,8 @@
 import { Suspense, lazy, useMemo } from 'react';
+import PageSkeleton from '../../components/PageSkeleton';
 import { useMediaQuery } from '@mui/material';
 import { useLocation } from 'react-router-dom';
 import SwipeablePages from '../../components/SwipeablePages';
-import InfiniteSpinner from '../../components/InfiniteSpinner';
 
 const Dashboard = lazy(() => import('./Dashboard'));
 const AddFund = lazy(() => import('./AddFund'));
@@ -10,8 +10,7 @@ const Analytics = lazy(() => import('./Analytics'));
 const Imports = lazy(() => import('./Imports'));
 const MFTransactions = lazy(() => import('./MFTransactions'));
 
-const Loader = () => <InfiniteSpinner size={64} minHeight="40vh" />;
-const wrap = (El) => <Suspense fallback={<Loader />}><El /></Suspense>;
+const wrap = (El) => <Suspense fallback={<PageSkeleton />}><El /></Suspense>;
 
 /* The URL is the source of truth for which page is showing, on both layouts.
    `/funds/add` and `/funds/analytics` route here now rather than straight to

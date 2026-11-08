@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
+import { forgetUserData } from '../lib/queryClient';
 
 /** The live onAuthStateChange subscription, so a second initialize() replaces
  *  rather than stacks. StrictMode mounts twice in development, and without
@@ -29,6 +30,8 @@ export const useAuthStore = create((set) => ({
 
     authSubscription?.unsubscribe();
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // Signed out (here, in another tab, or the session was revoked): drop this user's cached data.
+      if (event === 'SIGNED_OUT') forgetUserData().catch(() => {});
       // PASSWORD_RECOVERY arrives when the user follows a reset link. Treating
       // it as an ordinary sign-in would drop them on the dashboard instead of
       // the "set a new password" screen, so it is kept distinguishable.
@@ -114,6 +117,7 @@ export const useAuthStore = create((set) => ({
     // the UI must reflect that — but the error is surfaced rather than
     // discarded, so a failed server-side revocation is not reported as success.
     set({ user: null, session: null, recovering: false });
+    await forgetUserData().catch(() => {});
     if (error) throw error;
   },
 }));

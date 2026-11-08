@@ -1,8 +1,8 @@
 import { Suspense, lazy, useMemo } from 'react';
+import PageSkeleton from '../../components/PageSkeleton';
 import { useMediaQuery } from '@mui/material';
 import { useLocation } from 'react-router-dom';
 import SwipeablePages from '../../components/SwipeablePages';
-import InfiniteSpinner from '../../components/InfiniteSpinner';
 
 const Dashboard = lazy(() => import('./Dashboard'));
 const SharesPage = lazy(() => import('./SharesPage'));
@@ -12,8 +12,7 @@ const Analytics = lazy(() => import('./Analytics'));
 const Research = lazy(() => import('./Research'));
 const Tools = lazy(() => import('./Tools'));
 
-const Loader = () => <InfiniteSpinner size={64} minHeight="40vh" />;
-const wrap = (El) => <Suspense fallback={<Loader />}><El /></Suspense>;
+const wrap = (El) => <Suspense fallback={<PageSkeleton />}><El /></Suspense>;
 
 /* See MFSection: every `/stocks/*` path routes here so the phone carousel and
    the address bar agree. Research and Tools were previously unreachable on
