@@ -25,7 +25,7 @@ import { liveEntries, replayHolding, priceBook } from './profit.js';
 import { normSymbol, replayStock, stockPriceAt, stockByTime } from './portfolio.js';
 import { cashFlows, savingsAt } from './combine.js';
 
-export const SNAPSHOT_VERSION = 'snap-1.2.0'; // 1.2: savings are per month, not carried over
+export const SNAPSHOT_VERSION = 'snap-1.3.0'; // 1.3: daily share-portfolio return (flows, dividends); 1.2: monthly savings
 const DAY = 86_400_000;
 const ZERO = new Decimal(0);
 const DUST_UNITS = new Decimal('0.01');
@@ -133,6 +133,16 @@ function stockDays(psx, days, today) {
     bySymbol.get(sym).push({ ...t, date: String(t.date).slice(0, 10) });
   }
   if (!bySymbol.size) return null;
+  // Cash put into shares per day: buys incl. fees minus sale proceeds after fees.
+  const flow = new Map();
+  for (const list of bySymbol.values()) {
+    for (const t of list) {
+      const gross = new Decimal(String(t.quantity ?? 0)).times(String(t.price ?? 0));
+      const fee = new Decimal(String(t.fee ?? 0));
+      const cash = t.type === 'buy' ? gross.plus(fee) : gross.minus(fee).negated();
+      flow.set(t.date, (flow.get(t.date) ?? ZERO).plus(cash));
+    }
+  }
   const holdings = [...bySymbol].map(([symbol, list]) => {
     list.sort(stockByTime);
     const full = replayStock(list);
@@ -162,9 +172,23 @@ function stockDays(psx, days, today) {
       });
       value += d2(v ?? c); cost += d2(c); unreal += g === null ? 0 : d2(g); net += rz ? d2(rz) : 0;
     }
-    totals.set(d, { value: r2(value), cost: r2(cost), unrealized: r2(unreal), realized: r2(net) });
+    totals.set(d, { value: r2(value), cost: r2(cost), unrealized: r2(unreal), realized: r2(net), flow: flow.has(d) ? d2(flow.get(d)) : 0 });
   }
   return { rows, totals };
+}
+
+/**
+ * Time-weighted return of the share portfolio for one day, so buying or selling is
+ * not mistaken for profit or loss. Buys are assumed at the start of the day (they
+ * earn the day's move from the trade price), sale proceeds at the end.
+ *   r = (V − Vprev − F + D) / (Vprev + max(F, 0))
+ * V / Vprev value at today's / yesterday's close, F cash put in today, D dividends today.
+ * Null when nothing was held (no base to measure against).
+ */
+export function dayReturn({ value, prevValue, flow = 0, dividend = 0 }) {
+  const base = prevValue + Math.max(flow, 0);
+  if (!(base > 0)) return null;
+  return Math.round(((value - prevValue - flow + dividend) / base) * 1e8) / 1e8;
 }
 
 /**
@@ -180,13 +204,23 @@ function stockDays(psx, days, today) {
 export function buildSnapshots({ mf = {}, psx = {}, finance = {}, from, to, today }) {
   const span = daysBetween(from, to);
   const f = fundDays(mf, span, today);
-  const s = stockDays(psx, span, today);
+  // Shares are also valued on the day before `from`: the first day's return needs yesterday's close.
+  const before = new Date(Date.parse(`${from}T00:00:00Z`) - DAY).toISOString().slice(0, 10);
+  const s = stockDays(psx, [before, ...span], today);
   const flows = cashFlows({ transactions: finance.transactions ?? [], dividends: finance.dividends ?? [] });
-  const none = { value: 0, cost: 0, unrealized: 0, realized: 0, cgt: 0 };
+  const divByDay = new Map();
+  for (const x of finance.dividends ?? []) {
+    if (x.payment_date) divByDay.set(x.payment_date, (divByDay.get(x.payment_date) ?? ZERO).plus(String(x.net_amount ?? 0)));
+  }
+  const none = { value: 0, cost: 0, unrealized: 0, realized: 0, cgt: 0, flow: 0 };
+  let prevStocks = (s?.totals.get(before) ?? none).value;
   const days = span.map((d) => {
     const ft = f?.totals.get(d) ?? none;
     const st = s?.totals.get(d) ?? none;
     const savings = savingsAt(flows, d);
+    const dividend = divByDay.has(d) ? d2(divByDay.get(d)) : 0;
+    const ret = dayReturn({ value: st.value, prevValue: prevStocks, flow: st.flow ?? 0, dividend });
+    prevStocks = st.value;
     return {
       snap_date: d,
       funds_value: ft.value, funds_cost: ft.cost, funds_unrealized: ft.unrealized,
@@ -196,9 +230,12 @@ export function buildSnapshots({ mf = {}, psx = {}, finance = {}, from, to, toda
       funds_realized_day: ft.realized, stocks_realized_day: st.realized,
       realized_day: sum([ft.realized, st.realized]),
       tax_day: ft.cgt ?? 0,
+      stocks_flow_day: st.flow ?? 0,
+      stocks_dividend_day: dividend,
+      stocks_return_day: ret,
     };
   });
-  return { days, holdings: [...(f?.rows ?? []), ...(s?.rows ?? [])] };
+  return { days, holdings: [...(f?.rows ?? []), ...(s?.rows ?? []).filter((h) => h.snap_date !== before)] };
 }
 
 /**

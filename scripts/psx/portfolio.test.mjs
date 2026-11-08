@@ -99,3 +99,13 @@ test('active in range: a stock bought before the range and still held is shown a
   assert.equal(a.series[0].invested, 1000, 'July: HELD only');
   assert.equal(a.allPositions.length, 3);
 });
+
+test('estimated CGT on the portfolio: 15% of the net unrealized gain, nothing on a net loss', () => {
+  const trades = [T('AAA', 'buy', '2026-07-01', 10, 100), T('BBB', 'buy', '2026-07-01', 10, 100)];
+  const live = (a, b) => ({ AAA: { current: a }, BBB: { current: b } });
+  const gain = analyzeStocks(trades, { live: live(120, 90), today: '2026-07-10' });  // +200, −100
+  assert.deepEqual([gain.totals.unrealized, gain.totals.unrealizedTax, gain.totals.unrealizedNet], [100, 15, 85]);
+  assert.equal(gain.positions.find((p) => p.symbol === 'AAA').unrealizedTax, 30); // per stock: its own gain
+  const loss = analyzeStocks(trades, { live: live(101, 90), today: '2026-07-10' }); // +10, −100
+  assert.deepEqual([loss.totals.unrealized, loss.totals.unrealizedTax, loss.totals.unrealizedNet], [-90, 0, -90]);
+});

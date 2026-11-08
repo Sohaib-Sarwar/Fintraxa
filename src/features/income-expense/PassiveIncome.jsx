@@ -168,7 +168,6 @@ export default function PassiveIncome() {
       <SummaryCard
         label={HERO[pick]}
         value={a.totals.net}
-        sub={`${a.totals.count} credit${a.totals.count === 1 ? '' : 's'} in ${label}, after tax`}
         metrics={metrics}
       />
 

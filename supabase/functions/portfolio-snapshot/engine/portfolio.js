@@ -159,6 +159,9 @@ export function analyzeStocks(trades, { live = {}, history = {}, start = '0000-0
   const sum = (list, k) => Number(list.reduce((s, p) => s.plus(p[k] ?? 0), ZERO).toFixed(2));
   const invested = sum(open, 'invested');
   const unrealized = sum(open, 'unrealized');
+  // Estimated CGT on the whole portfolio: 15% of the net unrealized gain, nothing on a net loss
+  // (losses offset gains). Per stock it is 15% of that stock's gain, so the parts need not add up.
+  const unrealizedTax = unrealized > 0 ? Number(D(unrealized).times(new Decimal(CGT_RATE)).toFixed(2)) : 0;
   const totals = {
     invested,
     unrealized,
@@ -168,8 +171,8 @@ export function analyzeStocks(trades, { live = {}, history = {}, start = '0000-0
     realized: sum(shown, 'realized'),
     realizedGross: sum(shown, 'realizedGross'),
     realizedFees: sum(shown, 'realizedFees'),
-    unrealizedTax: sum(open, 'unrealizedTax'),
-    unrealizedNet: sum(open, 'unrealizedNet'),
+    unrealizedTax,
+    unrealizedNet: Number(D(unrealized).minus(unrealizedTax).toFixed(2)),
     held: open.length,
     dayChange: isNow ? Number(open.reduce((s, p) => s.plus(p.dayChange !== null ? D(p.dayChange).times(p.shares) : 0), ZERO).toFixed(2)) : null,
     fallbackPriced: open.filter((p) => p.priceSource && p.priceSource !== 'live').length,

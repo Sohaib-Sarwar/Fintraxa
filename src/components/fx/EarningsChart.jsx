@@ -47,6 +47,7 @@ export default function EarningsChart({ months, height = 260, taxLabel = 'CGT' }
   const long = months.length <= 7;
   const data = months.map((m, i) => ({
     ...m,
+    __x: i,
     tick: m.tick ?? (long ? MONTHS_LONG[Number(m.month.slice(5, 7)) - 1] : m.label),
     change: i > 0 && months[i - 1].net ? ((m.net - months[i - 1].net) / Math.abs(months[i - 1].net)) * 100 : null,
   }));
@@ -69,7 +70,9 @@ export default function EarningsChart({ months, height = 260, taxLabel = 'CGT' }
               </g>
             ))}
           </defs>
-          <XAxis dataKey="tick" {...axis} interval="preserveStartEnd" minTickGap={8} dy={8} height={34} />
+          {/* Keyed by position, not by label: daily labels repeat across years ("3 Mar"), and a
+              repeated category made the hover land on the first match, not the day under the mouse. */}
+          <XAxis dataKey="__x" type="category" tickFormatter={(i) => data[i]?.tick ?? ''} {...axis} interval="preserveStartEnd" minTickGap={8} dy={8} height={34} />
           <YAxis {...axis} width={44} tickCount={6} tickFormatter={kAxis} domain={[(min) => Math.min(0, min), 'auto']} />
           <Tooltip cursor={false} content={() => null} isAnimationActive={false} />
           <Area type="monotone" dataKey="gross" name="Gross" stroke={c.gross} strokeWidth={3} fill="url(#fx-fill-g)" filter="url(#fx-glow-g)"

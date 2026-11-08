@@ -47,7 +47,7 @@ export default function GrowthChart({ points, height = 260, keys: keysIn, captio
     return <Box sx={{ height, display: 'grid', placeItems: 'center' }}><Typography sx={{ fontSize: '0.8rem', color: t.muted }}>{emptyText}</Typography></Box>;
   }
   const long = points.length <= 7;
-  const data = points.map((p) => ({ ...p, tick: p.tick ?? (long ? MONTHS_LONG[Number(p.month.slice(5, 7)) - 1] : p.label) }));
+  const data = points.map((p, i) => ({ ...p, __x: i, tick: p.tick ?? (long ? MONTHS_LONG[Number(p.month.slice(5, 7)) - 1] : p.label) }));
   const axis = { axisLine: false, tickLine: false, tick: { fontSize: 11.5, fill: c.axis, fontFamily: FONT_NUM } };
   return (
     <Box ref={wrapRef} sx={{ position: 'relative', height, '& .recharts-surface': { overflow: 'visible' }, '& .recharts-wrapper': { overflow: 'visible' } }}>
@@ -66,7 +66,9 @@ export default function GrowthChart({ points, height = 260, keys: keysIn, captio
               </g>
             ))}
           </defs>
-          <XAxis dataKey="tick" {...axis} interval="preserveStartEnd" minTickGap={8} dy={8} height={34} />
+          {/* Keyed by position, not by label: daily labels repeat across years ("3 Mar"), and a
+              repeated category made the hover land on the first match, not the day under the mouse. */}
+          <XAxis dataKey="__x" type="category" tickFormatter={(i) => data[i]?.tick ?? ''} {...axis} interval="preserveStartEnd" minTickGap={8} dy={8} height={34} />
           <YAxis {...axis} width={48} tickCount={6} tickFormatter={kAxis} domain={['auto', 'auto']} />
           <Tooltip cursor={false} content={() => null} isAnimationActive={false} />
           <Area type="monotone" dataKey={keys.secondary} name={keys.secondaryLabel} stroke={c.net} strokeWidth={3} fill="url(#gr-fill-i)" filter="url(#gr-glow-i)"

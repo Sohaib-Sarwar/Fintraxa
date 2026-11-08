@@ -13,7 +13,7 @@ import { useSavingsAccounts } from '../finance/useSavingsAccounts';
 import { useProfile } from '../profile/useProfile';
 import { ALL_TIME_START, todayIso } from '../dateRange';
 import { buildSnapshot, systemInstruction } from './context';
-import { cashFlows, savingsAt, netWorth } from '../home/combine';
+import { netWorth } from '../home/combine';
 
 export function useXyroData() {
   const allTime = useMemo(() => ({ id: 'all', start: ALL_TIME_START, end: todayIso() }), []);
@@ -39,10 +39,9 @@ export function useXyroData() {
   const data = useMemo(() => {
     if (loading) return null;
     const tx = (transactions ?? []).filter((t) => t.date && t.date <= todayIso());
-    const flows = cashFlows({ transactions: tx, dividends: dividends ?? [] });
     return {
       transactions: tx, dividends: dividends ?? [], trades: trades ?? [], events: events ?? [],
-      worth: netWorth({ funds: mf?.totals?.value ?? 0, stocks: psx?.totals?.value ?? 0, savings: savingsAt(flows, todayIso()) }),
+      worth: netWorth({ funds: mf?.totals?.value ?? 0, stocks: psx?.totals?.value ?? 0 }),
       categories: [...new Set(tx.map((t) => t.categories?.name).filter(Boolean))],
       notes: [...new Set(tx.map((t) => (t.notes ?? '').trim()).filter(Boolean))],
       symbols: [...new Set([...(dividends ?? []).map((d) => d.symbol), ...(trades ?? []).map((t) => t.symbol)].filter(Boolean))],

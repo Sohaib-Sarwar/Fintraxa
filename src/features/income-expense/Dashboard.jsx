@@ -106,7 +106,6 @@ export default function IEDashboard() {
       <SummaryCard
         label="Saved"
         value={s.saved}
-        sub={`Active income minus expenses${s.transfers ? `; ${formatCurrency(s.transfers)} moved to savings and investments` : ''}`}
         metrics={[
           { label: 'Active income', amount: s.active, note: 'salary, business, other' },
           { label: 'Passive income', amount: s.passive, format: SIGNED, color: signColor(t, s.passive), note: 'funds, dividends, savings', onClick: () => navigate('/passive-income') },

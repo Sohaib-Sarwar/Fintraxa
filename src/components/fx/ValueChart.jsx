@@ -20,8 +20,9 @@ const signed = (n) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${formatCurrency(Math.
  * rows      daily rows for what is selected (a holding, a group, or the whole asset class)
  * title     panel title; `left` replaces it with a control (e.g. a holding picker)
  * fillGaps  periods with nothing held show as zero instead of being skipped
+ * fill      stretch the chart to the panel's height (the panel fills its grid cell)
  */
-export default function ValueChart({ rows, range, title = 'Value vs invested', left, right, note, height = 280, fillGaps = true, defaultPeriod = 'month', emptyText }) {
+export default function ValueChart({ rows, range, title = 'Value vs invested', left, right, note, height = 280, fill = false, fillGaps = true, defaultPeriod = 'month', emptyText }) {
   const t = useFx();
   const mode = useTheme().palette.mode;
   const [period, setPeriod] = useState(defaultPeriod);
@@ -32,7 +33,7 @@ export default function ValueChart({ rows, range, title = 'Value vs invested', l
     { key: 'invested', label: 'Invested', color: t.invested },
   ];
   return (
-    <Panel>
+    <Panel sx={fill ? { height: '100%', minHeight: 0 } : undefined}>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5, mb: 1.5, flexWrap: 'wrap' }}>
         {left ?? <Typography component="h2" sx={{ fontSize: '0.92rem', fontWeight: 650, color: t.ink }}>{title}</Typography>}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
@@ -40,13 +41,26 @@ export default function ValueChart({ rows, range, title = 'Value vs invested', l
           <Seg size="sm" label="Chart period" value={period} onChange={setPeriod} options={PERIODS} />
         </Box>
       </Box>
-      <FlowChart points={points} series={series} height={height}
+      {fill ? (
+        // Fill the panel (desktop dashboards fit one screen): the chart takes whatever height is left.
+        <Box sx={{ flex: 1, minHeight: 200, position: 'relative' }}>
+          <Box sx={{ position: 'absolute', inset: 0 }}>
+            <FlowChart points={points} series={series} height="100%"
         emptyText={emptyText ?? 'Nothing held in this period'}
         headline={(p) => ({ value: p.value, caption: p.live ? 'Value now' : `Value at the ${period === 'day' ? 'close' : `end of the ${period === 'year' ? 'fiscal year' : period}`}` })}
         rows={(p) => [
           { label: 'Unrealized gain', value: signed(p.unrealized), color: p.unrealized < 0 ? '#f87171' : '#86efac' },
           { label: period === 'day' ? 'Realized that day' : 'Realized in the period', value: signed(p.realized), color: 'rgba(255,255,255,0.85)' },
         ]} />
+          </Box>
+        </Box>
+      ) : <FlowChart points={points} series={series} height={height}
+        emptyText={emptyText ?? 'Nothing held in this period'}
+        headline={(p) => ({ value: p.value, caption: p.live ? 'Value now' : `Value at the ${period === 'day' ? 'close' : `end of the ${period === 'year' ? 'fiscal year' : period}`}` })}
+        rows={(p) => [
+          { label: 'Unrealized gain', value: signed(p.unrealized), color: p.unrealized < 0 ? '#f87171' : '#86efac' },
+          { label: period === 'day' ? 'Realized that day' : 'Realized in the period', value: signed(p.realized), color: 'rgba(255,255,255,0.85)' },
+        ]} />}
       {note && <Typography sx={{ fontSize: '0.66rem', color: t.muted, mt: 1 }}>{note}</Typography>}
     </Panel>
   );

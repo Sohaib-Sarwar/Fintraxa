@@ -3,20 +3,19 @@ import { Box, Skeleton, Typography, Button, useMediaQuery } from '@mui/material'
 import { useNavigate } from 'react-router-dom';
 import { usePsxPortfolio } from '../../lib/psx/usePsxPortfolio';
 import { useDividends } from '../../lib/psx/useDividends';
-import { useDateRange, rangeLabel, todayIso } from '../../lib/dateRange';
+import { useDateRange, rangeLabel } from '../../lib/dateRange';
 import { formatCurrency, formatNumber } from '../../lib/formatters';
 import {
-  useFx, PageHeader, Panel, SummaryCard, HoldingsCard, signColor, ValueChart,
+  useFx, PageHeader, Panel, SummaryCard, HoldingsCard, signColor, ValueChart, Seg, FitPage,
 } from '../../components/fx';
+import BenchmarkChart from '../../components/fx/BenchmarkChart';
 import StockLogo from '../../components/StockLogo';
 import { assetRows } from '../../lib/snapshots/series';
 import { usePortfolioSnapshots } from '../../lib/snapshots/useSnapshots';
 import StockDetailsDialog from './StockDetailsDialog';
 
 const SIGNED = (n) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${formatCurrency(Math.abs(n))}`;
-const signed = (v, dp = 0) => (v === null || v === undefined ? '—' : `${v > 0 ? '+' : v < 0 ? '−' : ''}${formatCurrency(Math.abs(v), dp)}`);
 const pct = (v) => (v === null || v === undefined ? '' : `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(2)}%`);
-const CHART_H = 248;
 
 /**
  * PSX, the essentials: value at live prices, what it cost, what it made;
@@ -28,10 +27,11 @@ export default function PSXDashboard() {
   const navigate = useNavigate();
   const { range } = useDateRange();
   const label = rangeLabel(range);
-  const { portfolio: p, isLoading, pricesLoading, pricesFailed, pricesAsOf } = usePsxPortfolio(range);
+  const { portfolio: p, isLoading, pricesLoading } = usePsxPortfolio(range);
   const { rows: snaps } = usePortfolioSnapshots();
   const { summary: divs, all: divAll } = useDividends(range);
   const [stock, setStock] = useState(null);
+  const [chartView, setChartView] = useState('value'); // 'value' | 'kse'
 
   const { held, sold } = useMemo(() => ({
     held: p ? p.positions.filter((x) => x.isOpen).sort((a, b) => (b.value ?? b.invested) - (a.value ?? a.invested)) : [],
@@ -69,18 +69,19 @@ export default function PSXDashboard() {
   }
 
   const tt = p.totals;
-  const priceNote = pricesFailed ? 'live prices unavailable' : pricesLoading ? 'loading live prices' : pricesAsOf ? `PSX prices of ${new Date(pricesAsOf).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : 'live PSX prices';
-  const dayText = tt.dayChange ? `, today ${signed(tt.dayChange)}` : '';
-  const fallbackText = tt.fallbackPriced ? `, ${tt.fallbackPriced} at last known price` : '';
+
+  const viewSwitch = (
+    <Seg size="sm" label="Chart" value={chartView} onChange={setChartView}
+      options={[{ value: 'value', label: 'Value' }, { value: 'kse', label: 'vs KSE-100' }]} />
+  );
 
   return (
-    <Box sx={{ pb: isMobile ? 1 : 0 }}>
+    <FitPage>
       {title}
 
       <SummaryCard
         label="Portfolio value"
         value={pricesLoading && !tt.value ? null : tt.value}
-        sub={tt.held ? `${tt.held} stock${tt.held === 1 ? '' : 's'} held${dayText}${fallbackText}, ${p.end === todayIso() ? priceNote : `at the end of ${label}`}` : `Nothing held at the end of ${label}`}
         metrics={[
           { label: 'Invested', amount: tt.invested, note: 'average cost of shares held' },
           { label: 'Unrealized', amount: tt.unrealized, format: SIGNED, color: signColor(t, tt.unrealized), note: tt.unrealizedPct !== null ? `${pct(tt.unrealizedPct)} on cost` : 'on shares held' },
@@ -93,8 +94,14 @@ export default function PSXDashboard() {
         ]}
       />
 
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 7fr) minmax(0, 5fr)' }, gap: 2 }}>
-        <ValueChart rows={assetRows(snaps, 'stocks', p)} range={range} height={isMobile ? 230 : CHART_H} />
+      {/* Like Home: on desktop the chart and holdings take the rest of the screen. */}
+      <Box sx={{
+        display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 7fr) minmax(0, 5fr)' }, gap: 2,
+        flex: isMobile ? 'none' : '1 1 0', minHeight: isMobile ? 'auto' : 300,
+      }}>
+        {chartView === 'value'
+          ? <ValueChart rows={assetRows(snaps, 'stocks', p)} range={range} height={230} fill={!isMobile} left={viewSwitch} />
+          : <BenchmarkChart rows={snaps} height={230} fill={!isMobile} left={viewSwitch} />}
 
         <HoldingsCard
           formatMoney={(v) => formatCurrency(v)}
@@ -129,6 +136,6 @@ export default function PSXDashboard() {
       </Box>
 
       {stock && <StockDetailsDialog position={stock} onClose={() => setStock(null)} />}
-    </Box>
+    </FitPage>
   );
 }

@@ -112,7 +112,8 @@ Read through `src/lib/mf/useMfPortfolio.js`. Profit for a date range comes from 
 (`analyzeFunds`, via `useMfAnalysis`): FIFO lots, exact decimals (decimal.js — never JS floats for money).
 - Realized = sale proceeds − FIFO cost (+ distributions) in the range; CGT = what statements deducted,
   net of refunds/reversals in the range. Paid CGT applies to realized gains only.
-- Unrealized = value at the range end − FIFO cost of units held; 15% CGT shown as an estimate, per holding.
+- Unrealized = value at the range end − FIFO cost of units held. Estimated CGT: per holding 15% of its gain;
+  on a total (portfolio, filter) 15% of the net gain and nothing on a net loss (losses offset gains). Same for PSX.
 - Invested = FIFO cost of units still held (a redemption removes its units' cost).
 - Verified by `scripts/mf/profit.test.mjs` (hand-worked) and `tests/private/profit-crosscheck.test.mjs`
   (real statements vs the QA ledger, NBP's and Meezan's own printed figures).
@@ -154,3 +155,16 @@ changing `profit.js`, `portfolio.js`, `combine.js` or `build.js`, then redeploy 
   that date (trigger); the next run recomputes from there.
 - Market closes are captured only for instruments someone holds (`market_private.held_symbols/held_funds`).
 - Charts read snapshots through `src/lib/snapshots/series.js` (value vs invested, profit windows).
+- Savings are per calendar month (`savingsAt` in `src/lib/home/combine.js`): that month's income minus
+  spending and money moved into investments. Nothing carries into the next month.
+- Portfolio vs KSE-100: snapshots store `stocks_flow_day`, `stocks_dividend_day` and `stocks_return_day`
+  (time-weighted daily return of the shares; buys/sales are not profit, dividends are). Index closes live in
+  `market_index_history` (view `market_index_daily` adds each day's return), captured daily from the feed's
+  `psx/indices.json`. `benchmarkSeries` / `sameWindowIndex` in `series.js` build the "% since 1 Jan" chart.
+- Missing history: `scripts/psx/backfill-closes.py` (stock closes from PSX market summaries); KSE-100 history came
+  from PSX closing-rate PDFs. Load only the closes holdings need; keep full records outside git.
+
+## Categories
+
+Deleting a category goes through `public.delete_category(id, move_to)`: it moves the transactions to another
+category of the same type and deletes, in one transaction (Settings > Categories).

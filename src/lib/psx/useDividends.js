@@ -40,11 +40,13 @@ export function useDividends(range, filter = {}) {
   const q = useQuery(dividendsQuery(user?.id));
   const start = range?.start; const end = range?.end;
   const sector = filter.sector ?? 'all'; const symbol = filter.symbol ?? 'all';
+  const only = filter.symbols ?? null; // optional Set of symbols (e.g. those traded through one broker)
   const summary = useMemo(() => {
     if (!q.data) return null;
-    const rows = q.data.filter((x) => (symbol === 'all' || x.symbol === symbol) && (sector === 'all' || getStockSector(x.symbol) === sector));
+    const rows = q.data.filter((x) => (symbol === 'all' || x.symbol === symbol) && (sector === 'all' || getStockSector(x.symbol) === sector)
+      && (!only || only.has(x.symbol)));
     return summarizeDividends(rows, { start, end, today: todayIso() });
-  }, [q.data, start, end, sector, symbol]);
+  }, [q.data, start, end, sector, symbol, only]);
   return { all: q.data ?? [], summary, isLoading: q.isLoading, isError: q.isError };
 }
 

@@ -287,7 +287,13 @@ export function analyzeFunds({ entries, components = [], prices = [], funds = {}
       gross: sum((p) => p.realized.gross), cgt: sum((p) => p.realized.cgt), charges: sum((p) => p.realized.charges),
       net: sum((p) => p.realized.net), sales: shown.reduce((s, p) => s + p.realized.sales, 0),
     },
-    unrealized: { gross: sum((p) => p.unrealized.gross), tax: sum((p) => p.unrealized.tax), net: sum((p) => p.unrealized.net), rate: Number(UNREALIZED_CGT_RATE) },
+    // Estimated CGT across holdings: 15% of the net unrealized gain, nothing on a net loss (losses
+    // offset gains). Per holding it is 15% of that holding's gain, so the parts need not add up.
+    unrealized: (() => {
+      const gross = sum((p) => p.unrealized.gross);
+      const tax = gross > 0 ? Number(new Decimal(String(gross)).times(RATE).toFixed(2)) : 0;
+      return { gross, tax, net: Number(new Decimal(String(gross)).minus(tax).toFixed(2)), rate: Number(UNREALIZED_CGT_RATE) };
+    })(),
     held: shown.filter((p) => p.isOpen).length,
     incomplete: anyNull((p) => p.value) || anyNull((p) => p.unrealized.gross) || shown.some((p) => p.flags.includes('realized_incomplete')),
   };

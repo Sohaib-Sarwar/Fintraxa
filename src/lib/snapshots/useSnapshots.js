@@ -22,7 +22,7 @@ async function fetchAll(build) {
 }
 
 const NUM = (cols) => cols.map((c) => `${c}::float8`).join(', ');
-const PORTFOLIO_COLS = `snap_date, ${NUM(['funds_value', 'funds_cost', 'funds_unrealized', 'stocks_value', 'stocks_cost', 'stocks_unrealized', 'savings', 'net_worth', 'funds_realized_day', 'stocks_realized_day', 'realized_day', 'tax_day'])}`;
+const PORTFOLIO_COLS = `snap_date, ${NUM(['funds_value', 'funds_cost', 'funds_unrealized', 'stocks_value', 'stocks_cost', 'stocks_unrealized', 'savings', 'net_worth', 'funds_realized_day', 'stocks_realized_day', 'realized_day', 'tax_day', 'stocks_flow_day', 'stocks_dividend_day', 'stocks_return_day'])}`;
 
 let catchUpAsked = false;
 /** Ask the function to bring this user's snapshots up to today (once per session). */

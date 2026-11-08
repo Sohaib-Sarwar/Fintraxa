@@ -2,16 +2,15 @@ import { useMemo, useState } from 'react';
 import { Box, Skeleton, Typography, Button, useMediaQuery } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { useMfAnalysis } from '../../lib/mf/useMfPortfolio';
-import { useDateRange, rangeLabel, shortDate } from '../../lib/dateRange';
+import { useDateRange, rangeLabel } from '../../lib/dateRange';
 import { formatCurrency } from '../../lib/formatters';
-import { useFx, PageHeader, Panel, signColor, SummaryCard, ValueChart } from '../../components/fx';
+import { useFx, PageHeader, Panel, signColor, SummaryCard, ValueChart, FitPage } from '../../components/fx';
 import { assetRows } from '../../lib/snapshots/series';
 import { usePortfolioSnapshots } from '../../lib/snapshots/useSnapshots';
 import { FundDetailsDialog } from './MFDetails';
 import HoldingsPanel from './HoldingsPanel';
 
 const SIGNED = (n) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${formatCurrency(Math.abs(n))}`;
-const CHART_H = 248;
 
 /**
  * Mutual funds, the essentials: what it is worth, what it cost, what you
@@ -27,13 +26,12 @@ export default function MFDashboard() {
   const [fund, setFund] = useState(null);
   const label = rangeLabel(range);
 
-  const { held, previous, pricedOn } = useMemo(() => {
-    if (!a) return { held: [], previous: [], pricedOn: null };
+  const { held, previous } = useMemo(() => {
+    if (!a) return { held: [], previous: [] };
     const heldList = a.positions.filter((p) => p.isOpen).sort((x, y) => (y.value ?? 0) - (x.value ?? 0));
     return {
       held: heldList,
       previous: a.positions.filter((p) => !p.isOpen).sort((x, y) => (y.lastDate ?? '').localeCompare(x.lastDate ?? '')),
-      pricedOn: heldList.map((p) => p.price?.date).filter(Boolean).sort().pop() ?? null,
     };
   }, [a]);
 
@@ -66,13 +64,12 @@ export default function MFDashboard() {
   const tt = a.totals;
 
   return (
-    <Box sx={{ pb: isMobile ? 1 : 0 }}>
+    <FitPage>
       <PageHeader title="Mutual Funds" />
 
       <SummaryCard
         label="Portfolio value"
         value={tt.value}
-        sub={tt.held ? `${tt.held} fund${tt.held === 1 ? '' : 's'} held${pricedOn ? `, priced ${shortDate(pricedOn)}` : ''}` : `Nothing held at the end of ${label}`}
         metrics={[
           { label: 'Invested', amount: tt.invested, note: 'cost of units held' },
           { label: 'Realized', amount: tt.realized.net, format: SIGNED, color: signColor(t, tt.realized.net), note: 'after CGT', onClick: () => navigate('/funds/analytics') },
@@ -81,13 +78,17 @@ export default function MFDashboard() {
         ]}
       />
 
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 7fr) minmax(0, 5fr)' }, gap: 2 }}>
-        <ValueChart rows={assetRows(snaps, 'funds', a)} range={range} height={isMobile ? 230 : CHART_H} />
+      {/* Like Home: on desktop the chart and holdings take the rest of the screen. */}
+      <Box sx={{
+        display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 7fr) minmax(0, 5fr)' }, gap: 2,
+        flex: isMobile ? 'none' : '1 1 0', minHeight: isMobile ? 'auto' : 300,
+      }}>
+        <ValueChart rows={assetRows(snaps, 'funds', a)} range={range} height={230} fill={!isMobile} />
 
         <HoldingsPanel held={held} previous={previous} onOpen={setFund} emptyText={`Nothing held at the end of ${label}`} />
       </Box>
 
       <FundDetailsDialog open={!!fund} onClose={() => setFund(null)} position={fund} rangeLabel={label} />
-    </Box>
+    </FitPage>
   );
 }

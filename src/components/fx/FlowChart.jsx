@@ -26,7 +26,10 @@ function placeCard(cx, width, FW) {
  * headline: (point) => ({ value: number, caption: string, signed?: boolean })  the big figure
  * rows:     (point) => [{ label, value: string, color? }]                       extra rows after the series
  */
-export default function FlowChart({ points, series, height = 260, headline, rows, emptyText = 'Nothing recorded in this period' }) {
+const MONEY = (n) => formatCurrency(n, 2);
+
+/** fmt formats a magnitude (sign is added here); axisFormat the y-axis ticks. Defaults: rupees. */
+export default function FlowChart({ points, series, height = 260, headline, rows, emptyText = 'Nothing recorded in this period', fmt = MONEY, axisFormat = compactNumber, zeroBased = true }) {
   const t = useFx();
   const mode = useTheme().palette.mode;
   const c = earningsColors(mode);
@@ -37,8 +40,9 @@ export default function FlowChart({ points, series, height = 260, headline, rows
     return <Box sx={{ height, display: 'grid', placeItems: 'center' }}><Typography sx={{ fontSize: '0.8rem', color: t.muted }}>{emptyText}</Typography></Box>;
   }
   const long = points.length <= 7;
-  const data = points.map((p) => ({
+  const data = points.map((p, i) => ({
     ...p,
+    __x: i,
     tick: p.tick ?? (long ? MONTHS_LONG[Number(p.month.slice(5, 7)) - 1] : p.label),
     __top: Math.max(...series.map((s) => Number(p[s.key]) || 0)),
   }));
@@ -61,8 +65,10 @@ export default function FlowChart({ points, series, height = 260, headline, rows
               </g>
             ))}
           </defs>
-          <XAxis dataKey="tick" {...axis} interval="preserveStartEnd" minTickGap={8} dy={8} height={34} />
-          <YAxis {...axis} width={48} tickCount={6} tickFormatter={(v) => compactNumber(v)} domain={[(min) => Math.min(0, min), 'auto']} />
+          {/* Keyed by position, not by label: daily labels repeat across years ("3 Mar"), and a
+              repeated category made the hover land on the first match, not the day under the mouse. */}
+          <XAxis dataKey="__x" type="category" tickFormatter={(i) => data[i]?.tick ?? ''} {...axis} interval="preserveStartEnd" minTickGap={8} dy={8} height={34} />
+          <YAxis {...axis} width={48} tickCount={6} tickFormatter={(v) => axisFormat(v)} domain={zeroBased ? [(min) => Math.min(0, min), 'auto'] : ['auto', 'auto']} />
           <Tooltip cursor={false} content={() => null} isAnimationActive={false} />
           {series.map((s) => (
             <Area key={s.key} type="monotone" dataKey={s.key} name={s.label} stroke={s.color} strokeWidth={3} fill={`url(#flow-fill-${s.key})`} filter={`url(#flow-glow-${s.key})`}
@@ -70,7 +76,7 @@ export default function FlowChart({ points, series, height = 260, headline, rows
           ))}
           {/* Invisible line along the highest series: its hover point anchors the card above every line. */}
           <Line dataKey="__top" stroke="transparent" dot={false} isAnimationActive={false} legendType="none"
-            activeDot={(p) => <Card {...p} layer={layer} colors={c} series={series} headline={headline} rows={rows} chartWidth={width} key={`fc-${p.index}`} />} />
+            activeDot={(p) => <Card {...p} layer={layer} colors={c} series={series} headline={headline} rows={rows} fmt={fmt} chartWidth={width} key={`fc-${p.index}`} />} />
         </ComposedChart>
       </ResponsiveContainer>
       <HoverLayerHost ref={layerRef} />
@@ -83,7 +89,7 @@ function Ring({ cx, cy, color, surface }) {
   return <circle cx={cx} cy={cy} r={6.5} fill={surface} stroke={color} strokeWidth={3} />;
 }
 
-function Card({ layer, cx, cy, payload: p, colors, series, headline, rows, chartWidth }) {
+function Card({ layer, cx, cy, payload: p, colors, series, headline, rows, fmt, chartWidth }) {
   if (cx === undefined || cy === undefined || !p) return null;
   const FW = 360; const FH = 300;
   const place = placeCard(cx, chartWidth, FW);
@@ -98,7 +104,7 @@ function Card({ layer, cx, cy, payload: p, colors, series, headline, rows, chart
       <Box component="span" sx={{ fontFamily: FONT_NUM, fontWeight: 600, color: color ?? '#fff', letterSpacing: '-0.01em' }}>{value}</Box>
     </Box>
   );
-  const big = head ? `${head.signed && head.value > 0 ? '+' : head.value < 0 ? '−' : ''}${formatCurrency(Math.abs(head.value), 2)}` : null;
+  const big = head ? `${head.signed && head.value > 0 ? '+' : head.value < 0 ? '−' : ''}${fmt(Math.abs(head.value))}` : null;
   return (
     <g style={{ pointerEvents: 'none' }}>
       <HoverPortal layer={layer} x={place.x} y={cy - FH - 16} width={FW} height={FH}>
@@ -118,7 +124,7 @@ function Card({ layer, cx, cy, payload: p, colors, series, headline, rows, chart
               </>
             )}
             <Box sx={{ borderTop: head ? '1px solid rgba(255,255,255,0.1)' : 0, pt: head ? 0.6 : 0.25 }}>
-              {series.map((s) => { const v = Number(p[s.key]) || 0; return line(s.label, `${v < 0 ? '−' : ''}${formatCurrency(Math.abs(v), 2)}`, '#fff', s.color); })}
+              {series.map((s) => { const raw = p[s.key]; const v = Number(raw) || 0; return line(s.label, raw === null || raw === undefined ? '—' : `${v < 0 ? '−' : ''}${fmt(Math.abs(v))}`, '#fff', s.color); })}
               {extra.map((x) => line(x.label, x.value, x.color))}
             </Box>
           </Box>

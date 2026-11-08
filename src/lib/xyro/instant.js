@@ -66,7 +66,7 @@ export function instantAnswer(question, intent, data) {
     const w = data.worth;
     return [
       `Your net worth is **${rs(w.value)}** right now.`, '',
-      table(['Part', 'Value'], [['Mutual funds', rs(w.funds)], ['PSX stocks', rs(w.stocks)], ['Savings', rs(w.savings)], ['**Total**', `**${rs(w.value)}**`]]),
+      table(['Part', 'Value'], [['Mutual funds', rs(w.funds)], ['PSX stocks', rs(w.stocks)], ['**Total**', `**${rs(w.value)}**`]]),
     ].join('\n');
   }
 

@@ -40,13 +40,20 @@ test('a full redemption clears what was invested', () => {
   assert.equal(a.totals.unrealized.gross, 0);
 });
 
-test('15% is per holding: a loss in one fund does not reduce tax on a gain in another', () => {
+test('estimated CGT: 15% of the net unrealized gain (losses offset gains), nothing on a net loss', () => {
   const a = analyzeFunds({
     entries: [buy('2026-07-01', 10, 100, 'G'), buy('2026-07-01', 10, 100, 'L')],
     prices: [P(110, '2026-10-31', 'G'), P(95, '2026-10-31', 'L')], ...FY,
   });
-  // G: +100 → tax 15. L: −50 → tax 0. Gross 50, tax 15, net 35.
-  assert.deepEqual(a.totals.unrealized, { gross: 50, tax: 15, net: 35, rate: 0.15 });
+  // G +100, L −50 → net gain 50 → tax 7.50, net 42.50. Per holding, G alone still shows 15.
+  assert.deepEqual(a.totals.unrealized, { gross: 50, tax: 7.5, net: 42.5, rate: 0.15 });
+  assert.equal(a.positions.find((p) => p.unrealized.gross === 100).unrealized.tax, 15);
+  const loss = analyzeFunds({
+    entries: [buy('2026-07-01', 10, 100, 'G'), buy('2026-07-01', 10, 100, 'L')],
+    prices: [P(101, '2026-10-31', 'G'), P(90, '2026-10-31', 'L')], ...FY,
+  });
+  // G +10, L −100 → net loss 90 → no CGT; net = gross.
+  assert.deepEqual(loss.totals.unrealized, { gross: -90, tax: 0, net: -90, rate: 0.15 });
 });
 
 test('CGT refunds and reversals reduce CGT in the month they arrive; net CGT is never clamped', () => {

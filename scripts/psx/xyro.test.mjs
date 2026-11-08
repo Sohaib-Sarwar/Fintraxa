@@ -43,8 +43,9 @@ test('snapshot carries dates, the month table, net worth and the rows, with no i
   assert.match(s, /FY 2026-27 = 2026-07-01 to 2027-06-30/);
   assert.match(s, /2026-06 \| 120000\.10 \| 6050\.00 \| 4250\.00 \| 1000\.00 \| 800\.00 \| 0\.00 \| 31500\.25 \| 50000\.00 \| 88499\.85 \| 73\.7/);
   assert.match(s, /2026-06: Rent 30000\.00; Food 1500\.25/);
-  // savings = 220000.10 active + 800 profit + 1000 dividend − 31500.25 spent − 50000 invested
-  assert.match(s, /mutual funds 250000\.00 \+ PSX stocks 100000\.50 \+ savings 100000\.00/); // July only: June's savings are not carried in
+  // Net worth is what is held; this month's savings are reported apart (July only: June is not carried in).
+  assert.match(s, /Net worth 350000\.50 = mutual funds 250000\.00 \+ PSX stocks 100000\.50/);
+  assert.match(s, /Saved this month so far \(not part of net worth\): 100000\.00/);
   assert.match(s, /MARI \| 1 \| 1250\.00 \| 250\.00 \| 1000\.00/);
   assert.match(s, /2026-06-05,out,Rent,spend,30000\.00,,June rent flat 2/); // commas in notes cannot break the CSV
   assert.doesNotMatch(s, /uuid/);

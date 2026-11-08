@@ -48,7 +48,7 @@ export function HeroValue({ value, after }) {
  * it on the right as a ledger separated by hairlines.
  * metrics: [{ label, amount?, format?, value?, note?, color?, onClick?, tooltip? }] — amount + format animates; value is shown as is; tooltip shows a breakdown on hover
  */
-export function SummaryCard({ label, value, sub, metrics = [], extra, background, labelSx }) {
+export function SummaryCard({ label, value, metrics = [], extra, background, labelSx }) {
   const t = useFx();
   const mode = useTheme().palette.mode;
   const art = background ? background[mode] : null;
@@ -67,7 +67,6 @@ export function SummaryCard({ label, value, sub, metrics = [], extra, background
           <Typography sx={{ fontSize: '0.82rem', color: t.ink2, fontWeight: 500, ...labelSx }}>{label}</Typography>
           {/* The figure with the eye right after it: show / hide every amount in the app. */}
           <HeroValue value={value} after={<PrivacyToggle compact />} />
-          {sub && <Typography sx={{ fontSize: '0.74rem', color: t.muted, mt: 0.75 }}>{sub}</Typography>}
           {extra}
         </Box>
         {/* Four or more figures wrap to a 2 × 2 grid on phones; one row from md up. */}

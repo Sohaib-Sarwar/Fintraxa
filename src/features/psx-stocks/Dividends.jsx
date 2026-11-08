@@ -4,7 +4,7 @@ import { AddRounded, ReceiptLongRounded } from '@mui/icons-material';
 import { formatCurrency } from '../../lib/formatters';
 import { useDividends } from '../../lib/psx/useDividends';
 import { groupByFiscalYear } from '../../lib/mf/profit';
-import { useDateRange, rangeLabel, shortDate, todayIso } from '../../lib/dateRange';
+import { useDateRange, shortDate, todayIso } from '../../lib/dateRange';
 import { useFx, PageHeader, Panel, PanelHeader, SummaryCard, AllocationDonut, EarningsChart, Seg, FitPage } from '../../components/fx';
 import StockLogo from '../../components/StockLogo';
 import DividendDialog from './DividendDialog';
@@ -15,7 +15,6 @@ export default function Dividends() {
   const t = useFx();
   const isMobile = useMediaQuery('(max-width:900px)');
   const { range } = useDateRange();
-  const label = rangeLabel(range);
   const { all, summary: s, isLoading } = useDividends(range);
   // Yearly view spans the whole history: one fiscal year alone would be a single point.
   const { summary: allTime } = useDividends();
@@ -87,7 +86,6 @@ export default function Dividends() {
       <SummaryCard
         label="Dividends received"
         value={s.net}
-        sub={s.count ? `${s.count} payment${s.count === 1 ? '' : 's'} from ${stocks.length} stock${stocks.length === 1 ? '' : 's'}, net of tax` : `Nothing paid in ${label}`}
         metrics={[
           { label: 'Gross', amount: s.gross, note: 'declared on your shares' },
           { label: 'Tax withheld', amount: s.deductions, note: s.zakat ? `incl. zakat ${formatCurrency(s.zakat, 2)}` : 'deducted at source' },

@@ -56,15 +56,18 @@ export function usePsxPortfolio(range, filter = {}) {
   const live = useMemo(() => stockPriceMap(market.data), [market.data]);
   const start = range?.start; const end = range?.end;
   const sector = filter.sector ?? 'all'; const symbol = filter.symbol ?? 'all';
+  const broker = filter.broker ?? 'all'; // a broker code, 'manual' (no broker) or 'all'
   const portfolio = useMemo(() => {
     if (!trades.data) return null;
     const rows = trades.data.filter((t) => (symbol === 'all' || normSymbol(t.symbol) === symbol)
-      && (sector === 'all' || getStockSector(normSymbol(t.symbol)) === sector));
+      && (sector === 'all' || getStockSector(normSymbol(t.symbol)) === sector)
+      && (broker === 'all' || (t.broker ?? 'manual') === broker));
     return analyzeStocks(rows, { live, history: closes.data ?? {}, start, end, today: todayIso() });
-  }, [trades.data, live, closes.data, start, end, sector, symbol]);
+  }, [trades.data, live, closes.data, start, end, sector, symbol, broker]);
   return {
     portfolio,
     trades: trades.data ?? [],
+    history: closes.data ?? null, // captured closes by symbol, for client-side daily values
     live,
     isLoading: trades.isLoading,
     pricesLoading: market.isLoading,

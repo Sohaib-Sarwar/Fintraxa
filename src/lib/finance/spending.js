@@ -1,5 +1,9 @@
 /**
- * Spending insights for a date range: pure, exact (decimal.js).
+ * Insights for a date range, for spending or for active income: pure, exact (decimal.js).
+ *
+ * side 'spend' (default): the focus is spending; active income is shown beside it.
+ * side 'income': the focus is active income (salary, freelance, ...); spending is beside it.
+ * Every figure below is about the focus side; `category` narrows the focus side only.
  *
  * Spending is every debit whose category is a 'spend' kind (see summary.js
  * kindOf). Money moved into savings or investments is a transfer, not spending,
@@ -34,23 +38,30 @@ const monthEnd = (m) => { const [y, mo] = m.split('-').map(Number); return toIso
 const pct = (now, before) => (before.gt(0) ? Number(now.minus(before).dividedBy(before).times(100).toFixed(1)) : null);
 
 export const isSpend = (t) => t.type === 'debit' && kindOf(t) === 'spend';
-const isActive = (t) => t.type === 'credit' && kindOf(t) !== 'passive';
+export const isActiveIncome = (t) => t.type === 'credit' && kindOf(t) !== 'passive';
+const isActive = isActiveIncome;
 
 /**
  * @param {object[]} txns  income_expense_transactions rows with categories(name, icon, kind)
  * @param {{ start: string, end?: string }} range
  * @param {string} today   ISO date (local)
- * @param {{ largest?: number, category?: string|null }} [o] category: only that expense category (by name)
+ * @param {{ largest?: number, category?: string|null, side?: 'spend'|'income' }} [o] category: only that category of the focus side (by name)
  */
-export function analyzeSpending(txns, { start, end }, today, { largest = 6, category = null } = {}) {
+export function analyzeSpending(txns, { start, end }, today, { largest = 6, category = null, side = 'spend' } = {}) {
   const endEff = end && end < today ? end : today;
   const sum = (rows) => rows.reduce((s, t) => s.plus(D(t.amount)), ZERO);
-  const spendAll = txns.filter(isSpend);
-  const spend = category ? spendAll.filter((t) => (t.categories?.name || 'Uncategorized') === category) : spendAll;
+  const isFocus = side === 'income' ? isActive : isSpend;
+  const byCategory = (rows) => (category ? rows.filter((t) => (t.categories?.name || 'Uncategorized') === category) : rows);
+  const focusAll = txns.filter(isFocus);
+  const spend = byCategory(focusAll);  // the focus rows (spending, or active income)
   const inRange = spend.filter((t) => t.date >= start && t.date <= endEff);
   const total = sum(inRange);
-  const allTotal = sum(spendAll.filter((t) => t.date >= start && t.date <= endEff));
+  const allTotal = sum(focusAll.filter((t) => t.date >= start && t.date <= endEff));
   const active = sum(txns.filter((t) => isActive(t) && t.date >= start && t.date <= endEff));
+  const spentAll = sum(txns.filter((t) => isSpend(t) && t.date >= start && t.date <= endEff));
+  // Month series: the focus side follows the category filter, the other side is everything.
+  const monthSpend = side === 'income' ? txns.filter(isSpend) : spend;
+  const monthIncome = side === 'income' ? spend : txns.filter(isActive);
 
   // The same number of days just before the range.
   const days = Math.round((toDate(endEff) - toDate(start)) / DAY) + 1;
@@ -83,7 +94,7 @@ export function analyzeSpending(txns, { start, end }, today, { largest = 6, cate
       const inMonth = (t) => t.date.slice(0, 7) === m && t.date >= start && t.date <= endEff;
       months.push({
         month: m, label: MON[Number(m.slice(5, 7)) - 1], live: m === today.slice(0, 7),
-        spent: r2(sum(spend.filter(inMonth))), income: r2(sum(txns.filter((t) => isActive(t) && inMonth(t)))),
+        spent: r2(sum(monthSpend.filter(inMonth))), income: r2(sum(monthIncome.filter(inMonth))),
       });
     }
     if (months.length > 12) for (const x of months) x.label = `${x.label} ${x.month.slice(2, 4)}`;
@@ -91,7 +102,8 @@ export function analyzeSpending(txns, { start, end }, today, { largest = 6, cate
 
   // Average over complete calendar months inside the range only.
   const complete = months.filter((m) => `${m.month}-01` >= start && monthEnd(m.month) <= endEff && monthEnd(m.month) < today);
-  const completeTotal = complete.reduce((s, m) => s.plus(D(m.spent)), ZERO);
+  const focusKey = side === 'income' ? 'income' : 'spent';
+  const completeTotal = complete.reduce((s, m) => s.plus(D(m[focusKey])), ZERO);
   const avgMonthly = complete.length ? r2(completeTotal.dividedBy(complete.length)) : null;
 
   // This month so far vs the same days of last month (pace, not a full-month comparison).
@@ -103,7 +115,9 @@ export function analyzeSpending(txns, { start, end }, today, { largest = 6, cate
   const mtdBefore = sum(spend.filter((t) => t.date >= `${lastMonth}-01` && t.date <= lastCut));
 
   return {
-    start, end: endEff, days, count: inRange.length,
+    side, start, end: endEff, days, count: inRange.length,
+    spentAll: r2(spentAll),          // all spending in the range (beside income)
+    keptShare: side === 'income' && active.gt(0) ? Number(active.minus(spentAll).dividedBy(active).times(100).toFixed(1)) : null,
     total: r2(total),
     allTotal: r2(allTotal),           // every category, for the share of one
     shareOfSpending: allTotal.gt(0) ? Number(total.dividedBy(allTotal).times(100).toFixed(1)) : null,

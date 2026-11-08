@@ -61,3 +61,19 @@ test('one category: every figure is that category, with its share of all spendin
   assert.deepEqual(s.months.map((m) => [m.month, m.spent]), [['2026-07', 1500.1], ['2026-08', 2499.9]]);
   assert.equal(s.shareOfIncome, 2);
 });
+
+test('income side: active income by category, spending beside it, the filter narrows income only', () => {
+  const more = [...rows, tx('2026-08-15', 'credit', '25000.50', 'Freelance', 'active')];
+  const s = analyzeSpending(more, { start: '2026-07-01', end: '2026-08-31' }, '2026-09-10', { side: 'income' });
+  assert.equal(s.side, 'income');
+  assert.equal(s.total, 225000.5);                    // 100000 + 100000 + 25000.50; the passive 800 is not active income
+  assert.deepEqual(s.categories.map((c) => [c.name, c.amount, c.count]), [['Salary', 200000, 2], ['Freelance', 25000.5, 1]]);
+  assert.equal(s.spentAll, 64000);
+  assert.equal(s.keptShare, Number(((225000.5 - 64000) / 225000.5 * 100).toFixed(1)));
+  assert.deepEqual(s.months.map((m) => [m.month, m.income, m.spent]), [['2026-07', 100000, 31500.1], ['2026-08', 125000.5, 32499.9]]);
+  assert.equal(s.avgMonthly, 112500.25);              // two complete months of income
+  const salary = analyzeSpending(more, { start: '2026-07-01', end: '2026-08-31' }, '2026-09-10', { side: 'income', category: 'Salary' });
+  assert.equal(salary.total, 200000);
+  assert.equal(salary.allTotal, 225000.5);
+  assert.deepEqual(salary.months.map((m) => [m.income, m.spent]), [[100000, 31500.1], [100000, 32499.9]]); // spending is not filtered
+});

@@ -1,18 +1,17 @@
 import { useMemo, useState } from 'react';
 import { Box, Skeleton, Typography, Button, useMediaQuery, useTheme } from '@mui/material';
-import { AccountBalanceRounded } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { useMfAnalysis } from '../../lib/mf/useMfPortfolio';
 import { usePsxPortfolio } from '../../lib/psx/usePsxPortfolio';
 import { useFinanceTransactions } from '../../lib/finance/useFinance';
 import { useDividends } from '../../lib/psx/useDividends';
-import { cashFlows, savingsAt, netWorthSeries, netWorth } from '../../lib/home/combine';
+import { cashFlows, netWorthSeries, netWorth } from '../../lib/home/combine';
 import { holdingsSeries } from '../../lib/snapshots/series';
 import { usePortfolioSnapshots } from '../../lib/snapshots/useSnapshots';
 import { useDateRange, rangeLabel, ALL_TIME_START, todayIso } from '../../lib/dateRange';
 import {
-  useFx, PageHeader, Panel, PanelHeader, SummaryCard, FlowChart, AllocationDonut, Seg, FitPage, signColor, worthColors,
+  useFx, PageHeader, Panel, PanelHeader, SummaryCard, FlowChart, AllocationDonut, Seg, FitPage, worthColors,
 } from '../../components/fx';
 import AmcLogo from '../mutual-funds/AmcLogo';
 import { FundDetailsDialog } from '../mutual-funds/MFDetails';
@@ -35,21 +34,10 @@ function greeting(user) {
   return name ? `${part}, ${name}` : part;
 }
 
-/** Savings in the allocation donut: a bank mark in the savings colour. */
-function SavingsMark({ size = 28 }) {
-  const c = worthColors(useTheme().palette.mode).savings;
-  return (
-    <Box sx={{ width: size, height: size, borderRadius: '50%', bgcolor: `${c}22`, color: c, display: 'grid', placeItems: 'center' }}>
-      <AccountBalanceRounded sx={{ fontSize: size * 0.56 }} />
-    </Box>
-  );
-}
-
 /**
- * Home: net worth = mutual funds (value now) + PSX stocks (value now) +
- * savings (what this month kept; each month starts fresh; see
- * src/lib/home/combine.js for exactly what moves it). Month-end values of the
- * three parts on the chart, and where the money is.
+ * Home: net worth = mutual funds + PSX stocks at their current value (what is held;
+ * cash savings are not part of it), dividends collected in the range beside them,
+ * holdings value over time on the chart, and where the money is.
  * Desktop fits one screen; phones scroll normally.
  */
 export default function HomeDashboard() {
@@ -87,7 +75,11 @@ export default function HomeDashboard() {
     if (!mf || !psx || !flows) return null;
     const today = todayIso();
     const asOf = range.end && range.end < today ? range.end : today;
-    const worth = netWorth({ funds: mf.totals.value ?? 0, stocks: psx.totals.value ?? 0, savings: savingsAt(flows, asOf) });
+    // Net worth = what is held: mutual funds + PSX stocks at current value (cash savings are not part of it).
+    const worth = netWorth({ funds: mf.totals.value ?? 0, stocks: psx.totals.value ?? 0 });
+    // Dividends collected inside the selected range, up to its end (net, as paid).
+    const divs = dividends.filter((d) => d.payment_date >= range.start && d.payment_date <= asOf);
+    const dividendsCollected = Math.round(divs.reduce((s, d) => s + (Number(d.net_amount) || 0), 0) * 100) / 100;
     const funds = mf.positions.filter((p) => p.isOpen && (p.value ?? 0) > 0).map((p) => ({
       key: `f-${p.key}`, label: p.fundName ?? 'Fund', sub: AMC_SHORT[p.amcCode] ?? p.amcName ?? 'Fund', value: p.value,
       logo: <AmcLogo code={p.amcCode} name={p.amcName} size={28} />, onClick: () => setFund(p),
@@ -96,13 +88,12 @@ export default function HomeDashboard() {
       key: `s-${p.symbol}`, label: p.symbol, sub: 'Stock', value: p.value,
       logo: <StockLogo symbol={p.symbol} size="sm" />, onClick: () => setStock(p),
     }));
-    const cash = worth.savings > 0 ? [{ key: 'savings', label: 'Savings', sub: 'This month', value: worth.savings, logo: <SavingsMark />, onClick: () => navigate('/') }] : [];
     return {
-      asOf, worth,
+      asOf, worth, dividendsCollected, dividendCount: divs.length,
       series: netWorthSeries({ funds: mf.series, stocks: psx.series, flows, start: range.start, end: range.end, today }),
-      funds, stocks, all: [...funds, ...stocks, ...cash],
+      funds, stocks, all: [...funds, ...stocks],
     };
-  }, [mf, psx, flows, range.start, range.end, navigate]);
+  }, [mf, psx, flows, dividends, range.start, range.end]);
 
   const header = <PageHeader title={greeting(user)} sub={false} />;
 
@@ -152,14 +143,14 @@ export default function HomeDashboard() {
         label="Net worth"
         background={ART}
         value={pricesLoading && !w.value ? null : w.value}
-        sub={`Mutual funds, PSX stocks and this month's savings on ${fmtDay(data.asOf)}`}
         metrics={[
           { label: 'Mutual funds', amount: w.funds, note: pctOf(w.share.funds), onClick: () => navigate('/funds') },
           { label: 'PSX stocks', amount: w.stocks, note: pctOf(w.share.stocks), onClick: () => navigate('/stocks') },
           {
-            label: 'Saved this month', amount: w.savings, color: w.savings < 0 ? signColor(t, w.savings) : undefined,
-            note: w.savings < 0 ? 'spent more than earned' : pctOf(w.share.savings),
-            tooltip: 'This month only: income and cash passive income (bank profit, dividends) minus spending and money moved into funds or shares. Each month starts fresh; nothing carries over.',
+            label: 'Dividends collected', amount: data.dividendsCollected, color: data.dividendsCollected > 0 ? t.pos : undefined,
+            note: data.dividendCount ? `${data.dividendCount} payment${data.dividendCount === 1 ? '' : 's'} in ${label}` : `none in ${label}`,
+            tooltip: `PSX dividends received in ${label} up to ${fmtDay(data.asOf)}, after tax.`,
+            onClick: () => navigate('/stocks/dividends'),
           },
         ]}
       />

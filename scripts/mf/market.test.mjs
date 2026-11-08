@@ -17,7 +17,8 @@ const feed = (asOf, rows) => JSON.stringify({ freshness: { data_as_of: asOf }, d
 async function respond(byFeed) {
   const reqs = await all(`select request_id, feed from market_private.snapshot_requests where processed_at is null`);
   for (const r of reqs) {
-    const x = byFeed[r.feed];
+    // Feeds a test does not mention answer with an empty document.
+    const x = byFeed[r.feed] ?? { body: feed('2026-11-06T18:42:00+05:00', []) };
     await db.query(`insert into net._http_response (id, status_code, content) values ($1, $2, $3)`, [r.request_id, x.status ?? 200, x.body]);
   }
   return (await one(`select market_private.ingest_snapshots() as r`)).r;
@@ -55,11 +56,24 @@ test('PSX closes are stored per held stock per PSX session day; MUFAP NAVs for h
       { slug: 'not-tracked', nav: 10 },
     ]) },
   });
-  assert.deepEqual(out.map((o) => [o.feed, o.rows]).sort(), [['mufap', 1], ['psx', 2]]);
+  assert.deepEqual(out.map((o) => [o.feed, o.rows]).sort(), [['mufap', 1], ['psx', 2], ['psx_indices', 0]]);
   const rows = await all(`select symbol, price_date::text d, close::text c from public.psx_price_history order by symbol`);
   assert.deepEqual(rows, [{ symbol: 'FFC', d: '2026-11-06', c: '410.5' }, { symbol: 'OGDC', d: '2026-11-06', c: '312.89' }]);
   const nav = await one(`select price::text p, price_kind k, source, user_id from public.mf_nav_history where source = 'mufap' and source_ref = 'meezan-cash-fund-test'`);
   assert.deepEqual(nav, { p: '54.1', k: 'repurchase', source: 'mufap', user_id: null });
+});
+
+test('index closes (KSE100 and a few others) are captured per session day; other indices are ignored', async () => {
+  await db.query(`select market_private.request_snapshots()`);
+  await respond({
+    psx: { body: feed('2026-11-06T18:42:00+05:00', []) },
+    mufap: { body: feed('2026-11-06', []) },
+    psx_indices: { body: feed('2026-11-06T18:42:00+05:00', [
+      { index_name: 'KSE100', current: 173886.68 }, { index_name: 'KSE100PR', current: 51443.57 }, { index_name: 'BKTI', current: 1 },
+    ]) },
+  });
+  const rows = await all(`select index_code, price_date::text d, close::text c from public.market_index_history order by 1`);
+  assert.deepEqual(rows, [{ index_code: 'KSE100', d: '2026-11-06', c: '173886.68' }, { index_code: 'KSE100PR', d: '2026-11-06', c: '51443.57' }]);
 });
 
 test('re-capturing the same session is a no-op; a corrected close overwrites', async () => {

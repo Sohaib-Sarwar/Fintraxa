@@ -215,3 +215,67 @@ export function holdingsSeries({ snaps = [], early = [], dividends = [], period,
     return { ...p, value: r2(p.funds + p.stocks), dividends: r2(inPeriod.reduce((s, d) => s + (Number(d.net_amount) || 0), 0)) };
   });
 }
+
+/**
+ * Your share portfolio against an index, as cumulative % since `start` (e.g. 1 January),
+ * read at each period's close.
+ *
+ *   portfolio  compounds the daily time-weighted returns the snapshots store
+ *              (stocks_return_day: buys and sales are not counted as profit; dividends are)
+ *   index      close at the period end ÷ the last close before `start`, minus one
+ *
+ * rows   portfolio_snapshots rows { snap_date, stocks_return_day }
+ * index  [{ price_date, close }] for one index, any order
+ * Returns points shaped like valueSeries ({ month, label, tick, title, date, live }) with
+ * `portfolio` and `index` in percent (12.5 = +12.5%), plus `gap` = portfolio − index.
+ * A period before the portfolio held anything has portfolio null.
+ */
+export function benchmarkSeries(rows, index, { period = 'month', start, end, today }) {
+  const endEff = end && end < today ? end : today;
+  const closes = [...(index ?? [])].map((x) => ({ date: x.price_date, close: Number(x.close) }))
+    .filter((x) => x.close > 0).sort((a, b) => a.date.localeCompare(b.date));
+  const baseClose = closes.filter((x) => x.date < start).at(-1)?.close ?? closes.find((x) => x.date >= start)?.close ?? null;
+  const days = [...(rows ?? [])].filter((r) => r.snap_date >= start && r.snap_date <= endEff)
+    .sort((a, b) => a.snap_date.localeCompare(b.snap_date));
+  const dates = new Set([...days.map((r) => r.snap_date), ...closes.filter((x) => x.date >= start && x.date <= endEff).map((x) => x.date)]);
+  const byDate = new Map(days.map((r) => [r.snap_date, r]));
+  let growth = 1; let started = false; let ci = 0; let lastClose = null;
+  const groups = new Map();
+  for (const d of [...dates].sort()) {
+    const r = byDate.get(d);
+    const ret = r && r.stocks_return_day !== null && r.stocks_return_day !== undefined ? Number(r.stocks_return_day) : null;
+    if (ret !== null && Number.isFinite(ret)) { growth *= 1 + ret; started = true; }
+    while (ci < closes.length && closes[ci].date <= d) { lastClose = closes[ci].close; ci += 1; }
+    groups.set(periodKey(d, period), {
+      date: d,
+      portfolio: started ? r2((growth - 1) * 100) : null,
+      index: baseClose && lastClose ? r2((lastClose / baseClose - 1) * 100) : null,
+    });
+  }
+  const points = [...groups.entries()].map(([k, v]) => ({
+    ...periodMeta(k, period, today), ...v,
+    gap: v.portfolio !== null && v.index !== null ? r2(v.portfolio - v.index) : null,
+  }));
+  if (period === 'month' && points.length > 12) for (const p of points) p.tick = `${p.label} ${p.month.slice(2, 4)}`;
+  return points;
+}
+
+/**
+ * A fair comparison when you started holding shares after `start`: the index's change
+ * over the same days your return covers (from the last close before your first held
+ * day to the latest close). Null when you held from the start, or without data.
+ * Returns { since: 'YYYY-MM-DD', index: % } (e.g. { since: '2026-03-03', index: 3.47 }).
+ */
+export function sameWindowIndex(rows, index, { start, end, today }) {
+  const endEff = end && end < today ? end : today;
+  const first = [...(rows ?? [])].filter((r) => r.snap_date >= start && r.snap_date <= endEff
+    && r.stocks_return_day !== null && r.stocks_return_day !== undefined)
+    .map((r) => r.snap_date).sort()[0];
+  if (!first || first <= start) return null;
+  const closes = [...(index ?? [])].map((x) => ({ date: x.price_date, close: Number(x.close) }))
+    .filter((x) => x.close > 0 && x.date <= endEff).sort((a, b) => a.date.localeCompare(b.date));
+  const base = closes.filter((x) => x.date < first).at(-1);
+  const last = closes.at(-1);
+  if (!base || !last || last.date < first) return null;
+  return { since: first, index: r2((last.close / base.close - 1) * 100) };
+}

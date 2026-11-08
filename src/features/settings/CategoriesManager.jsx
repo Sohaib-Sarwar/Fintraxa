@@ -7,7 +7,7 @@ import { describeDbError, dbErrorHandler } from '../../lib/dbErrors';
 import { useAppStore } from '../../store/appStore';
 import { useAuthStore } from '../../store/authStore';
 import { useCategories } from '../../lib/finance/useFinance';
-import { useFx, Seg } from '../../components/fx';
+import { useFx, Seg, PillSelect } from '../../components/fx';
 import CategoryBadge from '../income-expense/CategoryBadge';
 
 /** Icon names a category may use (MUI icon names, stored in categories.icon). */
@@ -29,7 +29,7 @@ const KIND_HELP = {
 const isSystem = (c) => c.name === 'Savings profit' || c.name?.startsWith('Investment -');
 const typeOf = (c) => (c.type === 'income' || c.type === 'credit' ? 'income' : 'expense');
 
-/** Income and expense categories: what each is (kind), its icon, add, rename, delete. */
+/** Income and expense categories: what each is (kind), its icon, add, rename, delete (moving its transactions first). */
 export default function CategoriesManager() {
   const t = useFx();
   const qc = useQueryClient();
@@ -40,6 +40,7 @@ export default function CategoriesManager() {
   const [type, setType] = useState('expense');
   const [form, setForm] = useState(null); // null = list; { id?, name, kind, icon }
   const [err, setErr] = useState(null);
+  const [removing, setRemoving] = useState(null); // { cat, count, to } while choosing where its transactions go
   const list = categories.filter((c) => typeOf(c) === type);
   const refresh = () => { qc.invalidateQueries({ queryKey: ['categories'] }); qc.invalidateQueries({ queryKey: ['ie-all-transactions'] }); };
 
@@ -54,18 +55,27 @@ export default function CategoriesManager() {
     onSuccess: () => { refresh(); showSnackbar(form?.id ? 'Category updated' : 'Category added', 'success'); setForm(null); },
     onError: dbErrorHandler(showSnackbar, 'Could not save the category'),
   });
+  // Delete goes through public.delete_category: it moves the transactions (if any) and
+  // deletes in one database transaction, so a failure never leaves things half done.
   const del = useMutation({
-    mutationFn: async (c) => {
-      const { count, error } = await supabase.from('income_expense_transactions').select('id', { count: 'exact', head: true }).eq('category_id', c.id);
+    mutationFn: async ({ cat, to = null }) => {
+      const { data, error } = await supabase.rpc('delete_category', { p_category: cat.id, p_move_to: to });
       if (error) throw error;
-      if (count === null) throw new Error('Could not check whether this category is in use. Try again.');
-      if (count > 0) throw new Error(`${count} transaction${count === 1 ? '' : 's'} use this category. Move them to another category first.`);
-      const { error: delErr } = await supabase.from('categories').delete().eq('id', c.id);
-      if (delErr) throw delErr;
+      return data ?? 0;
     },
-    onSuccess: () => { refresh(); showSnackbar('Category deleted', 'success'); },
+    onSuccess: (moved, { cat }) => {
+      refresh();
+      setRemoving(null);
+      showSnackbar(moved ? `"${cat.name}" deleted; ${moved} transaction${moved === 1 ? '' : 's'} moved` : `"${cat.name}" deleted`, 'success');
+    },
     onError: (e) => showSnackbar(describeDbError(e), 'error'),
   });
+  const askDelete = async (c) => {
+    const { count, error } = await supabase.from('income_expense_transactions').select('id', { count: 'exact', head: true }).eq('category_id', c.id);
+    if (error || count === null) { showSnackbar('Could not check whether this category is in use. Try again.', 'error'); return; }
+    if (count > 0) { setRemoving({ cat: c, count, to: '' }); return; }
+    showConfirm('Delete category', `"${c.name}" will be removed. This cannot be undone.`, () => del.mutate({ cat: c }));
+  };
 
   const submit = () => {
     const name = form.name.trim();
@@ -75,6 +85,40 @@ export default function CategoriesManager() {
     setErr(null);
     return save.mutate(form);
   };
+
+  if (removing) {
+    const others = categories.filter((c) => c.id !== removing.cat.id && typeOf(c) === typeOf(removing.cat));
+    return (
+      <Box>
+        <ButtonBase onClick={() => setRemoving(null)} sx={{ gap: 0.5, mb: 1.5, fontSize: '0.76rem', fontWeight: 650, color: t.ink2, fontFamily: 'inherit', borderRadius: 999, px: 0.5 }}>
+          <ArrowBackRounded sx={{ fontSize: 16 }} />All categories
+        </ButtonBase>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, mb: 1.5 }}>
+          <CategoryBadge icon={removing.cat.icon} name={removing.cat.name} size={40} />
+          <Box sx={{ minWidth: 0 }}>
+            <Typography sx={{ fontSize: '0.92rem', fontWeight: 700 }}>Delete "{removing.cat.name}"</Typography>
+            <Typography sx={{ fontSize: '0.74rem', color: t.muted }}>
+              {removing.count} transaction{removing.count === 1 ? ' uses' : 's use'} it. Choose where {removing.count === 1 ? 'it goes' : 'they go'}; nothing else changes.
+            </Typography>
+          </Box>
+        </Box>
+        <Typography sx={{ fontSize: '0.68rem', fontWeight: 600, color: t.muted, mb: 0.75 }}>Move to</Typography>
+        {others.length ? (
+          <PillSelect value={removing.to} onChange={(v) => setRemoving({ ...removing, to: v })} label="Move transactions to" width="100%"
+            items={[{ value: '', label: 'Choose a category' }, ...others.map((c) => ({ value: c.id, label: c.name, icon: <CategoryBadge icon={c.icon} name={c.name} size={20} /> }))]} />
+        ) : (
+          <Typography sx={{ fontSize: '0.76rem', color: t.neg }}>Add another {typeOf(removing.cat)} category first, so these transactions have somewhere to go.</Typography>
+        )}
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mt: 2 }}>
+          <ButtonBase onClick={() => setRemoving(null)} sx={{ height: 40, px: 2, borderRadius: 999, border: `1px solid ${t.border}`, fontSize: '0.8rem', fontWeight: 650, fontFamily: 'inherit' }}>Cancel</ButtonBase>
+          <ButtonBase disabled={!removing.to || del.isPending} onClick={() => del.mutate({ cat: removing.cat, to: removing.to })}
+            sx={{ height: 40, px: 2.5, borderRadius: 999, bgcolor: t.neg, color: '#fff', fontSize: '0.8rem', fontWeight: 650, fontFamily: 'inherit', opacity: !removing.to || del.isPending ? 0.5 : 1 }}>
+            {del.isPending ? 'Deleting…' : `Move ${removing.count} and delete`}
+          </ButtonBase>
+        </Box>
+      </Box>
+    );
+  }
 
   if (form) {
     return (
@@ -137,7 +181,7 @@ export default function CategoriesManager() {
               <Tooltip title="Edit" arrow><IconButton size="small" aria-label={`Edit ${c.name}`} onClick={() => { setErr(null); setForm({ id: c.id, name: c.name, kind, icon: c.icon || 'MoreHoriz', system: isSystem(c) }); }}><EditRounded sx={{ fontSize: 16 }} /></IconButton></Tooltip>
               {!isSystem(c) && (
                 <Tooltip title="Delete" arrow>
-                  <IconButton size="small" aria-label={`Delete ${c.name}`} onClick={() => showConfirm('Delete category', `"${c.name}" will be removed. This cannot be undone.`, () => del.mutate(c))}>
+                  <IconButton size="small" aria-label={`Delete ${c.name}`} onClick={() => askDelete(c)}>
                     <DeleteOutlineRounded sx={{ fontSize: 16, color: t.neg }} />
                   </IconButton>
                 </Tooltip>

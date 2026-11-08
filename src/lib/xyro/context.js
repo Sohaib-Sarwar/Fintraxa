@@ -122,8 +122,8 @@ export function buildSnapshot(d, { rows = true } = {}) {
   const fundsValue = D(d.mf?.totals?.value ?? 0);
   const stocksValue = D(d.psx?.totals?.value ?? 0);
   L.push('', '## Net worth now');
-  L.push(`Net worth ${f2(fundsValue.plus(stocksValue).plus(savings))} = mutual funds ${f2(fundsValue)} + PSX stocks ${f2(stocksValue)} + savings ${f2(savings)}.`);
-  L.push('Savings = this calendar month only: active income + passive cash (bank profit, dividends) − expenses − money moved into investments. Each month starts at zero; nothing carries over.');
+  L.push(`Net worth ${f2(fundsValue.plus(stocksValue))} = mutual funds ${f2(fundsValue)} + PSX stocks ${f2(stocksValue)} (current value of what is held; cash is not included).`);
+  L.push(`Saved this month so far (not part of net worth): ${f2(savings)} = active income + passive cash (bank profit, dividends) − expenses − money moved into investments; each month starts at zero.`);
 
   // Month table.
   L.push('', '## Month by month (PKR)');
