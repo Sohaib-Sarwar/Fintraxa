@@ -26,7 +26,13 @@ async function respond(byFeed) {
 before(async () => {
   db = await createDb({ seed: (d) => d.query(`insert into auth.users (id, email) values ($1, 'u@test')`, [U]) });
   const amc = await one(`select id from public.mf_amcs where code = 'meezan'`);
-  await db.query(`insert into public.mf_funds (amc_id, name, mufap_slug) values ($1, 'Meezan Cash Fund Test', 'meezan-cash-fund-test')`, [amc.id]);
+  const fund = await one(`insert into public.mf_funds (amc_id, name, mufap_slug) values ($1, 'Meezan Cash Fund Test', 'meezan-cash-fund-test') returning id`, [amc.id]);
+  // Prices are captured only for what someone holds (20261108170000): U holds OGDC, FFC and the test fund.
+  await db.query(`insert into public.stock_transactions (user_id, symbol, company_name, price, quantity, type, date) values
+    ($1, 'OGDC', 'OGDC', 300, 10, 'buy', '2026-10-01'), ($1, 'FFC', 'FFC', 400, 5, 'buy', '2026-10-01'), ($1, 'DEAD', 'Gone', 5, 1, 'buy', '2026-10-01')`, [U]);
+  const acc = await one(`insert into public.mf_accounts (user_id, amc_id, account_ref_hash, account_ref_masked) values ($1, $2, 'manual', 'manual') returning id`, [U, amc.id]);
+  await db.query(`insert into public.mf_ledger_entries (user_id, account_id, fund_id, entry_type, trade_date, unit_delta, gross_amount, net_amount, nav, cash_direction, origin)
+    values ($1, $2, $3, 'purchase', '2026-10-01', 100, 5400, 5400, 54, 'investor_pays', 'manual')`, [U, acc.id, fund.id]);
 });
 
 test('schedules exist: two daily requests and a regular ingest', async () => {
@@ -34,7 +40,7 @@ test('schedules exist: two daily requests and a regular ingest', async () => {
   assert.deepEqual(jobs, ['market-snapshot-ingest', 'market-snapshot-request-morning', 'market-snapshot-request-night']);
 });
 
-test('PSX closes are stored per stock per PSX session day; MUFAP NAVs for known funds only', async () => {
+test('PSX closes are stored per held stock per PSX session day; MUFAP NAVs for held funds only', async () => {
   await db.query(`select market_private.request_snapshots()`);
   const out = await respond({
     // 18:42 PKT on 6 Nov is the 6 Nov session.

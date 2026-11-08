@@ -4,12 +4,13 @@ import { useNavigate } from 'react-router-dom';
 import { usePsxPortfolio } from '../../lib/psx/usePsxPortfolio';
 import { useDividends } from '../../lib/psx/useDividends';
 import { useDateRange, rangeLabel, todayIso } from '../../lib/dateRange';
-import { fiscalYearEnds } from '../../lib/psx/portfolio';
 import { formatCurrency, formatNumber } from '../../lib/formatters';
 import {
-  useFx, PageHeader, Panel, PanelHeader, SummaryCard, HoldingsCard, GrowthChart, Seg, signColor,
+  useFx, PageHeader, Panel, SummaryCard, HoldingsCard, signColor, ValueChart,
 } from '../../components/fx';
 import StockLogo from '../../components/StockLogo';
+import { assetRows } from '../../lib/snapshots/series';
+import { usePortfolioSnapshots } from '../../lib/snapshots/useSnapshots';
 import StockDetailsDialog from './StockDetailsDialog';
 
 const SIGNED = (n) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${formatCurrency(Math.abs(n))}`;
@@ -28,12 +29,9 @@ export default function PSXDashboard() {
   const { range } = useDateRange();
   const label = rangeLabel(range);
   const { portfolio: p, isLoading, pricesLoading, pricesFailed, pricesAsOf } = usePsxPortfolio(range);
+  const { rows: snaps } = usePortfolioSnapshots();
   const { summary: divs, all: divAll } = useDividends(range);
-  // Yearly view: every fiscal year's close from the whole history, not just the selected range.
-  const { portfolio: allTime } = usePsxPortfolio();
-  const yearly = useMemo(() => fiscalYearEnds(allTime?.series ?? []), [allTime]);
   const [stock, setStock] = useState(null);
-  const [view, setView] = useState('month');
 
   const { held, sold } = useMemo(() => ({
     held: p ? p.positions.filter((x) => x.isOpen).sort((a, b) => (b.value ?? b.invested) - (a.value ?? a.invested)) : [],
@@ -96,17 +94,8 @@ export default function PSXDashboard() {
       />
 
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 7fr) minmax(0, 5fr)' }, gap: 2 }}>
-        <Panel>
-          <PanelHeader title={view === 'month' ? 'Growth by month' : 'Growth by fiscal year'} right={(
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-              <Seg size="sm" label="Chart period" value={view} onChange={setView} options={[{ value: 'month', label: 'Monthly' }, { value: 'year', label: 'Yearly' }]} />
-            </Box>
-          )} />
-          <GrowthChart points={view === 'month' ? p.series : yearly} height={isMobile ? 230 : CHART_H} />
-          <Typography sx={{ fontSize: '0.66rem', color: t.muted, mt: 1 }}>
-            Month-ends use the PSX closing price, captured daily. Months before capture began use your last trade price.
-          </Typography>
-        </Panel>
+        <ValueChart rows={assetRows(snaps, 'stocks', p)} range={range} height={isMobile ? 230 : CHART_H}
+          note="Value of the shares held at each close against their average cost. Days before PSX closes were captured (6 Nov 2026) use your trade price." />
 
         <HoldingsCard
           formatMoney={(v) => formatCurrency(v)}

@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
 import { Box, Typography, Skeleton, useMediaQuery } from '@mui/material';
 import { useMfAnalysis } from '../../lib/mf/useMfPortfolio';
-import { groupByFiscalYear } from '../../lib/mf/profit';
-import { useDateRange, rangeLabel, shortDate, ALL_TIME_START, todayIso } from '../../lib/dateRange';
+import { useDateRange, rangeLabel } from '../../lib/dateRange';
 import { formatCurrency } from '../../lib/formatters';
-import { useFx, PageHeader, PillSelect, Seg, EarningsChart, FONT_NUM, signColor, GainCard } from '../../components/fx';
+import { useFx, PageHeader, PillSelect, ValueChart, FONT_NUM, signColor, GainCard } from '../../components/fx';
+import { useAssetSnapshots } from '../../lib/snapshots/useSnapshots';
+import { sumByDate } from '../../lib/snapshots/series';
 import AmcLogo from './AmcLogo';
 import { FundDetailsDialog } from './MFDetails';
 
@@ -32,10 +33,15 @@ export default function MFAnalytics() {
   const fundOptions = options.funds.filter((f) => amcId === 'all' || f.amc_id === amcId);
   const fundId = fundOptions.some((f) => f.id === fundPick) ? fundPick : 'all';
   const { analysis: a, isLoading } = useMfAnalysis(range, { amcId, fundId });
-  // Yearly view always spans the whole history: one fiscal year alone would be a single point.
-  const [view, setView] = useState('month');
-  const { analysis: all } = useMfAnalysis({ id: 'all', start: ALL_TIME_START, end: todayIso() }, { amcId, fundId });
-  const years = useMemo(() => groupByFiscalYear(all?.months ?? []), [all]);
+  // Daily holding snapshots, summed for what is picked (a fund held in two accounts counts once).
+  const { rows: mfRows } = useAssetSnapshots('mf');
+  const valueRows = useMemo(() => {
+    const amcOf = Object.fromEntries((ledgerAll?.funds ?? []).map((f) => [f.id, f.amc_id]));
+    return sumByDate(mfRows, (r) => {
+      const f = r.asset_key.split('|')[1];
+      return (fundId === 'all' || f === fundId) && (amcId === 'all' || amcOf[f] === amcId);
+    });
+  }, [mfRows, ledgerAll, fundId, amcId]);
   const label = rangeLabel(range);
 
   const filters = (
@@ -60,7 +66,6 @@ export default function MFAnalytics() {
 
   const tt = a.totals;
   const rows = [...a.positions].sort((x, y) => ((y.realized.net ?? 0) + (y.unrealized.net ?? 0)) - ((x.realized.net ?? 0) + (x.unrealized.net ?? 0)));
-  const first = a.months[0] ? `${a.months[0].month}-01` : a.start;
 
   return (
     <Box sx={{ pb: isMobile ? 1 : 0 }}>
@@ -72,19 +77,11 @@ export default function MFAnalytics() {
         <GainCard kind="unrealized" net={tt.unrealized.net} gross={tt.unrealized.gross} tax={tt.unrealized.tax} />
       </Box>
 
-      <Box sx={{ bgcolor: t.surface, border: `1px solid ${t.border}`, borderRadius: '20px', boxShadow: t.shadow, p: { xs: 1.75, md: 2.25 }, mb: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5, mb: 1.5, flexWrap: 'wrap' }}>
-          <Box>
-            <Typography component="h2" sx={{ fontSize: '0.92rem', fontWeight: 650 }}>{view === 'month' ? 'Earnings by month' : 'Earnings by fiscal year'}</Typography>
-            <Typography sx={{ fontSize: '0.72rem', color: t.muted }}>
-              {view === 'month' ? `${shortDate(a.start > first ? a.start : first)} to ${shortDate(a.end)}` : 'All years, July to June'}
-            </Typography>
-          </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-            <Seg size="sm" label="Chart period" value={view} onChange={setView} options={[{ value: 'month', label: 'Monthly' }, { value: 'year', label: 'Yearly' }]} />
-          </Box>
-        </Box>
-        <EarningsChart months={view === 'month' ? a.months : years} height={isMobile ? 230 : 280} />
+      <Box sx={{ mb: 2 }}>
+        {/* The fund (or AMC, or all) picked above: units held × NAV at each close vs their FIFO cost. */}
+        <ValueChart rows={valueRows} range={range} height={isMobile ? 230 : 280}
+          title={`${fundId !== 'all' ? (fundOptions.find((f) => f.id === fundId)?.name ?? 'Fund') : amcId !== 'all' ? (options.amcs.find((x) => x.id === amcId)?.name ?? 'AMC') : 'All funds'}: value vs invested`}
+          note="Each point: units held at that close × the latest NAV, against the FIFO cost of those units. Redemptions lower the invested line by the cost of the units sold; hover for unrealized and realized." />
       </Box>
 
       <Box sx={{ bgcolor: t.surface, border: `1px solid ${t.border}`, borderRadius: '26px', boxShadow: t.shadow, p: { xs: 1.5, md: 2.25 } }}>

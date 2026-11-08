@@ -2,11 +2,12 @@ import { useMemo, useState } from 'react';
 import { Box, Typography, Skeleton, useMediaQuery } from '@mui/material';
 import { usePsxPortfolio } from '../../lib/psx/usePsxPortfolio';
 import { useDividends } from '../../lib/psx/useDividends';
-import { groupByFiscalYear } from '../../lib/mf/profit';
 import { getStockSector } from '../../lib/psxSectors';
-import { useDateRange, rangeLabel, shortDate } from '../../lib/dateRange';
+import { useDateRange, rangeLabel } from '../../lib/dateRange';
 import { formatCurrency } from '../../lib/formatters';
-import { useFx, PageHeader, PillSelect, Seg, EarningsChart, GainCard, FONT_NUM, signColor } from '../../components/fx';
+import { useFx, PageHeader, PillSelect, ValueChart, GainCard, FONT_NUM, signColor } from '../../components/fx';
+import { useAssetSnapshots } from '../../lib/snapshots/useSnapshots';
+import { sumByDate } from '../../lib/snapshots/series';
 import StockLogo from '../../components/StockLogo';
 import StockDetailsDialog from './StockDetailsDialog';
 
@@ -19,8 +20,6 @@ export default function PSXAnalytics() {
   const { range } = useDateRange();
   const [sectorPick, setSector] = useState('all');
   const [symbolPick, setSymbol] = useState('all');
-  const [view, setView] = useState('month');
-  const [source, setSource] = useState('trading');
   const [stock, setStock] = useState(null);
   const label = rangeLabel(range);
 
@@ -36,12 +35,10 @@ export default function PSXAnalytics() {
   const symbol = options.syms.includes(symbolPick) && (sector === 'all' || getStockSector(symbolPick) === sector) ? symbolPick : 'all';
 
   const { portfolio: p, isLoading } = usePsxPortfolio(range, { sector, symbol });
-  // Yearly view spans the whole history: one fiscal year alone would be a single point.
-  const { portfolio: all } = usePsxPortfolio(undefined, { sector, symbol });
-  const years = useMemo(() => groupByFiscalYear(all?.months ?? []), [all]);
+  const { rows: psxRows } = useAssetSnapshots('psx');
+  const valueRows = useMemo(() => sumByDate(psxRows, (r) => (symbol === 'all' || r.asset_key === symbol)
+    && (sector === 'all' || getStockSector(r.asset_key) === sector)), [psxRows, symbol, sector]);
   const { summary: divs } = useDividends(range, { sector, symbol });
-  const { summary: divsAll } = useDividends(undefined, { sector, symbol });
-  const divYears = useMemo(() => groupByFiscalYear(divsAll?.months ?? []), [divsAll]);
 
   const filters = (
     <>
@@ -72,10 +69,6 @@ export default function PSXAnalytics() {
   }
   const total = (x) => (x.realized ?? 0) + (x.unrealizedNet ?? 0) + x.dividends;
   const rows = [...bySym.values()].sort((a, b) => total(b) - total(a));
-  const chart = source === 'dividends'
-    ? { months: view === 'month' ? divs.months : divYears, taxLabel: 'Tax', title: 'Dividends' }
-    : { months: view === 'month' ? p.months : years, taxLabel: 'Fees', title: 'Earnings' };
-  const first = chart.months[0]?.month ? `${chart.months[0].month}-01` : p.start;
 
   return (
     <Box sx={{ pb: isMobile ? 1 : 0 }}>
@@ -91,20 +84,11 @@ export default function PSXAnalytics() {
           hint="Cash dividends paid in this period, by payment date. Gross is the declared amount on your shares; tax is what was withheld at source (15% filer, 30% non-filer); net is what reached your account, as printed on the statement." />
       </Box>
 
-      <Box sx={{ bgcolor: t.surface, border: `1px solid ${t.border}`, borderRadius: '20px', boxShadow: t.shadow, p: { xs: 1.75, md: 2.25 }, mb: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5, mb: 1.5, flexWrap: 'wrap' }}>
-          <Box>
-            <Typography component="h2" sx={{ fontSize: '0.92rem', fontWeight: 650 }}>{chart.title} {view === 'month' ? 'by month' : 'by fiscal year'}</Typography>
-            <Typography sx={{ fontSize: '0.72rem', color: t.muted }}>
-              {view === 'month' ? `${shortDate(p.start > first ? p.start : first)} to ${shortDate(p.end)}` : 'All years, July to June'}
-            </Typography>
-          </Box>
-          <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
-            <Seg size="sm" label="Chart shows" value={source} onChange={setSource} options={[{ value: 'trading', label: 'Trading' }, { value: 'dividends', label: 'Dividends' }]} />
-            <Seg size="sm" label="Chart period" value={view} onChange={setView} options={[{ value: 'month', label: 'Monthly' }, { value: 'year', label: 'Yearly' }]} />
-          </Box>
-        </Box>
-        <EarningsChart months={chart.months} height={isMobile ? 230 : 280} taxLabel={chart.taxLabel} />
+      <Box sx={{ mb: 2 }}>
+        {/* The stock (or sector, or all) picked above: shares held × close at each period's end vs their average cost. */}
+        <ValueChart rows={valueRows} range={range} height={isMobile ? 230 : 280}
+          title={`${symbol !== 'all' ? symbol : sector !== 'all' ? sector : 'All stocks'}: value vs invested`}
+          note="Each point: shares held at that close × the closing price, against their average cost. Sales lower the invested line; days before PSX closes were captured (6 Nov 2026) use your trade price." />
       </Box>
 
       <Box sx={{ bgcolor: t.surface, border: `1px solid ${t.border}`, borderRadius: '26px', boxShadow: t.shadow, p: { xs: 1.5, md: 2.25 } }}>

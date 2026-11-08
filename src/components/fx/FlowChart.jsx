@@ -115,7 +115,7 @@ function Card({ cx, cy, payload: p, colors, series, headline, rows, chartWidth }
               </>
             )}
             <Box sx={{ borderTop: head ? '1px solid rgba(255,255,255,0.1)' : 0, pt: head ? 0.6 : 0.25 }}>
-              {series.map((s) => line(s.label, formatCurrency(Number(p[s.key]) || 0, 2), '#fff', s.color))}
+              {series.map((s) => { const v = Number(p[s.key]) || 0; return line(s.label, `${v < 0 ? '−' : ''}${formatCurrency(Math.abs(v), 2)}`, '#fff', s.color); })}
               {extra.map((x) => line(x.label, x.value, x.color))}
             </Box>
           </Box>

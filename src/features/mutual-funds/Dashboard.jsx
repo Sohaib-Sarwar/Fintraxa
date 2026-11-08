@@ -4,7 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import { useMfAnalysis } from '../../lib/mf/useMfPortfolio';
 import { useDateRange, rangeLabel, shortDate } from '../../lib/dateRange';
 import { formatCurrency } from '../../lib/formatters';
-import { useFx, PageHeader, EarningsChart, signColor, Panel, PanelHeader, SummaryCard } from '../../components/fx';
+import { useFx, PageHeader, signColor, SummaryCard, ValueChart } from '../../components/fx';
+import { assetRows } from '../../lib/snapshots/series';
+import { usePortfolioSnapshots } from '../../lib/snapshots/useSnapshots';
 import { FundDetailsDialog } from './MFDetails';
 import HoldingsPanel from './HoldingsPanel';
 
@@ -21,6 +23,7 @@ export default function MFDashboard() {
   const navigate = useNavigate();
   const { range } = useDateRange();
   const { analysis: a, isLoading } = useMfAnalysis(range);
+  const { rows: snaps } = usePortfolioSnapshots();
   const [fund, setFund] = useState(null);
   const label = rangeLabel(range);
 
@@ -73,15 +76,14 @@ export default function MFDashboard() {
         metrics={[
           { label: 'Invested', amount: tt.invested, note: 'cost of units held' },
           { label: 'Realized', amount: tt.realized.net, format: SIGNED, color: signColor(t, tt.realized.net), note: 'after CGT', onClick: () => navigate('/funds/analytics') },
-          { label: 'Unrealized', amount: tt.unrealized.net, format: SIGNED, color: signColor(t, tt.unrealized.net), note: 'after 15% est.', onClick: () => navigate('/funds/analytics') },
+          // Before tax, like the chart and the PSX page; the 15% CGT estimate is the note.
+          { label: 'Unrealized', amount: tt.unrealized.gross, format: SIGNED, color: signColor(t, tt.unrealized.gross), note: `${SIGNED(tt.unrealized.net)} after 15% CGT est.`, onClick: () => navigate('/funds/analytics') },
         ]}
       />
 
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 7fr) minmax(0, 5fr)' }, gap: 2 }}>
-        <Panel>
-          <PanelHeader title="Earnings by month" />
-          <EarningsChart months={a.months} height={isMobile ? 230 : CHART_H} />
-        </Panel>
+        <ValueChart rows={assetRows(snaps, 'funds', a)} range={range} height={isMobile ? 230 : CHART_H}
+          note="Value of the units held at each close (latest NAV) against what they cost (FIFO). Hover for the unrealized gain and what was realized." />
 
         <HoldingsPanel held={held} previous={previous} onOpen={setFund} emptyText={`Nothing held at the end of ${label}`} />
       </Box>

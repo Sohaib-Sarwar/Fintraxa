@@ -1,0 +1,226 @@
+/**
+ * Daily snapshots: what each holding and the whole portfolio were worth at the
+ * close of every day, computed with the same building blocks the screens use.
+ *
+ *   Mutual funds  src/lib/mf/profit.js    replayHolding (FIFO lots) + priceBook
+ *   PSX stocks    src/lib/psx/portfolio.js replayStock (average cost) + stockPriceAt
+ *   Savings       src/lib/home/combine.js  (cash kept, carried day to day)
+ *
+ * For a day D, a holding's row is its state at the end of D: units, cost of the
+ * units held (FIFO for funds, average cost for shares), the latest price on or
+ * before D (captured MUFAP NAV / PSX close, else statement or trade price),
+ * value, unrealized gain, and what was realized on D itself. A holding only
+ * changes on the days it trades, so each holding is replayed once per trade
+ * date and that state is reused for the days after it: a long backfill costs
+ * (trade dates × holdings), not (days × whole history).
+ *
+ *   profit over a window (a, b]  =  unrealized(b) − unrealized(a) + realized in (a, b]
+ *
+ * Pure: data in, rows out. Shared with the Edge Function (a copy kept
+ * identical by scripts/sync-snapshot-engine.mjs; a test fails if they drift).
+ */
+import Decimal from 'decimal.js';
+import { liveEntries, replayHolding, priceBook } from '../mf/profit.js';
+import { normSymbol, replayStock, stockPriceAt, stockByTime } from '../psx/portfolio.js';
+import { cashFlows, savingsAt } from '../home/combine.js';
+
+export const SNAPSHOT_VERSION = 'snap-1.1.0';
+const DAY = 86_400_000;
+const ZERO = new Decimal(0);
+const DUST_UNITS = new Decimal('0.01');
+
+/** Every ISO date from `from` to `to`, inclusive. */
+export function daysBetween(from, to) {
+  const out = [];
+  for (let t = Date.parse(`${from}T00:00:00Z`); t <= Date.parse(`${to}T00:00:00Z`) && out.length < 3700; t += DAY) out.push(new Date(t).toISOString().slice(0, 10));
+  return out;
+}
+const r2 = (n) => (n === null || n === undefined ? null : Math.round(Number(n) * 100) / 100);
+const d2 = (d) => Number(d.toFixed(2));
+const sum = (xs) => r2(xs.reduce((s, x) => s + (Number(x) || 0), 0));
+
+/** The first day anything happened (a trade, a ledger entry, a transaction or a dividend). */
+export function firstActivity({ mf, psx, finance }) {
+  const dates = [
+    ...(mf?.entries ?? []).map((e) => e.trade_date),
+    ...(psx?.trades ?? []).map((t) => String(t.date).slice(0, 10)),
+    ...(finance?.transactions ?? []).map((t) => t.date),
+    ...(finance?.dividends ?? []).map((d) => d.payment_date),
+  ].filter(Boolean).sort();
+  return dates[0] ?? null;
+}
+
+/** Returns state(day): the result of `compute(lastTradeDate)` for the last trade date on or before `day`, cached. */
+function stepper(tradeDates, compute) {
+  const dates = [...new Set(tradeDates)].sort();
+  const cache = new Map();
+  let i = -1;
+  return (day) => {
+    while (i + 1 < dates.length && dates[i + 1] <= day) i += 1;
+    if (i < 0) return null;
+    const key = dates[i];
+    if (!cache.has(key)) { cache.clear(); cache.set(key, compute(key)); }
+    return cache.get(key);
+  };
+}
+
+/** Mutual funds: holding rows per day + per-day totals. */
+function fundDays(mf, days, today) {
+  const live = liveEntries(mf.entries ?? []);
+  if (!live.length) return null;
+  const comps = new Map();
+  for (const c of mf.components ?? []) {
+    if (!comps.has(c.entry_id)) comps.set(c.entry_id, []);
+    comps.get(c.entry_id).push({ ...c, amount: new Decimal(String(c.amount)) });
+  }
+  const priceAt = priceBook(mf.prices ?? [], live, today);
+  const groups = new Map();
+  for (const e of live) {
+    const k = `${e.account_id}|${e.fund_id}|${e.unit_class ?? ''}`;
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(e);
+  }
+  const holdings = groups.size ? [...groups].map(([key, list]) => {
+    const fundId = key.split('|')[1];
+    const full = replayHolding(list, comps);
+    // Realized per day: sale gains + distributions − CGT − sale deductions, exactly as the engine sums a range.
+    const realized = new Map();
+    const bump = (date, f, v) => { const r = realized.get(date) ?? { gross: ZERO, cgt: ZERO, charges: ZERO }; r[f] = r[f].plus(v); realized.set(date, r); };
+    for (const s of full.realizations) { bump(s.date, 'gross', s.gain); bump(s.date, 'charges', s.deductions); }
+    for (const x of full.income) bump(x.date, 'gross', x.amount);
+    for (const x of full.taxEvents) bump(x.date, 'cgt', x.amount);
+    const state = stepper(list.map((e) => e.trade_date), (upTo) => {
+      const r = replayHolding(list.filter((e) => e.trade_date <= upTo), comps);
+      const units = r.units.gt(DUST_UNITS) ? r.units : ZERO;
+      return { units, cost: units.isZero() ? ZERO : r.lots.reduce((s, l) => s.plus(l.cost), ZERO), costKnown: r.lots.every((l) => l.costKnown) };
+    });
+    return { key, fundId, name: mf.funds?.[fundId]?.name ?? 'Fund', realized, state };
+  }) : [];
+
+  const rows = []; const totals = new Map();
+  for (const d of days) {
+    let value = 0; let cost = 0; let unreal = 0; let net = 0; let cgt = 0;
+    for (const h of holdings) {
+      const st = h.state(d);
+      const rz = h.realized.get(d);
+      const realizedNet = rz ? d2(rz.gross.minus(rz.cgt).minus(rz.charges)) : 0;
+      if ((!st || st.units.isZero()) && !realizedNet && !rz) continue;
+      const units = st?.units ?? ZERO;
+      const c = st?.cost ?? ZERO;
+      const p = units.isZero() ? null : priceAt(h.fundId, d);
+      const v = units.isZero() ? ZERO : (p ? units.times(p.price) : null);
+      const g = v === null || !st?.costKnown ? null : v.minus(c);
+      rows.push({
+        snap_date: d, asset_type: 'mf', asset_key: h.key, name: h.name,
+        units: Number(units.toFixed(4)), cost: d2(c), price: p ? Number(p.price) : null, price_date: p?.date ?? null,
+        value: d2(v ?? c), unrealized: g === null ? 0 : d2(g), realized_day: realizedNet, tax_day: rz ? d2(rz.cgt) : 0,
+      });
+      value += d2(v ?? c); cost += d2(c); unreal += g === null ? 0 : d2(g); net += realizedNet; cgt += rz ? d2(rz.cgt) : 0;
+    }
+    totals.set(d, { value: r2(value), cost: r2(cost), unrealized: r2(unreal), realized: r2(net), cgt: r2(cgt) });
+  }
+  return { rows, totals };
+}
+
+/** PSX: holding rows per day + per-day totals. */
+function stockDays(psx, days, today) {
+  const bySymbol = new Map();
+  for (const t of psx.trades ?? []) {
+    const sym = normSymbol(t.symbol);
+    if (!sym || !t.date) continue;
+    if (!bySymbol.has(sym)) bySymbol.set(sym, []);
+    bySymbol.get(sym).push({ ...t, date: String(t.date).slice(0, 10) });
+  }
+  if (!bySymbol.size) return null;
+  const holdings = [...bySymbol].map(([symbol, list]) => {
+    list.sort(stockByTime);
+    const full = replayStock(list);
+    const realized = new Map();
+    for (const s of full.sales) realized.set(s.date, (realized.get(s.date) ?? ZERO).plus(s.gain));
+    const state = stepper(list.map((t) => t.date), (upTo) => replayStock(list, upTo));
+    return { symbol, name: list.find((t) => t.company_name)?.company_name ?? symbol, realized, state };
+  });
+
+  const rows = []; const totals = new Map();
+  for (const d of days) {
+    let value = 0; let cost = 0; let unreal = 0; let net = 0;
+    for (const h of holdings) {
+      const st = h.state(d);
+      const rz = h.realized.get(d);
+      const held = !!st && st.shares.gt(0);
+      if (!held && !rz) continue;
+      // No live board server-side: the latest captured close on or before D, else the last trade price.
+      const px = held ? stockPriceAt({ symbol: h.symbol, date: d, today, live: {}, history: psx.history ?? {}, lastTradePrice: st.lastPrice }) : null;
+      const v = held ? (px ? st.shares.times(px.price) : null) : ZERO;
+      const c = held ? st.cost : ZERO;
+      const g = v === null ? null : v.minus(c);
+      rows.push({
+        snap_date: d, asset_type: 'psx', asset_key: h.symbol, name: h.name,
+        units: held ? Number(st.shares.toFixed(4)) : 0, cost: d2(c), price: px ? Number(px.price) : null, price_date: px?.date ?? null,
+        value: d2(v ?? c), unrealized: g === null ? 0 : d2(g), realized_day: rz ? d2(rz) : 0, tax_day: 0,
+      });
+      value += d2(v ?? c); cost += d2(c); unreal += g === null ? 0 : d2(g); net += rz ? d2(rz) : 0;
+    }
+    totals.set(d, { value: r2(value), cost: r2(cost), unrealized: r2(unreal), realized: r2(net) });
+  }
+  return { rows, totals };
+}
+
+/**
+ * @param {object} a
+ * @param {{ entries, components, prices, funds, amcs }} a.mf       prices: captured + statement NAVs
+ * @param {{ trades, history }} a.psx                               captured closes by symbol (oldest first)
+ * @param {{ transactions, dividends }} a.finance                   for savings
+ * @param {string} a.from  first day to snapshot (ISO)
+ * @param {string} a.to    last day (ISO), usually today
+ * @param {string} a.today ISO date (PKT)
+ * @returns {{ days: object[], holdings: object[] }}
+ */
+export function buildSnapshots({ mf = {}, psx = {}, finance = {}, from, to, today }) {
+  const span = daysBetween(from, to);
+  const f = fundDays(mf, span, today);
+  const s = stockDays(psx, span, today);
+  const flows = cashFlows({ transactions: finance.transactions ?? [], dividends: finance.dividends ?? [] });
+  const none = { value: 0, cost: 0, unrealized: 0, realized: 0, cgt: 0 };
+  const days = span.map((d) => {
+    const ft = f?.totals.get(d) ?? none;
+    const st = s?.totals.get(d) ?? none;
+    const savings = savingsAt(flows, d);
+    return {
+      snap_date: d,
+      funds_value: ft.value, funds_cost: ft.cost, funds_unrealized: ft.unrealized,
+      stocks_value: st.value, stocks_cost: st.cost, stocks_unrealized: st.unrealized,
+      savings: r2(savings),
+      net_worth: sum([ft.value, st.value, savings]),
+      funds_realized_day: ft.realized, stocks_realized_day: st.realized,
+      realized_day: sum([ft.realized, st.realized]),
+      tax_day: ft.cgt ?? 0,
+    };
+  });
+  return { days, holdings: [...(f?.rows ?? []), ...(s?.rows ?? [])] };
+}
+
+/**
+ * Profit over the last `n` days from a holding's (or the portfolio's) snapshots,
+ * newest last: unrealized change + what was realized in the window.
+ * rows: [{ snap_date, unrealized, realized_day }]; returns null without data.
+ */
+export function windowProfit(rows, n, today) {
+  if (!rows?.length) return null;
+  const sorted = [...rows].sort((a, b) => a.snap_date.localeCompare(b.snap_date));
+  const end = sorted.filter((r) => r.snap_date <= today).at(-1);
+  if (!end) return null;
+  const startDate = new Date(Date.parse(`${end.snap_date}T00:00:00Z`) - n * DAY).toISOString().slice(0, 10);
+  const base = sorted.filter((r) => r.snap_date <= startDate).at(-1);
+  const inside = sorted.filter((r) => r.snap_date > (base?.snap_date ?? '0000') && r.snap_date <= end.snap_date);
+  const realized = inside.reduce((s, r) => s + (Number(r.realized_day) || 0), 0);
+  const unrealStart = base ? Number(base.unrealized) || 0 : 0;
+  return {
+    profit: r2((Number(end.unrealized) || 0) - unrealStart + realized),
+    unrealizedChange: r2((Number(end.unrealized) || 0) - unrealStart),
+    realized: r2(realized),
+    from: base?.snap_date ?? inside[0]?.snap_date ?? end.snap_date,
+    to: end.snap_date,
+    complete: !!base, // false: the history starts inside the window
+  };
+}

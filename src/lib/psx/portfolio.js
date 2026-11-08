@@ -252,3 +252,6 @@ export function fiscalYearEnds(series) {
     return { ...pt, tick: short, label: short, title: `FY ${fy}-${String(fy + 1).slice(2)}${pt.live ? ' to date' : ''}` };
   });
 }
+
+/** For the daily snapshot builder (src/lib/snapshots/build.js): the same replay and pricing, one symbol at a time. */
+export { replay as replayStock, priceAt as stockPriceAt, byTime as stockByTime };

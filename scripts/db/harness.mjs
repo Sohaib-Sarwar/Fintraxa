@@ -80,6 +80,19 @@ const SUPABASE_STUBS = `
     on conflict (jobname) do update set schedule = excluded.schedule, command = excluded.command returning jobid $$;
   create or replace function cron.unschedule(job_id bigint) returns boolean language sql as $$
     with d as (delete from cron.job where jobid = job_id returning 1) select exists (select 1 from d) $$;
+  create or replace function cron.unschedule(job_name text) returns boolean language sql as $$
+    with d as (delete from cron.job where jobname = job_name returning 1) select exists (select 1 from d) $$;
+  create or replace function net.http_post(url text, body jsonb default null, params jsonb default '{}', headers jsonb default '{}', timeout_milliseconds integer default 5000)
+    returns bigint language sql as $$ insert into net.http_request_queue (url) values (url) returning id $$;
+
+  -- pgcrypto / Vault stand-ins: random bytes, and secrets kept in a plain table.
+  create or replace function extensions.gen_random_bytes(n integer) returns bytea language sql as $$
+    select substring(decode(md5(random()::text) || md5(random()::text) || md5(random()::text), 'hex') from 1 for n) $$;
+  create schema vault;
+  create table vault.secrets (id uuid primary key default gen_random_uuid(), name text unique, secret text not null, description text);
+  create or replace function vault.create_secret(new_secret text, new_name text default null, new_description text default '')
+    returns uuid language sql as $$ insert into vault.secrets (name, secret, description) values (new_name, new_secret, new_description) returning id $$;
+  create view vault.decrypted_secrets as select id, name, secret as decrypted_secret, description from vault.secrets;
 `;
 
 /** Migrations in apply order. The 2025 file is superseded by the baseline. */

@@ -2,7 +2,7 @@ import { Box, Dialog, DialogContent, Typography, IconButton, useMediaQuery } fro
 import { CloseRounded } from '@mui/icons-material';
 import { formatCurrency, formatNumber } from '../../lib/formatters';
 import { getStockSector } from '../../lib/psxSectors';
-import { useFx, FONT_NUM, signColor } from '../../components/fx';
+import { useFx, FONT_NUM, signColor, PeriodProfit } from '../../components/fx';
 import StockLogo from '../../components/StockLogo';
 import { useDividends } from '../../lib/psx/useDividends';
 import { useDateRange, rangeLabel } from '../../lib/dateRange';
@@ -42,6 +42,8 @@ export default function StockDetailsDialog({ position: p, onClose }) {
             sub={p.dayChangePct !== null ? `${p.dayChangePct >= 0 ? '+' : ''}${p.dayChangePct.toFixed(2)}% today` : null}
             subColor={p.dayChangePct !== null ? signColor(t, p.dayChangePct) : undefined} />
         </Box>
+
+        <PeriodProfit assetType="psx" assetKey={p.symbol} />
 
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, minmax(0, 1fr))' }, gap: 1.25, mb: 2.5 }}>
           <Gain label="Unrealized" value={p.isOpen ? p.unrealized : null} sub={p.unrealizedPct !== null ? `${p.unrealizedPct >= 0 ? '+' : ''}${p.unrealizedPct.toFixed(2)}% on cost` : 'Nothing held'} />

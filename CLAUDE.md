@@ -141,3 +141,16 @@ npm run test:contract # 24 checks against the live market API
 npm run test:private  # real statements (gitignored, local only)
 npm run test:integration # live, as the QA account
 ```
+
+## Daily snapshots
+
+`portfolio_snapshots` (one row per user per day) and `holding_snapshots` (one row per user,
+holding and day: units, cost, price, value, unrealized, realized that day) are written only by
+the Edge Function `portfolio-snapshot` (pg_cron at 00:05, 02:45 and 08:45 PKT, and on demand for
+the signed-in user). The maths is `src/lib/snapshots/build.js`; the function runs a copy kept
+identical by `node scripts/sync-snapshot-engine.mjs` (a test fails if it drifts; re-run it after
+changing `profit.js`, `portfolio.js`, `combine.js` or `build.js`, then redeploy the function).
+- Changes to ledger, trades, transactions, dividends or statement NAVs mark the user "dirty from"
+  that date (trigger); the next run recomputes from there.
+- Market closes are captured only for instruments someone holds (`market_private.held_symbols/held_funds`).
+- Charts read snapshots through `src/lib/snapshots/series.js` (value vs invested, profit windows).

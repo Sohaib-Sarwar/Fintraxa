@@ -15,3 +15,5 @@ export { default as AnimatedValue } from './AnimatedValue';
 export { default as FitMoney } from './FitMoney';
 export { default as PrivacyToggle } from './PrivacyToggle';
 export { default as FlowChart } from './FlowChart';
+export { default as PeriodProfit } from './PeriodProfit';
+export { default as ValueChart } from './ValueChart';

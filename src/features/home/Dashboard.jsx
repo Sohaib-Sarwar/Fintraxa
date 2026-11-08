@@ -7,8 +7,9 @@ import { useMfAnalysis } from '../../lib/mf/useMfPortfolio';
 import { usePsxPortfolio } from '../../lib/psx/usePsxPortfolio';
 import { useFinanceTransactions } from '../../lib/finance/useFinance';
 import { useDividends } from '../../lib/psx/useDividends';
-import { fiscalYearEnds } from '../../lib/psx/portfolio';
 import { cashFlows, savingsAt, netWorthSeries, netWorth } from '../../lib/home/combine';
+import { holdingsSeries } from '../../lib/snapshots/series';
+import { usePortfolioSnapshots } from '../../lib/snapshots/useSnapshots';
 import { useDateRange, rangeLabel, ALL_TIME_START, todayIso } from '../../lib/dateRange';
 import {
   useFx, PageHeader, Panel, PanelHeader, SummaryCard, FlowChart, AllocationDonut, Seg, FitPage, signColor, worthColors,
@@ -70,10 +71,14 @@ export default function HomeDashboard() {
   const allTime = useMemo(() => ({ id: 'all', start: ALL_TIME_START, end: todayIso() }), []);
   const { analysis: mfAll } = useMfAnalysis(allTime);
   const { portfolio: psxAll } = usePsxPortfolio(allTime);
-  const yearly = useMemo(() => (mfAll && psxAll && flows
-    ? fiscalYearEnds(netWorthSeries({ funds: mfAll.series, stocks: psxAll.series, flows, start: ALL_TIME_START, end: todayIso(), today: todayIso() }))
+  // Month-ends from the live engine, for dates before the daily snapshots begin.
+  const early = useMemo(() => (mfAll && psxAll && flows
+    ? netWorthSeries({ funds: mfAll.series, stocks: psxAll.series, flows, start: ALL_TIME_START, end: todayIso(), today: todayIso() })
     : []), [mfAll, psxAll, flows]);
+  const { rows: snaps } = usePortfolioSnapshots();
   const [view, setView] = useState('month');
+  const chartPoints = useMemo(() => holdingsSeries({ snaps, early, dividends, period: view, start: range.start, end: range.end, today: todayIso() }),
+    [snaps, early, dividends, view, range.start, range.end]);
   const [tab, setTab] = useState('all');
   const [fund, setFund] = useState(null);
   const [stock, setStock] = useState(null);
@@ -136,7 +141,7 @@ export default function HomeDashboard() {
   const SERIES = [
     { key: 'funds', label: 'Mutual funds', color: colors.funds },
     { key: 'stocks', label: 'PSX stocks', color: colors.stocks },
-    { key: 'savings', label: 'Savings', color: colors.savings },
+    { key: 'dividends', label: view === 'year' ? 'Dividends that year' : 'Dividends received', color: colors.savings },
   ];
 
   return (
@@ -164,12 +169,12 @@ export default function HomeDashboard() {
         flex: isMobile ? 'none' : '1 1 0', minHeight: isMobile ? 'auto' : 280,
       }}>
         <Panel sx={{ minHeight: 0 }}>
-          <PanelHeader title={view === 'month' ? 'Net worth by month' : 'Net worth by fiscal year'}
-            right={<Seg size="sm" label="Chart period" value={view} onChange={setView} options={[{ value: 'month', label: 'Monthly' }, { value: 'year', label: 'Yearly' }]} />} />
+          <PanelHeader title="Holdings value"
+            right={<Seg size="sm" label="Chart period" value={view} onChange={setView} options={[{ value: 'day', label: 'Daily' }, { value: 'week', label: 'Weekly' }, { value: 'month', label: 'Monthly' }, { value: 'year', label: 'Yearly' }]} />} />
           <Box sx={{ flex: 1, minHeight: isMobile ? 240 : 0, position: 'relative' }}>
             <Box sx={{ position: isMobile ? 'relative' : 'absolute', inset: 0, height: isMobile ? 240 : '100%' }}>
-              <FlowChart points={view === 'month' ? data.series : yearly} series={SERIES} height="100%" emptyText={`Nothing held in ${label}`}
-                headline={(p) => ({ value: p.value, caption: 'Net worth' })} />
+              <FlowChart points={chartPoints} series={SERIES} height="100%" emptyText={`Nothing held in ${label}`}
+                headline={(p) => ({ value: p.value, caption: p.live ? 'Funds and stocks now' : 'Funds and stocks at the close' })} />
             </Box>
           </Box>
         </Panel>
