@@ -161,8 +161,15 @@ changing `profit.js`, `portfolio.js`, `combine.js` or `build.js`, then redeploy 
   (time-weighted daily return of the shares; buys/sales are not profit, dividends are). Index closes live in
   `market_index_history` (view `market_index_daily` adds each day's return), captured daily from the feed's
   `psx/indices.json`. `benchmarkSeries` / `sameWindowIndex` in `series.js` build the "% since 1 Jan" chart.
-- Missing history: `scripts/psx/backfill-closes.py` (stock closes from PSX market summaries); KSE-100 history came
-  from PSX closing-rate PDFs. Load only the closes holdings need; keep full records outside git.
+- Missing stock history is filled automatically by the Edge Function `psx-backfill` (nightly 02:35 PKT, and at once
+  when a trade is saved in a stock with no close within 10 days before it): `psx_backfill_work` lists missing
+  (symbol, day), the function reads PSX's per-day market summaries, `psx_backfill_save` stores the closes, remembers
+  read days and holidays (`market_private.psx_summary_days`) and recomputes affected users. Only closes holdings need
+  are kept. `scripts/psx/backfill-closes.py` does the same by hand. KSE-100 history came from PSX closing-rate PDFs.
+- Feed health: `public.market_feed_health()` + `src/lib/market/health.js` show a notice on Home / PSX / Mutual Funds
+  when a feed is two or more working days behind (one day of slack for holidays).
+- Realized PSX profit = proceeds after the sell fee − average cost, which already includes buy fees. Gain cards lead
+  with that after-fees figure for realized; unrealized leads with gross.
 
 ## Categories
 

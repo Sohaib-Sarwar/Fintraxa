@@ -71,3 +71,11 @@ test('sameWindowIndex: a portfolio that starts in March is compared with the ind
   assert.deepEqual(sameWindowIndex(rows, index, { start: '2026-01-01', today: '2026-03-04' }), { since: '2026-03-03', index: 5 });
   assert.equal(sameWindowIndex([{ snap_date: '2026-01-01', stocks_return_day: 0 }], index, { start: '2026-01-01', today: '2026-03-04' }), null);
 });
+
+test('benchmarkSeries follows the chosen range: index from the close before its start, nothing after its end', () => {
+  const rows = [{ snap_date: '2026-06-30', stocks_return_day: 0.5 }, { snap_date: '2026-07-01', stocks_return_day: 0.1 }, { snap_date: '2026-08-03', stocks_return_day: 0.1 }];
+  const index = [{ price_date: '2026-06-30', close: 200 }, { price_date: '2026-07-01', close: 210 }, { price_date: '2026-08-03', close: 220 }];
+  const pts = benchmarkSeries(rows, index, { period: 'month', start: '2026-07-01', end: '2026-07-31', today: '2026-11-08' });
+  // FY 2026-27 to 31 Jul: June's +50% is outside; the index is measured from the 30 Jun close.
+  assert.deepEqual(pts.map((p) => [p.month, p.portfolio, p.index]), [['2026-07', 10, 5]]);
+});

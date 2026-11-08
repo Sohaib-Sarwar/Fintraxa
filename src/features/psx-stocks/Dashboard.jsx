@@ -8,6 +8,7 @@ import { formatCurrency, formatNumber } from '../../lib/formatters';
 import {
   useFx, PageHeader, Panel, SummaryCard, HoldingsCard, signColor, ValueChart, Seg, FitPage,
 } from '../../components/fx';
+import MarketDataNotice from '../../components/MarketDataNotice';
 import BenchmarkChart from '../../components/fx/BenchmarkChart';
 import StockLogo from '../../components/StockLogo';
 import { assetRows } from '../../lib/snapshots/series';
@@ -78,6 +79,7 @@ export default function PSXDashboard() {
   return (
     <FitPage>
       {title}
+      <MarketDataNotice feeds={['psx', 'psx_indices']} />
 
       <SummaryCard
         label="Portfolio value"
@@ -101,7 +103,7 @@ export default function PSXDashboard() {
       }}>
         {chartView === 'value'
           ? <ValueChart rows={assetRows(snaps, 'stocks', p)} range={range} height={230} fill={!isMobile} left={viewSwitch} />
-          : <BenchmarkChart rows={snaps} height={230} fill={!isMobile} left={viewSwitch} />}
+          : <BenchmarkChart rows={snaps} range={range} height={230} fill={!isMobile} left={viewSwitch} />}
 
         <HoldingsCard
           formatMoney={(v) => formatCurrency(v)}

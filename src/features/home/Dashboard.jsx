@@ -13,6 +13,7 @@ import { useDateRange, rangeLabel, ALL_TIME_START, todayIso } from '../../lib/da
 import {
   useFx, PageHeader, Panel, PanelHeader, SummaryCard, FlowChart, AllocationDonut, Seg, FitPage, worthColors,
 } from '../../components/fx';
+import MarketDataNotice from '../../components/MarketDataNotice';
 import AmcLogo from '../mutual-funds/AmcLogo';
 import { FundDetailsDialog } from '../mutual-funds/MFDetails';
 import StockDetailsDialog from '../psx-stocks/StockDetailsDialog';
@@ -138,6 +139,7 @@ export default function HomeDashboard() {
   return (
     <FitPage>
       {header}
+      <MarketDataNotice feeds={['psx', 'mufap']} />
 
       <SummaryCard
         label="Net worth"

@@ -5,6 +5,7 @@ import { useMfAnalysis } from '../../lib/mf/useMfPortfolio';
 import { useDateRange, rangeLabel } from '../../lib/dateRange';
 import { formatCurrency } from '../../lib/formatters';
 import { useFx, PageHeader, Panel, signColor, SummaryCard, ValueChart, FitPage } from '../../components/fx';
+import MarketDataNotice from '../../components/MarketDataNotice';
 import { assetRows } from '../../lib/snapshots/series';
 import { usePortfolioSnapshots } from '../../lib/snapshots/useSnapshots';
 import { FundDetailsDialog } from './MFDetails';
@@ -66,6 +67,7 @@ export default function MFDashboard() {
   return (
     <FitPage>
       <PageHeader title="Mutual Funds" />
+      <MarketDataNotice feeds={['mufap']} />
 
       <SummaryCard
         label="Portfolio value"

@@ -3,7 +3,7 @@ import { Box, Typography, Tooltip, useTheme } from '@mui/material';
 import { InfoOutlined } from '@mui/icons-material';
 import { benchmarkSeries, sameWindowIndex } from '../../lib/snapshots/series';
 import { useIndexHistory } from '../../lib/market/useIndexHistory';
-import { todayIso } from '../../lib/dateRange';
+import { todayIso, rangeLabel } from '../../lib/dateRange';
 import { useFx } from './tokens';
 import { Panel } from './Dashboard';
 import Seg from './Seg';
@@ -16,26 +16,29 @@ const pctAbs = (n) => `${n.toFixed(2)}%`;
 const signedPct = (n) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${Math.abs(n).toFixed(2)}%`;
 
 /**
- * Your share portfolio against KSE-100, as % since 1 January (calendar year to date).
+ * Your share portfolio against KSE-100 over the selected date range (fiscal year, year to
+ * date or custom), as % from the range start. Without a range: since 1 January.
  * Portfolio: daily time-weighted returns from the snapshots, so buying and selling are
  * not counted as gains; dividends are, as they are in KSE-100 (a total-return index).
  * rows: portfolio_snapshots rows; left: the control that replaces the title (view switch).
  */
-export default function BenchmarkChart({ rows, left, index = 'KSE100', indexLabel = 'KSE-100', height = 280, fill = false }) {
+export default function BenchmarkChart({ rows, range, left, index = 'KSE100', indexLabel = 'KSE-100', height = 280, fill = false }) {
   const t = useFx();
   const mode = useTheme().palette.mode;
   const [period, setPeriod] = useState('week');
   const today = todayIso();
-  const start = `${today.slice(0, 4)}-01-01`;
+  const start = range?.start && range.start > '2000-01-01' ? range.start : `${today.slice(0, 4)}-01-01`;
+  const end = range?.end && range.end < today ? range.end : today;
+  const span = range ? rangeLabel(range) : `since 1 Jan ${start.slice(0, 4)}`;
   const { data: closes = [], isLoading } = useIndexHistory(index, start);
-  const points = useMemo(() => benchmarkSeries(rows ?? [], closes, { period, start, today }), [rows, closes, period, start, today]);
+  const points = useMemo(() => benchmarkSeries(rows ?? [], closes, { period, start, end, today }), [rows, closes, period, start, end, today]);
   const last = [...points].reverse().find((p) => p.portfolio !== null || p.index !== null);
   const series = [
     { key: 'portfolio', label: 'Your shares', color: COLORS[mode].mine },
     { key: 'index', label: indexLabel, color: COLORS[mode].index },
   ];
   // Started holding after 1 January: judge "ahead / behind" over the same days only.
-  const fair = useMemo(() => sameWindowIndex(rows ?? [], closes, { start, today }), [rows, closes, start, today]);
+  const fair = useMemo(() => sameWindowIndex(rows ?? [], closes, { start, end, today }), [rows, closes, start, end, today]);
   const ahead = last && last.portfolio !== null
     ? (fair ? Math.round((last.portfolio - fair.index) * 100) / 100 : last.gap)
     : null;
@@ -50,7 +53,7 @@ export default function BenchmarkChart({ rows, left, index = 'KSE100', indexLabe
       {last && (
         <Box sx={{ display: 'flex', gap: 2.5, flexWrap: 'wrap', mb: 1, fontSize: '0.74rem', color: t.muted }}>
           <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
-            Since 1 {MON[0]} {start.slice(0, 4)}
+            {span.charAt(0).toUpperCase() + span.slice(1)}
             <Tooltip arrow title={`Time-weighted: price moves and dividends count, money you add or take out does not. ${indexLabel} includes dividends too.`}>
               <InfoOutlined sx={{ fontSize: 14, cursor: 'help' }} aria-label="How the return is measured" />
             </Tooltip>
@@ -67,13 +70,13 @@ export default function BenchmarkChart({ rows, left, index = 'KSE100', indexLabe
           <Box sx={{ position: 'absolute', inset: 0 }}>
             <FlowChart points={points} series={series} height="100%" zeroBased={false}
         fmt={pctAbs} axisFormat={(v) => `${v}%`}
-        emptyText={isLoading ? 'Loading index closes' : `No ${indexLabel} closes or share holdings since 1 January yet`}
+        emptyText={isLoading ? 'Loading index closes' : `No ${indexLabel} closes or share holdings in ${span}`}
         headline={(p) => (p.gap !== null ? { value: p.gap, signed: true, caption: p.gap >= 0 ? `Ahead of ${indexLabel}` : `Behind ${indexLabel}` } : null)} />
           </Box>
         </Box>
       ) : <FlowChart points={points} series={series} height={height} zeroBased={false}
         fmt={pctAbs} axisFormat={(v) => `${v}%`}
-        emptyText={isLoading ? 'Loading index closes' : `No ${indexLabel} closes or share holdings since 1 January yet`}
+        emptyText={isLoading ? 'Loading index closes' : `No ${indexLabel} closes or share holdings in ${span}`}
         headline={(p) => (p.gap !== null ? { value: p.gap, signed: true, caption: p.gap >= 0 ? `Ahead of ${indexLabel}` : `Behind ${indexLabel}` } : null)} />}
     </Panel>
   );

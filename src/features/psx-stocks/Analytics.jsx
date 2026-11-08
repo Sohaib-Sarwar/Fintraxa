@@ -109,11 +109,11 @@ export default function PSXAnalytics() {
       {isMobile && <Box sx={{ display: 'flex', gap: 0.75, mb: 1.5 }}>{filters}</Box>}
 
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, minmax(0, 1fr))' }, gap: 2, mb: 2 }}>
-        <GainCard kind="realized" net={tt.realized} gross={tt.realizedGross} tax={tt.realizedFees} taxLabel="Broker fees" netLabel="After fees"
-          hint="Profit on shares sold in this period: sale proceeds − their average cost. Gross is before broker fees; net is after the buy and sell fees on those shares." />
+        <GainCard kind="realized" net={tt.realized} gross={tt.realizedGross} tax={tt.realizedFees} taxLabel="Broker fees" netLabel="After fees" grossLabel="Before fees"
+          hint="Profit on shares sold in this period: proceeds after the sell fee − average cost, which already includes the buy fees. Before fees adds both fees back." />
         <GainCard kind="unrealized" net={tt.unrealizedNet} gross={tt.unrealized} tax={tt.unrealizedTax}
           hint="Profit on shares you still hold: their value at the end of the period − their average cost. No tax is due until you sell; the estimate is 15% of the net gain, and nothing on a net loss." />
-        <GainCard kind="realized" title="Dividends" net={divs.net} gross={divs.gross} tax={divs.deductions} taxLabel="Tax withheld" netLabel="After tax"
+        <GainCard kind="realized" title="Dividends" net={divs.net} gross={divs.gross} tax={divs.deductions} taxLabel="Tax withheld" netLabel="After tax" grossLabel="Gross"
           hint="Cash dividends paid in this period, by payment date. Gross is the declared amount on your shares; tax is what was withheld at source (15% filer, 30% non-filer); net is what reached your account, as printed on the statement." />
       </Box>
 
