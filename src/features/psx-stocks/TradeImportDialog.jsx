@@ -160,7 +160,7 @@ export default function TradeImportDialog({ onClose }) {
         <IconButton aria-label="Close" onClick={onClose} disabled={save.isPending}><CloseRounded fontSize="small" /></IconButton>
       </Box>
 
-      <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', px: { xs: 2, md: 2.75 }, pb: 2, scrollbarWidth: 'thin' }}>
+      <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', px: { xs: 2, md: 2.75 }, pb: 2, scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' } }}>
         {phase === 'pick' && (
           <DropZone onFiles={addFiles} title="Drop confirmations here, or choose files"
             hint="You can add several at once. Password-protected PDFs are fine; you will be asked for the password." />
