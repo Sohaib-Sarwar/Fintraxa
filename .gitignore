@@ -50,3 +50,6 @@ tests/private/
 coverage/
 .nyc_output/
 *.tsbuildinfo
+
+# PSX market-summary downloads (scripts/psx/backfill-closes.py)
+scripts/psx/.psx-cache/
