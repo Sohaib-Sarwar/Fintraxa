@@ -201,3 +201,19 @@ test('long histories keep their latest months (no 5-year cut-off)', () => {
   assert.equal(a.months.find((m) => m.month === '2026-09').gross, 10, 'the 2026 sale is still counted');
   assert.equal(a.series.at(-1).month, '2026-10');
 });
+
+test("today's value uses MUFAP's newest NAV even though MUFAP dates it forward", () => {
+  // UBL Financial Sector Fund on Sun 8 Nov 2026: last statement NAV 345.2503 (10 Apr);
+  // MUFAP posted 320.0428 valid for Mon 9 Nov. Held 100 units bought @ 300 = 3,000.
+  const b = buy('2026-03-01', 100, 300);
+  const prices = [{ fund_id: 'F', price: '345.2503', date: '2026-04-10', source: 'statement' }, P(320.0428, '2026-11-09')];
+  const now = analyzeFunds({ entries: [b], prices, ...FY, today: '2026-11-08' });
+  // 100 × 320.0428 = 32,004.28; − 30,000 = 2,004.28 gross; 15% = 300.642 → 300.64; net 1,703.64.
+  assert.equal(now.totals.value, 32004.28);
+  assert.deepEqual(now.totals.unrealized, { gross: 2004.28, tax: 300.64, net: 1703.64, rate: 0.15 });
+  assert.equal(now.positions[0].price.date, '2026-11-09');
+  assert.ok(!now.positions[0].flags.includes('price_outdated'));
+  // A past range end still uses the price known then: 31 Oct → the 10 Apr statement NAV, 34,525.03.
+  const past = analyzeFunds({ entries: [b], prices, start: '2026-07-01', end: '2026-10-31', today: '2026-11-08' });
+  assert.equal(past.totals.value, 34525.03);
+});

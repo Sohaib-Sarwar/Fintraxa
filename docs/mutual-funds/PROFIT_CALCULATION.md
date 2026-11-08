@@ -75,6 +75,13 @@ preferred on a tie). For a past range, the price known then is used, never
 today's. No price → value unknown (shown "—" and flagged `no_price`), never
 replaced by cost.
 
+**At today the newest price wins, even if it is dated ahead.** MUFAP publishes
+NAVs with a forward validity date: on Sun 8 Nov 2026 it posted UBL Financial
+Sector Fund at 320.0428 *valid for 9 Nov*. The on-or-before rule alone dropped
+that and valued the holding at its 10 Apr statement NAV (345.2503), overstating
+value and unrealized gain by ~8%. So when the range ends today, the newest
+observation is used whatever its date.
+
 ### Realized gain (inside the range)
 ```
 gross = Σ gain of sales dated in the range + distributions in the range
@@ -142,7 +149,7 @@ the AMCs' CGT.
 
 | Check | Result |
 | --- | --- |
-| 12 hand-worked unit tests (`npm test`) | FIFO, full redemption clears invested, 15% per holding, refunds, refund as units, switches, range boundaries, past-date prices, UBL rounding, reversals, missing price, dividends |
+| Hand-worked unit tests (`npm test`) | FIFO, full redemption clears invested, 15% per holding, refunds, refund as units, switches, range boundaries, past-date prices, forward-dated MUFAP NAV at today, UBL rounding, reversals, missing price, dividends |
 | NBP statement | Realized gain equals the figure NBP prints, to the paisa |
 | Meezan statements | Realized + unrealized − CGT equals Meezan's printed "To Date" gain, within whole-rupee rounding |
 | Every real statement vs the live QA ledger | Realized gain and CGT per fund identical for all 12 funds (Atlas, MCB ×2, Meezan ×4, NBP, UBL ×4) |

@@ -147,8 +147,16 @@ export function replayHolding(list, componentsByEntry) {
   return { lots, units, realizations, taxEvents, income, deposits, withdrawals, flags };
 }
 
-/** Latest price on or before `date` for each fund: market feed, statement valuations, then trade NAVs. */
-export function priceBook(prices, entries) {
+/**
+ * Latest price on or before `date` for each fund: market feed, statement valuations, then trade NAVs.
+ *
+ * Valuing at `today` (or later) takes the newest observation even when it is dated after
+ * `date`: MUFAP publishes NAVs with a forward validity date (on Sun 8 Nov 2026 it posted
+ * UBL Stock Advantage valid for 9 Nov and Al Ameen Islamic Cash valid for 10 Nov). The
+ * on-or-before rule alone dropped those and valued today's holdings at months-old
+ * statement NAVs. Past dates keep the price known on that date.
+ */
+export function priceBook(prices, entries, today) {
   const obs = new Map();
   const add = (fundId, date, price, source) => {
     if (!fundId || !date || price === null || price === undefined || Number(price) <= 0) return;
@@ -162,6 +170,7 @@ export function priceBook(prices, entries) {
   return (fundId, date) => {
     const list = obs.get(fundId);
     if (!list) return null;
+    if (today && date >= today) return list[list.length - 1];
     let best = null;
     for (const o of list) { if (o.date <= date) best = o; else break; }
     return best;
@@ -209,7 +218,7 @@ export function analyzeFunds({ entries, components = [], prices = [], funds = {}
     if (!componentsByEntry.has(c.entry_id)) componentsByEntry.set(c.entry_id, []);
     componentsByEntry.get(c.entry_id).push({ ...c, amount: new Decimal(String(c.amount)) });
   }
-  const priceAt = priceBook(prices, live);
+  const priceAt = priceBook(prices, live, today);
   const groups = new Map();
   for (const e of live) {
     const k = positionKey(e);
