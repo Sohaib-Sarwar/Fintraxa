@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
-import { Box, Dialog, Typography, IconButton, Button, GlobalStyles, Tooltip, useMediaQuery } from '@mui/material';
-import { CloseRounded, DownloadRounded, EastRounded, WarningAmberRounded } from '@mui/icons-material';
+import { useMemo, useRef, useState } from 'react';
+import { Box, Dialog, Typography, IconButton, GlobalStyles, Tooltip, CircularProgress, useMediaQuery } from '@mui/material';
+import { ThemeProvider } from '@mui/material/styles';
+import { CloseRounded, FileDownloadOutlined, EastRounded } from '@mui/icons-material';
 import { useNccpl } from '../../lib/psx/useNccpl';
 import { usePsxPortfolio } from '../../lib/psx/usePsxPortfolio';
 import { taxYearRange, taxYearLabel, CARRY_FORWARD_YEARS } from '../../lib/psx/nccpl';
@@ -8,18 +9,30 @@ import { useProfile } from '../../lib/profile/useProfile';
 import { BROKERS } from '../../lib/psx/confirmations';
 import { shortDate, monthLabel, todayIso } from '../../lib/dateRange';
 import { useAppStore } from '../../store/appStore';
-import { PillSelect } from '../../components/fx';
-import FintraxaLogo from '../../components/FintraxaLogo';
+import { PillSelect, FONT_TEXT } from '../../components/fx';
 import StockLogo from '../../components/StockLogo';
+import { buildTheme } from '../../theme';
+import { downloadSheetsAsPdf } from '../../lib/pdfExport';
 
-// A statement reads the same in light and dark mode, and prints on white.
+/** The statement is white paper in both app themes, so its controls (picker, menus, buttons,
+ *  tooltips) are rendered with the light theme too; otherwise dark-mode styles land on white. */
+const PAPER_THEME = buildTheme('light');
+
+/**
+ * The statement is paper: the same in light and dark mode, and it prints as it looks.
+ * One typeface (the app's text face) for words and figures alike, tabular figures;
+ * no rules or borders: every block is a soft card on white.
+ */
 const P = {
-  paper: '#ffffff', ink: '#111316', ink2: '#3d434b', muted: '#6b7179', rule: '#d9dde2', hair: '#eceef1',
-  band: '#f4f6f8', navy: '#1d2a6b', pos: '#11683f', neg: '#b3261e', posSoft: '#e9f5ee', negSoft: '#fcebea', warn: '#8f5d00', warnSoft: '#fbf1db',
+  paper: '#ffffff', card: '#f5f6f8', card2: '#eceef1', ink: '#0b0c0e', ink2: '#4a5058', muted: '#8a8f97',
+  black: '#0b0b0c', gold: '#c9a27e', pos: '#127046', neg: '#c0302a', posSoft: '#e6f3eb', negSoft: '#fbe9e7',
+  backdrop: '#e7e9ec',
 };
-const NUM = '"Roboto Mono", ui-monospace, SFMono-Regular, Menlo, monospace';
+const F = FONT_TEXT;
+const MARK = '/brand/mark-256.png';
+const NCCPL_LOGO = '/report-logos/nccpl.webp';
 
-/** PKR with 2 decimals; losses in brackets, as on the NCCPL statement. Hidden in privacy mode. */
+/** PKR, 2 decimals; a loss in brackets as on NCCPL's own statements. Masked in privacy mode. */
 function usePkr() {
   const hidden = useAppStore((s) => s.hideAmounts === true);
   return (n, { sign } = {}) => {
@@ -31,375 +44,484 @@ function usePkr() {
   };
 }
 const tone = (n) => (n > 0 ? P.pos : n < 0 ? P.neg : P.ink);
+const rate = (n) => n.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
 
 /**
- * NCCPL-style capital gains statement for one tax year: a summary page (gains, losses, losses
- * brought forward, taxable gain, CGT, the month-by-month running CGT, and what was actually kept
- * after the broker's fees and CGT), then every lot in detail. Unofficial: computed from the
- * user's trades with src/lib/psx/nccpl.js. "Download PDF" prints only the statement.
+ * Capital gains statement for one tax year, computed the NCCPL way (src/lib/psx/nccpl.js):
+ * page 1 is the summary (key figures, the A–E computation, what was actually kept after the
+ * broker's fees and CGT, month by month); page 2 is every lot. The download icon saves an A4 PDF
+ * file directly (src/lib/pdfExport.js): watermark and page footer on every page, pages cut between
+ * blocks. Ctrl+P still prints it through the print styles below.
  */
 export default function NccplReport({ taxYear: initial, onClose }) {
-  const isMobile = useMediaQuery('(max-width:900px)');
   const { report } = useNccpl();
   const { data: profile } = useProfile();
   const years = useMemo(() => (report?.years ?? []).filter((y) => y.lots.length || y.carriedIn.length).map((y) => y.taxYear).reverse(), [report]);
   const [pick, setPick] = useState(initial);
   const ty = years.includes(pick) ? pick : years[0];
-  const y = report?.year(ty);
   const range = ty ? taxYearRange(ty) : null;
   const { portfolio } = usePsxPortfolio(range ?? undefined);
+  return <ReportView report={report} profile={profile} totals={portfolio?.totals} years={years} ty={ty} onPick={setPick} onClose={onClose} />;
+}
+
+/** The statement itself, from data: report = nccplReport(), totals = analyzeStocks totals for the tax year. */
+export function ReportView({ report, profile, totals, years, ty, onPick, onClose }) {
+  const isMobile = useMediaQuery('(max-width:900px)');
+  const y = report?.year(ty);
+  const brokers = y ? [...new Set(y.lots.map((l) => l.broker).filter((b) => BROKERS[b]))] : [];
+  const sheets = useRef(null);
+  const [saving, setSaving] = useState(false);
+  const download = async () => {
+    if (!y || !sheets.current || saving) return;
+    setSaving(true);
+    try {
+      await downloadSheetsAsPdf([...sheets.current.querySelectorAll('.fx-sheet')], {
+        filename: `Fintraxa-Capital-Gains-TY${taxYearLabel(y.taxYear)}.pdf`,
+        footer: `Fintraxa · Capital gains statement · Tax year ${taxYearLabel(y.taxYear)} · Prepared ${shortDate(todayIso())}`,
+        watermark: MARK,
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
-    <Dialog open onClose={onClose} fullScreen className="nccpl-print-root" PaperProps={{ sx: { bgcolor: { xs: P.band, md: '#e9ecef' } } }}>
+    <ThemeProvider theme={PAPER_THEME}>
+    <Dialog open onClose={onClose} fullScreen className="fx-report-root" PaperProps={{ sx: { bgcolor: P.backdrop, backgroundImage: 'none' } }}>
       <GlobalStyles styles={{
         '@media print': {
-          '@page': { size: 'A4', margin: '11mm 10mm' },
-          'body > *:not(.nccpl-print-root)': { display: 'none !important' },
-          '.nccpl-print-root, .nccpl-print-root .MuiDialog-container, .nccpl-print-root .MuiDialog-paper': {
+          '@page': { size: 'A4', margin: '10mm' },
+          'body > *:not(.fx-report-root)': { display: 'none !important' },
+          '.fx-report-root, .fx-report-root .MuiDialog-container, .fx-report-root .MuiDialog-paper': {
             position: 'static !important', overflow: 'visible !important', height: 'auto !important', maxHeight: 'none !important',
             background: '#fff !important', boxShadow: 'none !important',
           },
-          '.nccpl-print-root .MuiBackdrop-root, .nccpl-no-print': { display: 'none !important' },
-          '.nccpl-sheet': { boxShadow: 'none !important', margin: '0 !important', padding: '0 !important', maxWidth: 'none !important', borderRadius: '0 !important' },
-          '.nccpl-page-break': { breakBefore: 'page' },
-          '.nccpl-keep': { breakInside: 'avoid' },
-          '.nccpl-scroll': { overflow: 'visible !important' },
+          '.fx-report-root .MuiBackdrop-root, .fx-no-print': { display: 'none !important' },
+          '.fx-sheet': { boxShadow: 'none !important', margin: '0 !important', padding: '0 !important', maxWidth: 'none !important', borderRadius: '0 !important', overflow: 'visible !important' },
+          // Fixed elements repeat on every printed page: one watermark, behind each page.
+          '.fx-wm': { position: 'fixed !important', inset: '0 !important' },
+          '.fx-sheet + .fx-sheet .fx-wm': { display: 'none !important' },
+          '.fx-break': { breakBefore: 'page' },
+          '.fx-keep': { breakInside: 'avoid' },
+          '.fx-scroll': { overflow: 'visible !important' },
           'body': { WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' },
         },
       }} />
 
-      <Box className="nccpl-no-print" sx={{ position: 'sticky', top: 0, zIndex: 2, display: 'flex', alignItems: 'center', gap: 1, px: { xs: 1.5, md: 3 }, py: 1.25, bgcolor: '#fff', borderBottom: `1px solid ${P.rule}`, color: P.ink }}>
-        <Typography sx={{ fontWeight: 750, fontSize: '0.95rem', flex: 1, minWidth: 0 }} noWrap>Capital gains statement</Typography>
+      <Box className="fx-no-print" sx={{
+        position: 'sticky', top: 0, zIndex: 3, display: 'flex', alignItems: 'center', gap: 1, px: { xs: 1.5, md: 3 }, py: 1.1,
+        bgcolor: 'rgba(231,233,236,0.82)', backdropFilter: 'blur(14px)', color: P.ink, fontFamily: F,
+      }}>
+        <Box component="img" src={MARK} alt="" sx={{ width: 28, height: 28, objectFit: 'contain', p: '4px', bgcolor: P.black, borderRadius: '9px' }} />
+        <Typography sx={{ fontFamily: F, fontWeight: 700, fontSize: '0.92rem', flex: 1, minWidth: 0 }} noWrap>Capital gains statement</Typography>
         {years.length > 1 && (
-          <PillSelect value={ty} onChange={setPick} label="Tax year" width={isMobile ? 120 : 150}
+          <PillSelect value={ty} onChange={onPick} label="Tax year" width={isMobile ? 118 : 150}
             items={years.map((v) => ({ value: v, label: `TY ${taxYearLabel(v)}` }))} />
         )}
-        <Button onClick={() => window.print()} disabled={!y} startIcon={<DownloadRounded />} variant="contained" disableElevation
-          sx={{ borderRadius: '12px', textTransform: 'none', fontWeight: 650, bgcolor: P.ink, '&:hover': { bgcolor: '#2a2e33' } }}>
-          {isMobile ? 'PDF' : 'Download PDF'}
-        </Button>
-        <IconButton onClick={onClose} aria-label="Close report"><CloseRounded /></IconButton>
+        <Tooltip title="Download PDF" arrow>
+          <span>
+            <IconButton onClick={download} disabled={!y || saving} aria-label="Download PDF"
+              sx={{ width: 40, height: 40, borderRadius: '12px', bgcolor: P.black, color: '#fff', '&:hover': { bgcolor: '#26272a' }, '&.Mui-disabled': { bgcolor: P.card2 } }}>
+              {saving ? <CircularProgress size={18} sx={{ color: '#fff' }} /> : <FileDownloadOutlined sx={{ fontSize: 20 }} />}
+            </IconButton>
+          </span>
+        </Tooltip>
+        <Tooltip title="Close" arrow>
+          <IconButton onClick={onClose} aria-label="Close statement" sx={{ width: 40, height: 40, borderRadius: '12px', bgcolor: '#fff', color: P.ink, '&:hover': { bgcolor: P.card } }}>
+            <CloseRounded sx={{ fontSize: 20 }} />
+          </IconButton>
+        </Tooltip>
       </Box>
 
-      <Box sx={{ px: { xs: 0, md: 3 }, py: { xs: 0, md: 3 } }}>
+      <Box ref={sheets} sx={{ px: { xs: 0, md: 3 }, pt: { xs: 0, md: 1.5 }, pb: { xs: 0, md: 4 }, fontFamily: F }}>
         {!report ? null : !y ? (
-          <Sheet><Typography sx={{ color: P.muted, py: 6, textAlign: 'center' }}>No shares sold yet, so there is no capital gain to report.</Typography></Sheet>
+          <Sheet>
+            <Masthead title="Capital Gains Statement" sub="No shares sold yet" />
+            <Typography sx={{ fontFamily: F, color: P.muted, py: 8, textAlign: 'center', fontSize: '0.85rem' }}>There is no capital gain or loss to report yet.</Typography>
+          </Sheet>
         ) : (
           <>
             <Sheet>
-              <Letterhead y={y} profile={profile} />
-              <Summary y={y} />
+              <Masthead title="Capital Gains Statement" sub={`Tax year ${taxYearLabel(y.taxYear)} · ${shortDate(y.start)} – ${shortDate(y.end)}`} />
+              <Account profile={profile} brokers={brokers} />
+              <KeyFigures y={y} />
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1.5, mt: 1.5 }}>
+                <Computation y={y} />
+                <Kept y={y} totals={totals} />
+              </Box>
               <Months y={y} />
-              <Kept y={y} totals={portfolio?.totals} />
-              <Notes y={y} unmatched={report.unmatched.filter((u) => u.settlement >= y.start && u.settlement <= y.end)} />
+              <Method y={y} unmatched={report.unmatched.filter((u) => u.settlement >= y.start && u.settlement <= y.end)} />
+              <Footer />
             </Sheet>
             <Sheet breakBefore>
-              <Letterhead y={y} profile={profile} compact />
+              <Masthead compact title="Lot details" sub={`Tax year ${taxYearLabel(y.taxYear)} · ${y.lots.length} lots`} />
               <Lots y={y} />
+              <Footer />
             </Sheet>
           </>
         )}
       </Box>
     </Dialog>
+    </ThemeProvider>
   );
 }
 
 function Sheet({ children, breakBefore }) {
   return (
-    <Box className={`nccpl-sheet${breakBefore ? ' nccpl-page-break' : ''}`} sx={{
-      bgcolor: P.paper, color: P.ink, maxWidth: 1060, mx: 'auto', mb: { xs: 1, md: 3 }, p: { xs: 2, md: 5 },
-      borderRadius: { xs: 0, md: '6px' }, boxShadow: { xs: 'none', md: '0 1px 3px rgba(0,0,0,.08), 0 12px 32px -12px rgba(0,0,0,.18)' },
-      fontSize: '0.8rem', '& *': { fontFeatureSettings: '"tnum"' },
-    }}>{children}</Box>
-  );
-}
-
-function H({ children, sub }) {
-  return (
-    <Box sx={{ mt: 3.5, mb: 1.25, display: 'flex', alignItems: 'baseline', gap: 1.25, borderBottom: `2px solid ${P.navy}`, pb: 0.6 }}>
-      <Typography component="h3" sx={{ fontSize: '0.92rem', fontWeight: 800, color: P.navy, letterSpacing: '0.01em' }}>{children}</Typography>
-      {sub && <Typography sx={{ fontSize: '0.7rem', color: P.muted }}>{sub}</Typography>}
+    <Box className={`fx-sheet${breakBefore ? ' fx-break' : ''}`} sx={{
+      position: 'relative', overflow: 'hidden', bgcolor: P.paper, color: P.ink, maxWidth: 940, mx: 'auto', mb: { xs: 1, md: 3 },
+      p: { xs: 1.5, md: 4 }, borderRadius: { xs: 0, md: '22px' },
+      boxShadow: { xs: 'none', md: '0 30px 70px -34px rgba(10,12,16,.32)' },
+      fontFamily: F, fontSize: '0.8rem', '& *': { fontFamily: `${F} !important`, fontVariantNumeric: 'tabular-nums lining-nums' },
+    }}>
+      <Watermark />
+      <Box className="fx-sheet-body" sx={{ position: 'relative', zIndex: 1 }}>{children}</Box>
     </Box>
   );
 }
 
-function Letterhead({ y, profile, compact }) {
-  const brokers = [...new Set(y.lots.map((l) => l.broker).filter((b) => BROKERS[b]))];
-  const { start, end } = taxYearRange(y.taxYear);
+/**
+ * Fintraxa marks in a staggered diagonal pattern over the page: faint enough to read through,
+ * on top of the cards so they show everywhere. The PDF export draws the same pattern per page.
+ */
+const WM_COLS = 5;
+function Watermark() {
   return (
-    <Box className="nccpl-keep">
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, pb: 1.75, borderBottom: `1px solid ${P.rule}` }}>
-        <Box component="img" src="/report-logos/nccpl.webp" alt="NCCPL" sx={{ width: compact ? 40 : 56, height: compact ? 40 : 56, objectFit: 'contain', flexShrink: 0 }} />
+    <Box className="fx-wm" aria-hidden sx={{ position: 'absolute', inset: 0, zIndex: 2, pointerEvents: 'none', overflow: 'hidden' }}>
+      <Box sx={{ position: 'absolute', inset: '-12%', display: 'grid', gridTemplateColumns: `repeat(${WM_COLS}, 1fr)`, gridAutoRows: '200px', placeItems: 'center', transform: 'rotate(-18deg)' }}>
+        {Array.from({ length: WM_COLS * 26 }, (_, i) => (
+          <Box key={i} component="img" src={MARK} alt="" sx={{ width: 78, height: 78, objectFit: 'contain', opacity: 0.06, filter: 'grayscale(1)', transform: Math.floor(i / WM_COLS) % 2 ? 'translateX(50%)' : 'none' }} />
+        ))}
+      </Box>
+    </Box>
+  );
+}
+
+function Card({ children, sx, className = 'fx-keep' }) {
+  return <Box className={className} sx={{ bgcolor: P.card, borderRadius: '16px', p: { xs: 1.75, md: 2.25 }, minWidth: 0, ...sx }}>{children}</Box>;
+}
+
+function Eyebrow({ children, color = P.muted }) {
+  return <Typography sx={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color }}>{children}</Typography>;
+}
+
+function CardTitle({ children, sub, right }) {
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, mb: 1.5, flexWrap: 'wrap' }}>
+      <Typography component="h2" sx={{ fontSize: '0.92rem', fontWeight: 750, letterSpacing: '-0.01em' }}>{children}</Typography>
+      {sub && <Typography sx={{ fontSize: '0.7rem', color: P.muted }}>{sub}</Typography>}
+      {right && <><Box sx={{ flex: 1 }} />{right}</>}
+    </Box>
+  );
+}
+
+/** Brand on black on the left; the statement and NCCPL, whose method it follows, on the right. */
+function Masthead({ title, sub, compact }) {
+  return (
+    <Box className="fx-keep fx-keep-next" sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: compact ? '210px 1fr' : '250px 1fr' }, gap: 1.5 }}>
+      <Box sx={{ bgcolor: P.black, borderRadius: '16px', display: 'flex', alignItems: 'center', gap: 1.5, px: compact ? 2 : 2.5, py: compact ? 1.5 : 2.5 }}>
+        <Box component="img" src={MARK} alt="Fintraxa" sx={{ width: compact ? 32 : 44, height: compact ? 32 : 44, objectFit: 'contain' }} />
+        <Box sx={{ minWidth: 0 }}>
+          <Typography sx={{ fontSize: compact ? '1.1rem' : '1.42rem', fontWeight: 800, letterSpacing: '-0.035em', lineHeight: 1, color: '#f7f1ea' }}>Fintraxa</Typography>
+          {!compact && <Box sx={{ mt: 0.7 }}><Eyebrow color={P.gold}>Personal finance</Eyebrow></Box>}
+        </Box>
+      </Box>
+      <Card className="" sx={{ display: 'flex', alignItems: 'center', gap: 2, py: compact ? 1.5 : 2.5 }}>
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography sx={{ fontSize: compact ? '0.95rem' : '1.2rem', fontWeight: 800, letterSpacing: '-0.01em', lineHeight: 1.2 }}>
-            {compact ? 'Capital gain / loss: lot details' : 'Capital Gain / Loss Statement'}
-          </Typography>
-          <Typography sx={{ fontSize: '0.76rem', color: P.ink2 }}>
-            Tax Year {taxYearLabel(y.taxYear)} · {shortDate(start)} to {shortDate(end)} · Listed shares (PSX)
-          </Typography>
+          <Typography component="h1" sx={{ fontSize: compact ? '1.05rem' : '1.4rem', fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1.15 }}>{title}</Typography>
+          <Typography sx={{ fontSize: '0.74rem', color: P.ink2, mt: 0.5 }}>{sub}</Typography>
         </Box>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
+        <Box sx={{ textAlign: 'center', flexShrink: 0 }}>
+          <Box component="img" src={NCCPL_LOGO} alt="NCCPL" sx={{ width: compact ? 36 : 50, height: compact ? 36 : 50, objectFit: 'contain', borderRadius: '10px', display: 'block', mx: 'auto' }} />
+          {!compact && <Typography sx={{ fontSize: '0.56rem', color: P.muted, mt: 0.6, whiteSpace: 'nowrap' }}>NCCPL method</Typography>}
+        </Box>
+      </Card>
+    </Box>
+  );
+}
+
+function Account({ profile, brokers }) {
+  const field = (label, value) => (
+    <Box sx={{ minWidth: 0 }}>
+      <Eyebrow>{label}</Eyebrow>
+      <Box sx={{ mt: 0.6 }}>{value}</Box>
+    </Box>
+  );
+  const text = (v) => <Typography sx={{ fontSize: '0.84rem', fontWeight: 650 }} noWrap>{v}</Typography>;
+  return (
+    <Card sx={{ mt: 1.5, display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: '1.2fr 0.8fr 1.5fr 0.8fr' }, gap: 2 }}>
+      {field('Taxpayer', text(profile?.full_name || profile?.username || '—'))}
+      {field('Tax status', text(profile?.filer_status === 'non_filer' ? 'Non-filer' : 'Filer (ATL)'))}
+      {field('Brokers', brokers.length ? (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
           {brokers.map((b) => (
-            <Tooltip key={b} title={BROKERS[b].name} arrow>
-              <Box component="img" src={BROKERS[b].logo} alt={BROKERS[b].name} sx={{ width: compact ? 30 : 38, height: compact ? 30 : 38, borderRadius: '8px', objectFit: 'cover', boxShadow: `0 0 0 1px ${P.rule}` }} />
-            </Tooltip>
+            <Box key={b} sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75 }}>
+              <Box component="img" src={BROKERS[b].logo} alt="" sx={{ width: 22, height: 22, borderRadius: '7px', objectFit: 'cover' }} />
+              <Typography component="span" sx={{ fontSize: '0.82rem', fontWeight: 650, whiteSpace: 'nowrap' }}>{BROKERS[b].name}</Typography>
+            </Box>
           ))}
-          <FintraxaLogo size={compact ? 28 : 34} />
         </Box>
+      ) : text('Entered by hand'))}
+      {field('Statement date', text(shortDate(todayIso())))}
+    </Card>
+  );
+}
+
+/** Rs small and muted, the figure large. */
+function Big({ v, color, size = '1.5rem' }) {
+  const pkr = usePkr();
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.6, mt: 1, whiteSpace: 'nowrap' }}>
+      <Box component="span" sx={{ fontSize: '0.68rem', fontWeight: 650, opacity: 0.5 }}>Rs</Box>
+      <Box component="span" sx={{ fontSize: size, fontWeight: 750, letterSpacing: '-0.035em', lineHeight: 1, color }}>{pkr(v)}</Box>
+    </Box>
+  );
+}
+
+function KeyFigures({ y }) {
+  const tile = (label, v, { dark, color, note } = {}) => (
+    <Card sx={{ ...(dark ? { bgcolor: P.black, color: '#fff' } : {}) }}>
+      <Eyebrow color={dark ? P.gold : P.muted}>{label}</Eyebrow>
+      <Big v={v} color={dark ? '#fff' : color} />
+      <Typography sx={{ fontSize: '0.64rem', mt: 0.9, color: dark ? 'rgba(255,255,255,0.6)' : P.muted }}>{note}</Typography>
+    </Card>
+  );
+  return (
+    <Box className="fx-keep" sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, minmax(0, 1fr))' }, gap: 1.5, mt: 1.5 }}>
+      {tile('Net capital gain', y.net, { color: tone(y.net), note: `${y.lots.length} lots closed` })}
+      {tile('Losses set off', y.carriedUsed ? -y.carriedUsed : 0, { color: y.carriedUsed ? P.neg : P.ink, note: y.carriedUsed ? 'Brought forward' : 'None brought forward' })}
+      {tile('Taxable gain', y.taxable, { note: y.net < 0 ? 'Loss year' : 'After losses set off' })}
+      {tile('CGT payable', y.cgt, { dark: true, note: '15% of the taxable gain' })}
+    </Box>
+  );
+}
+
+/** A statement line: no rules; totals are set apart by weight and a little air. */
+function Line({ k, label, v, strong, color, plainValue }) {
+  const pkr = usePkr();
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, py: 0.7, ...(strong ? { mt: 0.5 } : {}) }}>
+      {k !== undefined && <Box sx={{ width: 16, fontSize: '0.64rem', fontWeight: 800, color: P.gold }}>{k}</Box>}
+      <Typography sx={{ flex: 1, minWidth: 0, fontSize: '0.8rem', fontWeight: strong ? 750 : 500, color: strong ? P.ink : P.ink2 }}>{label}</Typography>
+      <Typography sx={{ fontSize: strong ? '0.9rem' : '0.82rem', fontWeight: strong ? 750 : 600, color: color ?? (plainValue ? P.ink : tone(v)), whiteSpace: 'nowrap' }}>{pkr(v)}</Typography>
+    </Box>
+  );
+}
+
+function Pill({ label, v, color, bg }) {
+  const pkr = usePkr();
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', mt: 1.25, px: 1.75, py: 1.3, borderRadius: '12px', bgcolor: bg }}>
+      <Typography sx={{ flex: 1, fontWeight: 750, fontSize: '0.84rem', color: color === '#fff' ? '#fff' : P.ink }}>{label}</Typography>
+      <Typography sx={{ fontWeight: 800, fontSize: '1.08rem', letterSpacing: '-0.03em', color }}>Rs {pkr(v)}</Typography>
+    </Box>
+  );
+}
+
+function Computation({ y }) {
+  const pkr = usePkr();
+  const won = y.lots.filter((l) => l.gain > 0).length; const lost = y.lots.filter((l) => l.gain < 0).length;
+  return (
+    <Card sx={{ display: 'flex', flexDirection: 'column' }}>
+      <CardTitle sub="as NCCPL computes it">Computation</CardTitle>
+      <Line k="A" label={`Capital gains · ${won} lots`} v={y.gains} />
+      <Line k="B" label={`Capital losses · ${lost} lots`} v={y.losses} />
+      <Line k="C" label="Net gain / (loss)" v={y.net} strong />
+      {y.carriedIn.map((c) => <Line key={c.fromYear} k="" label={`Loss brought forward · TY ${taxYearLabel(c.fromYear)}`} v={-c.used} />)}
+      <Line k="D" label="Taxable gain" v={y.taxable} strong plainValue />
+      <Box sx={{ mt: 'auto' }}>
+        <Pill label="E  CGT @ 15%" v={y.cgt} color="#fff" bg={P.black} />
       </Box>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, my: 1.25, px: 1.25, py: 0.75, bgcolor: P.warnSoft, color: P.warn, borderRadius: '4px', fontSize: '0.7rem', fontWeight: 650 }}>
-        <WarningAmberRounded sx={{ fontSize: 15 }} />
-        Unofficial. Prepared by Fintraxa from the trades you recorded, following NCCPL&apos;s method. Not issued by NCCPL; your NCCPL certificate is the final word.
-      </Box>
-      {!compact && (
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 1.5, py: 1.25, borderBottom: `1px solid ${P.hair}` }}>
-          <Field label="Taxpayer" value={profile?.full_name || profile?.username || '—'} />
-          <Field label="Tax status" value={profile?.filer_status === 'non_filer' ? 'Non-filer' : 'Filer (ATL)'} />
-          <Field label="Brokers" value={brokers.map((b) => BROKERS[b].name).join(', ') || 'Entered by hand'} />
-          <Field label="Prepared on" value={shortDate(todayIso())} />
+      {y.carryForward.length > 0 && (
+        <Box sx={{ mt: 1.5 }}>
+          <Eyebrow>Losses carried forward</Eyebrow>
+          {y.carryForward.map((c) => (
+            <Box key={c.fromYear} sx={{ display: 'flex', gap: 1, fontSize: '0.74rem', pt: 0.6, color: P.ink2 }}>
+              <Box sx={{ flex: 1 }}>TY {taxYearLabel(c.fromYear)} · usable until TY {taxYearLabel(c.expires)}</Box>
+              <Box sx={{ color: P.neg, fontWeight: 650 }}>{pkr(-c.amount)}</Box>
+            </Box>
+          ))}
         </Box>
       )}
-    </Box>
+    </Card>
   );
 }
 
-function Field({ label, value }) {
+/** What was actually kept: the broker's real charges and average cost, then the CGT above. */
+function Kept({ y, totals }) {
+  if (!totals) return <Card />;
+  const keep = Math.round((totals.realized - y.cgt) * 100) / 100;
   return (
-    <Box sx={{ minWidth: 0 }}>
-      <Typography sx={{ fontSize: '0.64rem', color: P.muted, fontWeight: 600 }}>{label}</Typography>
-      <Typography sx={{ fontSize: '0.8rem', fontWeight: 650 }} noWrap>{value}</Typography>
-    </Box>
-  );
-}
-
-function Summary({ y }) {
-  const pkr = usePkr();
-  const rows = [
-    { k: 'A', label: 'Capital gains', note: `${y.lots.filter((l) => l.gain > 0).length} lots`, v: y.gains },
-    { k: 'B', label: 'Capital losses', note: `${y.lots.filter((l) => l.gain < 0).length} lots`, v: y.losses },
-    { k: 'C', label: 'Net capital gain / (loss) for the year', note: 'A + B', v: y.net, strong: true },
-    ...y.carriedIn.map((c) => ({ k: '', label: `Loss brought forward from TY ${taxYearLabel(c.fromYear)}`, note: 'Set off, oldest first', v: -c.used })),
-    { k: 'D', label: 'Taxable capital gain', note: y.carriedIn.length ? 'C − losses brought forward' : 'C, nothing brought forward', v: y.taxable, strong: true },
-    { k: 'E', label: 'Capital gains tax @ 15%', note: 'D × 15%', v: y.cgt, strong: true, tax: true },
-  ];
-  return (
-    <>
-      <H sub="the year as NCCPL computes it">Summary</H>
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1.35fr 1fr' }, gap: 3 }}>
-        <Box component="table" sx={tableSx({ first: 'left' })}>
-          <tbody>
-            {rows.map((r, i) => (
-              <Box component="tr" key={i} sx={r.strong ? { '& td': { fontWeight: 750, bgcolor: r.tax ? P.band : 'transparent', borderTop: `1px solid ${P.rule}` } } : undefined}>
-                <Box component="td" sx={{ width: 22, color: P.muted, fontWeight: 700 }}>{r.k}</Box>
-                <Box component="td" sx={{ textAlign: 'left !important', fontFamily: 'inherit !important' }}>{r.label}<Box component="span" sx={{ display: 'block', fontSize: '0.66rem', color: P.muted, fontWeight: 400 }}>{r.note}</Box></Box>
-                <Box component="td" sx={{ fontFamily: NUM, color: r.tax ? P.ink : tone(r.v), textAlign: 'right' }}>{pkr(r.v)}</Box>
-              </Box>
-            ))}
-          </tbody>
-        </Box>
-        <Box>
-          <Box sx={{ p: 2, bgcolor: y.cgt > 0 ? P.band : P.posSoft, borderRadius: '6px', mb: 1.5 }} className="nccpl-keep">
-            <Typography sx={{ fontSize: '0.7rem', color: P.muted, fontWeight: 600 }}>CGT for the year</Typography>
-            <Typography sx={{ fontFamily: NUM, fontSize: '1.7rem', fontWeight: 700, letterSpacing: '-0.03em' }}>Rs {pkr(y.cgt)}</Typography>
-            <Typography sx={{ fontSize: '0.7rem', color: P.ink2, lineHeight: 1.5 }}>
-              {y.net < 0 ? `A net loss of Rs ${pkr(-y.net)}: no CGT, and the loss is carried forward.`
-                : y.carriedUsed > 0 ? `15% of Rs ${pkr(y.taxable)}, after setting off Rs ${pkr(y.carriedUsed)} of earlier losses.`
-                  : `15% of the net gain of Rs ${pkr(y.taxable)}.`}
-            </Typography>
-          </Box>
-          <Typography sx={{ fontSize: '0.72rem', fontWeight: 750, mb: 0.5 }}>Losses carried forward after this year</Typography>
-          {y.carryForward.length === 0 ? <Typography sx={{ fontSize: '0.72rem', color: P.muted }}>None.</Typography> : (
-            <Box component="table" sx={tableSx({ first: 'left', small: true })}>
-              <thead><tr><th>From</th><th>Amount</th><th>Usable until</th></tr></thead>
-              <tbody>
-                {y.carryForward.map((c) => (
-                  <tr key={c.fromYear}><td>TY {taxYearLabel(c.fromYear)}</td><Box component="td" sx={{ fontFamily: NUM, color: P.neg }}>{pkr(-c.amount)}</Box><td>TY {taxYearLabel(c.expires)}</td></tr>
-                ))}
-              </tbody>
-            </Box>
-          )}
-        </Box>
+    <Card sx={{ display: 'flex', flexDirection: 'column' }}>
+      <CardTitle sub="after your broker's actual fees">What you kept</CardTitle>
+      <Line label="Profit before fees" v={totals.realizedGross} />
+      <Line label="Broker fees" v={-(totals.realizedFees ?? 0)} plainValue />
+      <Line label="Net profit" v={totals.realized} strong />
+      <Line label="CGT (E)" v={-y.cgt} plainValue />
+      <Box sx={{ mt: 'auto' }}>
+        <Pill label="You keep" v={keep} color={tone(keep)} bg={keep >= 0 ? P.posSoft : P.negSoft} />
       </Box>
-    </>
+    </Card>
   );
+}
+
+/** Tables without lines: air between rows, a soft band behind the totals. */
+function tableSx({ small } = {}) {
+  return {
+    width: '100%', borderCollapse: 'separate', borderSpacing: 0,
+    '& th': { fontSize: '0.58rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: P.muted, textAlign: 'right', px: 1, pb: 0.9, whiteSpace: 'nowrap' },
+    '& td': { fontSize: small ? '0.72rem' : '0.78rem', textAlign: 'right', px: 1, py: small ? 0.65 : 0.75, color: P.ink, whiteSpace: 'nowrap', verticalAlign: 'middle' },
+    '& th:first-of-type, & td:first-of-type': { textAlign: 'left', pl: 1.25 },
+    '& th:last-of-type, & td:last-of-type': { pr: 1.25 },
+    '& tbody tr.total td': { fontWeight: 800, bgcolor: P.card2, py: 1 },
+    '& tbody tr.total td:first-of-type': { borderRadius: '10px 0 0 10px' },
+    '& tbody tr.total td:last-of-type': { borderRadius: '0 10px 10px 0' },
+  };
 }
 
 function Months({ y }) {
   const pkr = usePkr();
+  const withCarry = y.carriedIn.length > 0;
   return (
-    <>
-      <H sub="gains and losses run on through the year; each month is charged the change in CGT">Month by month</H>
-      <Box className="nccpl-scroll" sx={{ overflowX: 'auto' }}>
-        <Box component="table" sx={{ ...tableSx({ first: 'left' }), minWidth: 760 }}>
+    <Card sx={{ mt: 1.5 }} className="">
+      <CardTitle sub="CGT runs on through the year; a falling month is refunded">Month by month</CardTitle>
+      <Box className="fx-scroll" sx={{ overflowX: 'auto', mx: -1.25 }}>
+        <Box component="table" sx={{ ...tableSx(), minWidth: withCarry ? 700 : 620 }}>
           <thead>
-            <tr><th>Month</th><th>Gains</th><th>Losses</th><th>Net</th><th>Running net</th><th>Taxable so far</th><th>CGT so far</th><th>Charged before</th><th>This month</th></tr>
+            <tr><th>Month</th><th>Lots</th><th>Gains</th><th>Losses</th><th>Net</th><th>Running net</th>{withCarry && <th>Taxable</th>}<th>CGT to date</th><th>This month</th></tr>
           </thead>
           <tbody>
             {y.months.map((m) => (
               <tr key={m.month}>
                 <Box component="td" sx={{ fontWeight: 650 }}>{monthLabel(m.month)}</Box>
-                <Box component="td" sx={{ color: tone(m.gains) }}>{pkr(m.gains)}</Box>
-                <Box component="td" sx={{ color: tone(m.losses) }}>{pkr(m.losses)}</Box>
-                <Box component="td" sx={{ color: tone(m.net), fontWeight: 650 }}>{pkr(m.net)}</Box>
-                <Box component="td" sx={{ color: tone(m.ytdNet) }}>{pkr(m.ytdNet)}</Box>
-                <td>{pkr(m.ytdTaxable)}</td>
+                <Box component="td" sx={{ color: `${P.muted} !important` }}>{m.lots.length}</Box>
+                <Box component="td" sx={{ color: `${tone(m.gains)} !important` }}>{pkr(m.gains)}</Box>
+                <Box component="td" sx={{ color: `${tone(m.losses)} !important` }}>{pkr(m.losses)}</Box>
+                <Box component="td" sx={{ color: `${tone(m.net)} !important`, fontWeight: 650 }}>{pkr(m.net)}</Box>
+                <Box component="td" sx={{ color: `${tone(m.ytdNet)} !important` }}>{pkr(m.ytdNet)}</Box>
+                {withCarry && <td>{pkr(m.ytdTaxable)}</td>}
                 <td>{pkr(m.ytdCgt)}</td>
-                <td>{pkr(m.previouslyCharged)}</td>
-                <Box component="td" sx={{ fontWeight: 750, color: m.cgtThisMonth < 0 ? P.pos : P.ink }}>{m.cgtThisMonth < 0 ? `${pkr(m.cgtThisMonth)} refund` : pkr(m.cgtThisMonth)}</Box>
+                <Box component="td" sx={{ fontWeight: 750 }}>
+                  {m.cgtThisMonth < 0
+                    ? <Box component="span" sx={{ color: P.pos }}>{pkr(-m.cgtThisMonth)} <Box component="span" sx={{ fontSize: '0.58rem', fontWeight: 700, bgcolor: P.posSoft, px: 0.7, py: '1px', borderRadius: 999 }}>refund</Box></Box>
+                    : pkr(m.cgtThisMonth)}
+                </Box>
               </tr>
             ))}
-            <Box component="tr" sx={{ '& td': { fontWeight: 800, borderTop: `1.5px solid ${P.ink}` } }}>
-              <td>Tax year</td>
-              <Box component="td" sx={{ color: tone(y.gains) }}>{pkr(y.gains)}</Box>
-              <Box component="td" sx={{ color: tone(y.losses) }}>{pkr(y.losses)}</Box>
-              <Box component="td" sx={{ color: tone(y.net) }}>{pkr(y.net)}</Box>
-              <Box component="td" sx={{ color: tone(y.net) }}>{pkr(y.net)}</Box>
-              <td>{pkr(y.taxable)}</td><td>{pkr(y.cgt)}</td><td /><td>{pkr(y.cgt)}</td>
-            </Box>
+            <tr className="total">
+              <td>Year</td>
+              <td>{y.lots.length}</td>
+              <Box component="td" sx={{ color: `${tone(y.gains)} !important` }}>{pkr(y.gains)}</Box>
+              <Box component="td" sx={{ color: `${tone(y.losses)} !important` }}>{pkr(y.losses)}</Box>
+              <Box component="td" sx={{ color: `${tone(y.net)} !important` }}>{pkr(y.net)}</Box>
+              <td />
+              {withCarry && <td>{pkr(y.taxable)}</td>}
+              <td />
+              <td>{pkr(y.cgt)}</td>
+            </tr>
           </tbody>
         </Box>
       </Box>
-      {y.carriedIn.length > 0 && (
-        <Typography sx={{ fontSize: '0.68rem', color: P.muted, mt: 0.75 }}>
-          &quot;Taxable so far&quot; already sets off the Rs {pkr(y.carriedIn.reduce((s, c) => s + c.used, 0))} of losses brought forward from earlier years.
-        </Typography>
-      )}
-    </>
+    </Card>
   );
 }
 
-/** What was actually kept: the broker's real charges and average cost, then NCCPL's CGT. */
-function Kept({ y, totals }) {
-  const pkr = usePkr();
-  if (!totals) return null;
-  const deemed = y.lots.reduce((s, l) => s + l.deemedCost, 0);
-  const keep = Math.round((totals.realized - y.cgt) * 100) / 100;
-  const line = (label, v, opts = {}) => (
-    <Box sx={{ display: 'flex', gap: 2, py: 0.55, borderTop: `1px solid ${opts.strong ? P.rule : P.hair}`, fontWeight: opts.strong ? 750 : 500 }}>
-      <Box sx={{ flex: 1 }}>{label}</Box><Box sx={{ fontFamily: NUM, color: opts.plain ? P.ink : tone(v) }}>{pkr(v)}</Box>
-    </Box>
-  );
-  return (
-    <>
-      <H sub="from your broker's actual charges, then this CGT">What you actually earned</H>
-      <Box className="nccpl-keep" sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 3 }}>
-        <Box>
-          {line('Profit before broker fees', totals.realizedGross)}
-          {line('− Broker fees (commission, taxes, CDC, levies)', totals.realizedFees, { plain: true })}
-          {line('= Net profit after fees', totals.realized, { strong: true })}
-          {line('− Capital gains tax (E above)', y.cgt, { plain: true })}
-          <Box sx={{ display: 'flex', gap: 2, mt: 0.5, px: 1.25, py: 1, bgcolor: keep >= 0 ? P.posSoft : P.negSoft, borderRadius: '6px', fontWeight: 800 }}>
-            <Box sx={{ flex: 1 }}>= You keep</Box><Box sx={{ fontFamily: NUM, color: tone(keep) }}>Rs {pkr(keep)}</Box>
-          </Box>
-        </Box>
-        <Typography component="div" sx={{ fontSize: '0.72rem', color: P.ink2, lineHeight: 1.6 }}>
-          NCCPL taxes its own figure, Rs {pkr(y.net)}, not yours. It deducts deemed costs of 0.5% of each sale and 0.5% of its
-          cost (Rs {pkr(deemed)} this year) instead of the Rs {pkr(totals.realizedFees)} your broker actually charged, and it matches
-          every sale with the oldest shares first (FIFO), while your profit uses the average cost of all the shares you held.
-          Over a whole holding the two meet; within a year they can differ by a few percent.
-        </Typography>
-      </Box>
-    </>
-  );
-}
-
-function Notes({ y, unmatched }) {
+function Method({ y, unmatched }) {
   const older = y.lots.filter((l) => l.olderRegime).length;
+  const items = [
+    'Each sale is matched with the oldest purchase of that stock still held, by settlement date (T+1).',
+    'Gain = sale − cost − 0.5% of the sale − 0.5% of the cost (Rule 13N deemed costs).',
+    `CGT is 15% of the year's running net after losses brought forward; a net loss carries forward ${CARRY_FORWARD_YEARS} tax years.`,
+    older > 0 && `${older} lot${older === 1 ? ' was' : 's were'} bought before 1 July 2024, when holding-period rates applied; 15% is used here.`,
+    unmatched.length > 0 && `Sold without a recorded purchase, left out: ${unmatched.map((u) => `${u.quantity} ${u.symbol}`).join(', ')}.`,
+  ].filter(Boolean);
   return (
-    <>
-      <H>How this is worked out</H>
-      <Box component="ul" sx={{ m: 0, pl: 2.25, fontSize: '0.7rem', color: P.ink2, lineHeight: 1.65 }}>
-        <li>Each sale is matched with the earliest purchase of the same stock still held, ordered by settlement date (T+1). Holding days run from the purchase&apos;s settlement to the sale&apos;s.</li>
-        <li>Gain per lot = (sale − cost) − 0.5% of the sale − 0.5% of the cost (Income Tax Rules, rule 13N). Provisional CGT per lot is 15% of a positive gain.</li>
-        <li>Within a tax year (1 July to 30 June) gains and losses run on: a month is charged 15% of the running net minus what earlier months paid, and refunded if the running net falls.</li>
-        <li>A year&apos;s net loss is set off against the next {CARRY_FORWARD_YEARS} tax years&apos; gains, oldest loss first; after that it lapses.</li>
-        <li>NCCPL also nets gains and losses you made through other brokers and mutual funds (&quot;capital gain/loss allocation&quot;). Only the trades recorded in Fintraxa are included here.</li>
-        {older > 0 && <li><b>{older} lot{older === 1 ? ' was' : 's were'} bought before 1 July 2024</b>, when holding-period rates applied; 15% is assumed here.</li>}
-        {unmatched.length > 0 && <li><b>Sold more than recorded:</b> {unmatched.map((u) => `${u.quantity} ${u.symbol}`).join(', ')} had no recorded purchase, so they are left out. Add the missing buy trades.</li>}
+    <Card sx={{ mt: 1.5 }}>
+      <Eyebrow>Method</Eyebrow>
+      <Box component="ol" sx={{ m: 0, mt: 0.9, pl: 2.25, display: 'grid', gap: 0.5 }}>
+        {items.map((s, i) => <Box component="li" key={i} sx={{ fontSize: '0.7rem', color: P.ink2, lineHeight: 1.5 }}>{s}</Box>)}
       </Box>
-    </>
+    </Card>
+  );
+}
+
+function Footer() {
+  return (
+    <Box className="fx-footer" sx={{ mt: 2.5, display: 'flex', alignItems: 'center', gap: 1, color: P.muted }}>
+      <Box component="img" src={MARK} alt="" sx={{ width: 18, height: 18, objectFit: 'contain', p: '3px', bgcolor: P.black, borderRadius: '5px' }} />
+      <Typography sx={{ fontSize: '0.62rem', flex: 1 }}>Prepared by Fintraxa on {shortDate(todayIso())} from the trades you recorded.</Typography>
+    </Box>
   );
 }
 
 function Lots({ y }) {
   const pkr = usePkr();
   return (
-    <>
+    <Box sx={{ display: 'grid', gap: 1.5, mt: 1.5 }}>
       {y.months.map((m) => (
-        <Box key={m.month}>
-          <H sub={`${m.lots.length} lot${m.lots.length === 1 ? '' : 's'} · net ${pkr(m.net, { sign: true })} · CGT this month ${pkr(m.cgtThisMonth)}`}>{monthLabel(m.month)}</H>
-          <Box className="nccpl-scroll" sx={{ overflowX: 'auto' }}>
-            <Box component="table" sx={{ ...tableSx({ first: 'left', small: true }), minWidth: 900 }}>
+        <Card key={m.month} className="">
+          <CardTitle sub={`${m.lots.length} lot${m.lots.length === 1 ? '' : 's'}`}
+            right={(
+              <Typography sx={{ fontSize: '0.72rem', color: P.ink2 }}>
+                Net <Box component="b" sx={{ color: tone(m.net) }}>{pkr(m.net, { sign: true })}</Box>
+                <Box component="span" sx={{ mx: 1.25, color: P.muted }}>·</Box>
+                CGT <Box component="b" sx={{ color: m.cgtThisMonth < 0 ? P.pos : P.ink }}>{m.cgtThisMonth < 0 ? `${pkr(-m.cgtThisMonth)} refund` : pkr(m.cgtThisMonth)}</Box>
+              </Typography>
+            )}>
+            {monthLabel(m.month)}
+          </CardTitle>
+          <Box className="fx-scroll" sx={{ overflowX: 'auto', mx: -1.25 }}>
+            <Box component="table" sx={{ ...tableSx({ small: true }), minWidth: 800 }}>
               <thead>
-                <tr><th>Stock</th><th>Qty</th><th>Bought → Sold (rate)</th><th>Purchase settled</th><th>Sale settled</th><th>Days</th><th>Sale value</th><th>Cost</th><th>Deemed 0.5%+0.5%</th><th>Gain / (loss)</th><th>Prov. CGT</th></tr>
+                <tr><th>Stock</th><th>Qty</th><th>Buy → Sell</th><th>Bought</th><th>Sold</th><th>Days</th><th>Sale value</th><th>Cost</th><th>Deemed 1%</th><th>Gain / (loss)</th></tr>
               </thead>
               <tbody>
                 {m.lots.map((l, i) => (
-                  <Box component="tr" key={i} className="nccpl-keep">
+                  <Box component="tr" key={i} className="fx-keep">
                     <td>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                         <StockLogo symbol={l.symbol} size="sm" />
-                        <Box component="span" sx={{ fontWeight: 700 }}>{l.symbol}</Box>
+                        <Box component="span" sx={{ fontWeight: 750 }}>{l.symbol}</Box>
                       </Box>
                     </td>
                     <td>{l.quantity.toLocaleString('en-PK')}</td>
                     <td>
-                      <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, whiteSpace: 'nowrap' }}>
+                      <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
                         <span>{rate(l.buyPrice)}</span>
-                        <EastRounded sx={{ fontSize: 13, color: tone(l.sellPrice - l.buyPrice) }} />
-                        <Box component="span" sx={{ fontWeight: 700, color: tone(l.sellPrice - l.buyPrice) }}>{rate(l.sellPrice)}</Box>
+                        <EastRounded sx={{ fontSize: 12, color: P.muted }} />
+                        <Box component="span" sx={{ fontWeight: 750, color: tone(l.sellPrice - l.buyPrice) }}>{rate(l.sellPrice)}</Box>
                       </Box>
                     </td>
                     <td><DateCell trade={l.buyDate} settled={l.buySettlement} /></td>
                     <td><DateCell trade={l.saleDate} settled={l.settlement} /></td>
-                    <td>{l.holdingDays}</td>
+                    <Box component="td" sx={{ color: `${P.muted} !important` }}>{l.holdingDays}</Box>
                     <td>{pkr(l.sale)}</td>
                     <td>{pkr(l.cost)}</td>
-                    <Box component="td" sx={{ color: P.muted }}>{pkr(l.deemedCost)}</Box>
-                    <Box component="td" sx={{ fontWeight: 700, color: tone(l.gain) }}>{pkr(l.gain)}</Box>
-                    <td>{pkr(l.provisionalCgt)}</td>
+                    <Box component="td" sx={{ color: `${P.muted} !important` }}>{pkr(l.deemedCost)}</Box>
+                    <Box component="td" sx={{ fontWeight: 750, color: `${tone(l.gain)} !important` }}>{pkr(l.gain)}</Box>
                   </Box>
                 ))}
-                <Box component="tr" sx={{ '& td': { fontWeight: 750, borderTop: `1.5px solid ${P.ink}` } }}>
-                  <td colSpan={6}>Gains {pkr(m.gains)} · Losses {pkr(m.losses)}</td>
+                <tr className="total">
+                  <td colSpan={6}>Month total</td>
                   <td>{pkr(m.lots.reduce((s, l) => s + l.sale, 0))}</td>
                   <td>{pkr(m.lots.reduce((s, l) => s + l.cost, 0))}</td>
                   <td>{pkr(m.lots.reduce((s, l) => s + l.deemedCost, 0))}</td>
-                  <Box component="td" sx={{ color: tone(m.net) }}>{pkr(m.net)}</Box>
-                  <td>{pkr(m.lots.reduce((s, l) => s + l.provisionalCgt, 0))}</td>
-                </Box>
+                  <Box component="td" sx={{ color: `${tone(m.net)} !important` }}>{pkr(m.net)}</Box>
+                </tr>
               </tbody>
             </Box>
           </Box>
-          <Typography sx={{ fontSize: '0.66rem', color: P.muted, mt: 0.5 }}>
-            Running net to {monthLabel(m.month)}: {pkr(m.ytdNet)} · CGT so far {pkr(m.ytdCgt)} · charged before {pkr(m.previouslyCharged)} · this month {pkr(m.cgtThisMonth)}
-            {' '}(provisional CGT per lot is 15% of each gain; the month&apos;s charge nets the losses).
-          </Typography>
-        </Box>
+        </Card>
       ))}
-    </>
-  );
-}
-
-const rate = (n) => n.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
-
-function DateCell({ trade, settled }) {
-  return (
-    <Box sx={{ lineHeight: 1.25, whiteSpace: 'nowrap' }}>
-      <Box sx={{ fontWeight: 600 }}>{shortDate(settled)}</Box>
-      <Box sx={{ fontSize: '0.62rem', color: P.muted }}>traded {shortDate(trade, false)}</Box>
     </Box>
   );
 }
 
-function tableSx({ first, small } = {}) {
-  return {
-    width: '100%', borderCollapse: 'collapse',
-    '& th': { fontSize: '0.64rem', fontWeight: 700, color: P.ink2, textAlign: 'right', bgcolor: P.band, px: 1, py: 0.75, whiteSpace: 'nowrap', borderBottom: `1px solid ${P.rule}` },
-    '& td': { fontSize: small ? '0.72rem' : '0.78rem', textAlign: 'right', px: 1, py: small ? 0.6 : 0.8, borderBottom: `1px solid ${P.hair}`, fontFamily: NUM, verticalAlign: 'middle', color: P.ink },
-    ...(first === 'left' ? {
-      '& th:first-of-type': { textAlign: 'left' },
-      '& td:first-of-type': { textAlign: 'left', fontFamily: 'inherit' },
-    } : {}),
-  };
+function DateCell({ trade, settled }) {
+  return (
+    <Box sx={{ lineHeight: 1.25 }}>
+      <Box sx={{ fontWeight: 650 }}>{shortDate(settled)}</Box>
+      <Box sx={{ fontSize: '0.6rem', color: P.muted }}>traded {shortDate(trade, false)}</Box>
+    </Box>
+  );
 }

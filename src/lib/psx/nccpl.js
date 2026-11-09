@@ -164,7 +164,7 @@ export function nccplReport(trades, { costRate = DEEMED_COST_RATE, rate = CGT_RA
       charged = ytdCgt;
     }
     years.push({
-      taxYear: ty, start, end,
+      taxYear: ty, start, end, lossesAvailable: r2(available),
       gains: r2(gains), losses: r2(losses), net: r2(net),
       carriedIn, carriedUsed: r2(carriedUsed), taxable: r2(taxable), cgt: r2(taxable.times(tax)),
       lossCarriedOut: net.lt(0) ? r2(net.abs()) : 0,
@@ -177,24 +177,48 @@ export function nccplReport(trades, { costRate = DEEMED_COST_RATE, rate = CGT_RA
 }
 
 /**
- * NCCPL figures for a date range (lots by sale settlement date). CGT is what the months of the
- * range were charged (positive) or refunded (negative) on the running basis above, so over whole
- * tax years it equals the years' CGT, carried-forward losses included. A month counts when its
- * calendar month lies in the range.
- * @returns {{ lots, gains, losses, net, deemedCost, cgt, months }}
+ * NCCPL figures for a date range (lots by sale settlement date, the same lots the range's
+ * realized profit counts).
+ *
+ * CGT for the range is the change in the tax year's running charge across it:
+ *     CGT charged to date at the range's last day − CGT charged to date just before its first day
+ * where "charged to date" = 15% × max(0, year-to-date net − losses brought forward into the year).
+ * At month ends this is exactly the monthly charge above, so whole months and whole tax years
+ * agree with the statement; a range that starts or ends mid-month gets only its own days' share
+ * (counting a whole month's CGT while counting only part of its lots would not match the profit).
+ * A range spanning tax years is split at 30 June; each year runs on its own.
+ * @returns {{ lots, gains, losses, net, deemedCost, cgt, years: Segment[] }}
+ * Segment: { taxYear, start, end, net, ytdBefore, ytdEnd, lossesAvailable, lossesUsed,
+ *            taxableToDate, cgtToDate, chargedBefore, cgt }
  */
-export function nccplPeriod(report, { start, end }) {
+export function nccplPeriod(report, { start, end }, { rate = CGT_RATE } = {}) {
+  const tax = D(rate);
   const lots = report.lots.filter((l) => l.settlement >= start && l.settlement <= end);
-  const from = start.slice(0, 7); const to = end.slice(0, 7);
-  const months = report.years.flatMap((y) => y.months).filter((m) => m.month >= from && m.month <= to);
+  const charge = (ytd, available) => (ytd.gt(available) ? ytd.minus(available).times(tax).toDecimalPlaces(2) : ZERO);
+  const years = report.years.filter((y) => y.start <= end && y.end >= start).map((y) => {
+    const from = start > y.start ? start : y.start;
+    const to = end < y.end ? end : y.end;
+    const available = D(y.lossesAvailable);
+    const ytdBefore = sumBy(y.lots.filter((l) => l.settlement < from), (l) => l.gain);
+    const ytdEnd = sumBy(y.lots.filter((l) => l.settlement <= to), (l) => l.gain);
+    const before = charge(ytdBefore, available);
+    const toDate = charge(ytdEnd, available);
+    return {
+      taxYear: y.taxYear, start: from, end: to, net: r2(ytdEnd.minus(ytdBefore)),
+      ytdBefore: r2(ytdBefore), ytdEnd: r2(ytdEnd), lossesAvailable: r2(available),
+      lossesUsed: r2(Decimal.min(available, Decimal.max(ytdEnd, ZERO))),
+      taxableToDate: r2(Decimal.max(ytdEnd.minus(available), ZERO)),
+      cgtToDate: r2(toDate), chargedBefore: r2(before), cgt: r2(toDate.minus(before)),
+    };
+  });
   return {
     lots,
     gains: r2(sumBy(lots.filter((l) => l.gain > 0), (l) => l.gain)),
     losses: r2(sumBy(lots.filter((l) => l.gain < 0), (l) => l.gain)),
     net: r2(sumBy(lots, (l) => l.gain)),
     deemedCost: r2(sumBy(lots, (l) => l.deemedCost)),
-    cgt: r2(sumBy(months, (m) => m.cgtThisMonth)),
-    months,
+    cgt: r2(sumBy(years, (s) => s.cgt)),
+    years,
   };
 }
 

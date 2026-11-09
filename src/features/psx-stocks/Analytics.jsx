@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Box, Typography, Skeleton, IconButton, Tooltip, useMediaQuery } from '@mui/material';
-import { ReceiptLongRounded } from '@mui/icons-material';
+import { Box, Typography, Skeleton, useMediaQuery } from '@mui/material';
 import { usePsxPortfolio } from '../../lib/psx/usePsxPortfolio';
 import { useNccpl } from '../../lib/psx/useNccpl';
 import { nccplPeriod, taxYearOf } from '../../lib/psx/nccpl';
@@ -8,7 +7,7 @@ import { useProfile } from '../../lib/profile/useProfile';
 import { getStockSector } from '../../lib/psxSectors';
 import { useDateRange, rangeLabel, todayIso, shortDate } from '../../lib/dateRange';
 import { formatCurrency } from '../../lib/formatters';
-import { useFx, PageHeader, PillSelect, ValueChart, FONT_NUM, signColor } from '../../components/fx';
+import { useFx, PageHeader, PillSelect, ValueChart, FitPage, FONT_NUM, signColor } from '../../components/fx';
 import { useAssetSnapshots } from '../../lib/snapshots/useSnapshots';
 import { sumByDate } from '../../lib/snapshots/series';
 import { buildSnapshots } from '../../lib/snapshots/build';
@@ -18,14 +17,15 @@ import BrokerLogo from './BrokerLogo';
 import StockLogo from '../../components/StockLogo';
 import StockDetailsDialog from './StockDetailsDialog';
 import NccplReport from './NccplReport';
-import { RealizedPanel, UnrealizedPanel, SectionTitle } from './GainPanels';
+import { RealizedCard, UnrealizedCard } from './GainPanels';
 
 const signed = (v) => (v === null || v === undefined ? '—' : `${v > 0 ? '+' : v < 0 ? '−' : ''}${formatCurrency(Math.abs(v))}`);
 
 /**
- * Realized and unrealized profit on PSX stocks for the range, by broker, sector or stock.
- * Realized shows what the sales actually earned next to NCCPL's taxable figure and CGT (all stocks);
- * the report icon opens the NCCPL-style statement. Dividends have their own page.
+ * Realized and unrealized profit on PSX stocks for the range, by broker, sector or stock: two cards.
+ * Realized: net after the broker's actual fees, then the CGT NCCPL charges for the range (all
+ * stocks), then what you keep; its report icon opens the capital gains statement. Dividends have
+ * their own page.
  */
 export default function PSXAnalytics() {
   const t = useFx();
@@ -79,14 +79,6 @@ export default function PSXAnalytics() {
     return sumByDate(holdings);
   }, [brokerTrades, psxRows, history, symbol, sector]);
 
-  const reportButton = (
-    <Tooltip title="NCCPL capital gains report" arrow>
-      <IconButton onClick={() => setReportOpen(true)} aria-label="Open NCCPL capital gains report"
-        sx={{ border: `1px solid ${t.border}`, borderRadius: '12px', width: 38, height: 38, color: t.ink2 }}>
-        <ReceiptLongRounded sx={{ fontSize: 20 }} />
-      </IconButton>
-    </Tooltip>
-  );
   const filters = (
     <>
       {brokers.length > 1 && (
@@ -98,7 +90,6 @@ export default function PSXAnalytics() {
       <PillSelect value={symbol} onChange={setSymbol} label="Stock" width={isMobile ? 130 : 160}
         items={[{ value: 'all', label: 'All stocks' }, ...options.syms.filter((s) => sector === 'all' || getStockSector(s) === sector)
           .map((s) => ({ value: s, label: s, icon: <StockLogo symbol={s} size="sm" /> }))]} />
-      {reportButton}
     </>
   );
 
@@ -107,7 +98,7 @@ export default function PSXAnalytics() {
       <Box>
         <PageHeader title="Analytics" />
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
-          {[1, 2].map((i) => <Skeleton key={i} variant="rounded" height={230} sx={{ borderRadius: '26px' }} />)}
+          {[1, 2].map((i) => <Skeleton key={i} variant="rounded" height={330} sx={{ borderRadius: '26px' }} />)}
         </Box>
       </Box>
     );
@@ -120,28 +111,26 @@ export default function PSXAnalytics() {
 
   return (
     <Box sx={{ pb: isMobile ? 1 : 0 }}>
-      <PageHeader title="Analytics" actions={!isMobile && filters} />
-      {isMobile && <Box sx={{ display: 'flex', gap: 0.75, mb: 1.5, flexWrap: 'wrap' }}>{filters}</Box>}
+      {/* Desktop: the two cards and the chart fill one screen; the chart takes whatever height is left.
+          The by-stock table follows below it. Mobile: normal flow. */}
+      <FitPage>
+        <PageHeader title="Analytics" actions={!isMobile && filters} />
+        {isMobile && <Box sx={{ display: 'flex', gap: 0.75, mb: 1.5, flexWrap: 'wrap' }}>{filters}</Box>}
 
-      <SectionTitle sub={`sales settled in ${label}`}>Realized</SectionTitle>
-      <Box sx={{ mb: 3 }}>
-        <RealizedPanel totals={tt} period={period} filtered={filtered} onReport={() => setReportOpen(true)}
-          rateNote={profile?.filer_status === 'non_filer' ? 'CGT is shown at the 15% filer rate; as a non-filer yours may be higher.' : ''} />
-      </Box>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))' }, gap: 2, mb: 2, flexShrink: 0 }}>
+          <RealizedCard totals={tt} period={period} filtered={filtered} rangeText={label} onReport={() => setReportOpen(true)}
+            rateNote={profile?.filer_status === 'non_filer' ? 'Shown at the 15% filer rate; as a non-filer yours may be higher.' : ''} />
+          <UnrealizedCard totals={tt} positions={p.positions} endText={endLabel} />
+        </Box>
 
-      <SectionTitle sub={`shares held on ${endLabel}`}>Unrealized</SectionTitle>
-      <Box sx={{ mb: 3 }}>
-        <UnrealizedPanel totals={tt} positions={p.positions} />
-      </Box>
-
-      <Box sx={{ mb: 2 }}>
         {/* The stock (or sector, or all) picked above: shares held × close at each period's end vs their average cost. */}
-        <ValueChart rows={valueRows} range={range} height={isMobile ? 230 : 280}
-          title={`${symbol !== 'all' ? symbol : sector !== 'all' ? sector : 'All stocks'}: value vs invested`}
-          note="Each point: shares held at that close × the closing price, against their average cost. Sales lower the invested line; days before PSX closes were captured (6 Nov 2026) use your trade price." />
-      </Box>
+        <Box sx={{ display: 'grid', flex: isMobile ? 'none' : '1 1 0', minHeight: isMobile ? 'auto' : 240 }}>
+          <ValueChart rows={valueRows} range={range} fill={!isMobile} height={230}
+            title={`${symbol !== 'all' ? symbol : sector !== 'all' ? sector : 'All stocks'}: value vs invested`} />
+        </Box>
+      </FitPage>
 
-      <Box sx={{ bgcolor: t.surface, border: `1px solid ${t.border}`, borderRadius: '26px', boxShadow: t.shadow, p: { xs: 1.5, md: 2.25 } }}>
+      <Box sx={{ mt: 2, bgcolor: t.surface, border: `1px solid ${t.border}`, borderRadius: '26px', boxShadow: t.shadow, p: { xs: 1.5, md: 2.25 } }}>
         <Typography component="h2" sx={{ fontSize: '0.95rem', fontWeight: 750, mb: 1 }}>By stock <Box component="span" sx={{ color: t.muted, fontWeight: 500 }}>{rows.length}</Box></Typography>
         {rows.length === 0 ? <Typography sx={{ fontSize: '0.8rem', color: t.muted, py: 2 }}>No stocks in {label}.</Typography> : (
           <Box sx={{ overflowX: 'auto' }}>

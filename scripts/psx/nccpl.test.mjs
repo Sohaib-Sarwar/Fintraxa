@@ -77,3 +77,43 @@ test('a period sums its lots and the CGT its months were charged; whole tax year
   const ty = nccplPeriod(r, { start: '2025-07-01', end: '2026-06-30' });
   assert.deepEqual([ty.net, ty.cgt, ty.deemedCost], [795, r.year(2026).cgt, 110 + 95]);
 });
+
+test('a range starting mid-month gets only its own days of CGT, matching the lots it counts', async () => {
+  const { nccplPeriod } = await import('../../src/lib/psx/nccpl.js');
+  const r = nccplReport([
+    T('DDD', 'buy', '2026-01-02', '2026-01-05', 100, 100), T('DDD', 'sell', '2026-02-02', '2026-02-03', 100, 120),   // +1890, settles 3 Feb
+    T('EEE', 'buy', '2026-01-02', '2026-01-05', 100, 100), T('EEE', 'sell', '2026-03-02', '2026-03-03', 100, 90),    // −1095, settles 3 Mar
+  ]);
+  // 15 Feb – 30 Jun: only the March loss is in range. Charged before the range: 15% × 1890 = 283.50;
+  // to date at 30 Jun: 15% × 795 = 119.25; so the range is a refund of 164.25. (Counting February's
+  // whole-month charge as well would give +119.25 on a range whose only lot is a loss.)
+  const p = nccplPeriod(r, { start: '2026-02-15', end: '2026-06-30' });
+  assert.deepEqual([p.lots.length, p.net, p.cgt], [1, -1095, -164.25]);
+  assert.deepEqual([p.years[0].chargedBefore, p.years[0].cgtToDate, p.years[0].ytdBefore, p.years[0].ytdEnd], [283.5, 119.25, 1890, 795]);
+  // A range inside February that misses the 3 Feb settlement charges nothing.
+  assert.equal(nccplPeriod(r, { start: '2026-02-10', end: '2026-02-28' }).cgt, 0);
+});
+
+test('a range across 30 June is split; each tax year runs on its own', async () => {
+  const { nccplPeriod } = await import('../../src/lib/psx/nccpl.js');
+  const r = nccplReport([
+    T('DDD', 'buy', '2026-01-02', '2026-01-05', 100, 100), T('DDD', 'sell', '2026-02-02', '2026-02-03', 100, 120),   // TY26 +1890
+    T('EEE', 'buy', '2026-01-02', '2026-01-05', 100, 100), T('EEE', 'sell', '2026-03-02', '2026-03-03', 100, 90),    // TY26 −1095
+    T('GGG', 'buy', '2026-08-01', '2026-08-04', 100, 100), T('GGG', 'sell', '2026-09-01', '2026-09-02', 100, 110),   // TY27 1000 − 105 = +895
+  ]);
+  const p = nccplPeriod(r, { start: '2026-03-01', end: '2026-12-31' });
+  assert.deepEqual(p.years.map((s) => [s.taxYear, s.start, s.end, s.cgt]), [[2026, '2026-03-01', '2026-06-30', -164.25], [2027, '2026-07-01', '2026-12-31', 134.25]]);
+  assert.deepEqual([p.net, p.cgt], [-200, -30]);
+});
+
+test('losses brought forward are set off before the range is charged', async () => {
+  const { nccplPeriod } = await import('../../src/lib/psx/nccpl.js');
+  const r = nccplReport([
+    T('LLL', 'buy', '2026-01-02', '2026-01-05', 100, 100), T('LLL', 'sell', '2026-02-02', '2026-02-03', 100, 90),    // TY26 −1095, carried forward
+    T('GGG', 'buy', '2027-01-02', '2027-01-05', 100, 100), T('GGG', 'sell', '2027-02-02', '2027-02-03', 100, 120),   // TY27 +1890
+  ]);
+  // 1890 − 1095 brought forward = 795 taxable; 15% = 119.25 = the year's CGT.
+  const p = nccplPeriod(r, { start: '2027-02-01', end: '2027-02-28' });
+  assert.deepEqual([p.net, p.years[0].lossesAvailable, p.years[0].lossesUsed, p.years[0].taxableToDate, p.cgt], [1890, 1095, 1095, 795, 119.25]);
+  assert.equal(p.cgt, r.year(2027).cgt);
+});

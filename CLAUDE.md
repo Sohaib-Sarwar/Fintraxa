@@ -180,8 +180,12 @@ actual fees), 15%, gains and losses running month by month through the tax year 
 oldest first. Verified against a real NCCPL certificate (29/31 lots to the paisa; the rest were 2-decimal prices, hence
 `stock_transactions.price numeric(14,4)`). Tests: `scripts/psx/nccpl.test.mjs`.
 - CGT is on the taxpayer's total, so `useNccpl` always uses all trades; Analytics filters never change it.
-- Analytics > Realized: "What you earned" (actual, minus NCCPL CGT = you keep) beside "What NCCPL sees".
-  The report icon opens `NccplReport` (summary page + lot details; Download PDF prints only the statement, marked unofficial).
+- Range CGT (`nccplPeriod`) = CGT charged to date at the range's last day − charged just before its first day, per tax
+  year, so a mid-month range gets only its own days (whole months/years equal the statement).
+- Analytics: two cards (Realized: net after fees, NCCPL CGT, you keep; Unrealized), chart fills the rest of the screen
+  (`FitPage`). Breakdowns live in the info hovers. The report icon in Realized opens `NccplReport`: white paper in both
+  themes (rendered with `buildTheme('light')`), cards without rules, logo watermark; Download saves an A4 PDF directly
+  (`src/lib/pdfExport.js`: html2canvas pages cut on block boundaries, sheets flow on, no print dialog).
 - Not modelled: NCCPL's cross-broker / mutual-fund "capital gain/loss allocation", and pre-July-2024 holding-period rates.
 
 ## Categories
