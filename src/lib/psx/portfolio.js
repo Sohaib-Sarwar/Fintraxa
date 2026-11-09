@@ -11,7 +11,8 @@
  *   invested    = average cost of the shares held at the end of the range
  *   value       = shares held × price at the end of the range
  *   unrealized  = value − invested            (so value = invested + unrealized)
- *   realized    = Σ (proceeds − average cost) of sales dated inside the range
+ *   realized    = Σ (proceeds − average cost) of sales SETTLED inside the range (the date brokers
+ *                 and NCCPL use; trades entered by hand without one use the trade date)
  *                 gross = before broker fees, fees = sell fee + the buy fees carried in the cost sold
  *   15% CGT     = estimate on a positive unrealized gain, per stock (no tax is due until sold)
  *
@@ -57,7 +58,8 @@ function replay(trades, until) {
       const basisFees = shares.gt(0) ? feeCost.dividedBy(shares).times(sell) : ZERO;
       const gain = p.times(q).minus(fee).minus(basis);
       const fees = fee.plus(basisFees);
-      sales.push({ date: t.date, gain, fees, gross: gain.plus(fees) });
+      // Realized on the settlement date, as on the broker's and NCCPL's reports.
+      sales.push({ date: String(t.settlement_date ?? t.date).slice(0, 10), tradeDate: t.date, gain, fees, gross: gain.plus(fees) });
       shares = shares.minus(sell);
       cost = cost.minus(basis);
       feeCost = feeCost.minus(basisFees);
@@ -116,7 +118,9 @@ export function analyzeStocks(trades, { live = {}, history = {}, start = '0000-0
     const realizedIn = salesIn.reduce((s, x) => s.plus(x.gain), ZERO);
     const unrealTax = unrealized === null ? null : (unrealized.gt(0) ? unrealized.times(new Decimal(CGT_RATE)) : ZERO);
     const realizedAll = r.sales.reduce((s, x) => s.plus(x.gain), ZERO);
-    const tradedInRange = list.some((t) => t.date >= start && t.date <= endEff);
+    // Traded in the range, or a sale SETTLED in it (traded on the last day of the previous range).
+    const settles = (t) => String(t.settlement_date ?? t.date).slice(0, 10);
+    const tradedInRange = list.some((t) => (t.date >= start && t.date <= endEff) || (t.type === 'sell' && settles(t) >= start && settles(t) <= endEff));
     const before = list.filter((t) => t.date < start);
     const heldAtStart = before.length > 0 && replay(before).shares.gt(0);
     const q = live[symbol];
@@ -140,6 +144,10 @@ export function analyzeStocks(trades, { live = {}, history = {}, start = '0000-0
       unrealizedPct: unrealized !== null && r.cost.gt(0) ? Number(unrealized.dividedBy(r.cost).times(100).toFixed(2)) : null,
       realized: r2(realizedIn),
       realizedGross: r2(salesIn.reduce((s, x) => s.plus(x.gross), ZERO)),
+      // Sales that made money vs lost money (after their fees), so a net figure is not mistaken for no activity.
+      realizedProfit: r2(salesIn.filter((x) => x.gain.gt(0)).reduce((s, x) => s.plus(x.gain), ZERO)),
+      realizedLoss: r2(salesIn.filter((x) => x.gain.lt(0)).reduce((s, x) => s.plus(x.gain), ZERO)),
+      salesCount: salesIn.length,
       realizedFees: r2(salesIn.reduce((s, x) => s.plus(x.fees), ZERO)),
       realizedAllTime: r2(realizedAll),
       unrealizedTax: r2(unrealTax),
@@ -170,6 +178,9 @@ export function analyzeStocks(trades, { live = {}, history = {}, start = '0000-0
     realized: sum(shown, 'realized'),
     realizedGross: sum(shown, 'realizedGross'),
     realizedFees: sum(shown, 'realizedFees'),
+    realizedProfit: sum(shown, 'realizedProfit'),
+    realizedLoss: sum(shown, 'realizedLoss'),
+    salesCount: shown.reduce((n, p) => n + (p.salesCount ?? 0), 0),
     unrealizedTax,
     unrealizedNet: Number(D(unrealized).minus(unrealizedTax).toFixed(2)),
     held: open.length,

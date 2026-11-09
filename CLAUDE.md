@@ -168,8 +168,21 @@ changing `profit.js`, `portfolio.js`, `combine.js` or `build.js`, then redeploy 
   are kept. `scripts/psx/backfill-closes.py` does the same by hand. KSE-100 history came from PSX closing-rate PDFs.
 - Feed health: `public.market_feed_health()` + `src/lib/market/health.js` show a notice on Home / PSX / Mutual Funds
   when a feed is two or more working days behind (one day of slack for holidays).
-- Realized PSX profit = proceeds after the sell fee − average cost, which already includes buy fees. Gain cards lead
-  with that after-fees figure for realized; unrealized leads with gross.
+- Realized PSX profit = proceeds after the sell fee − average cost, which already includes buy fees, dated by the
+  sale's SETTLEMENT date (as brokers and NCCPL do). Analytics leads with that after-fees figure; unrealized with gross.
+
+## PSX capital gains tax (NCCPL)
+
+`src/lib/psx/nccpl.js` computes CGT the way NCCPL does, separately from the actual profit above: FIFO lots per stock by
+settlement date, holding days settlement to settlement, Rule 13N deemed costs (gain = (S − B) − 0.5%·S − 0.5%·B, no
+actual fees), 15%, gains and losses running month by month through the tax year (1 Jul–30 Jun; a month is charged
+15% of the running net minus earlier charges, negative = refund), and a year's net loss carried forward 3 tax years,
+oldest first. Verified against a real NCCPL certificate (29/31 lots to the paisa; the rest were 2-decimal prices, hence
+`stock_transactions.price numeric(14,4)`). Tests: `scripts/psx/nccpl.test.mjs`.
+- CGT is on the taxpayer's total, so `useNccpl` always uses all trades; Analytics filters never change it.
+- Analytics > Realized: "What you earned" (actual, minus NCCPL CGT = you keep) beside "What NCCPL sees".
+  The report icon opens `NccplReport` (summary page + lot details; Download PDF prints only the statement, marked unofficial).
+- Not modelled: NCCPL's cross-broker / mutual-fund "capital gain/loss allocation", and pre-July-2024 holding-period rates.
 
 ## Categories
 

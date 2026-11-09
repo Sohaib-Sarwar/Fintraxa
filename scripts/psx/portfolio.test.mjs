@@ -109,3 +109,15 @@ test('estimated CGT on the portfolio: 15% of the net unrealized gain, nothing on
   const loss = analyzeStocks(trades, { live: live(101, 90), today: '2026-07-10' }); // +10, −100
   assert.deepEqual([loss.totals.unrealized, loss.totals.unrealizedTax, loss.totals.unrealizedNet], [-90, 0, -90]);
 });
+
+test('realized is dated by settlement: a 30 June trade settling 1 July belongs to the next fiscal year; wins and losses split', () => {
+  const S = (symbol, type, date, settlement_date, quantity, price, fee = 0) => ({ ...T(symbol, type, date, quantity, price, fee), settlement_date });
+  const trades = [
+    S('WIN', 'buy', '2026-03-02', '2026-03-03', 10, 100, 1), S('WIN', 'sell', '2026-06-30', '2026-07-01', 10, 120, 1),
+    S('LOS', 'buy', '2026-03-02', '2026-03-03', 10, 100, 1), S('LOS', 'sell', '2026-06-10', '2026-06-11', 10, 90, 1),
+  ];
+  const fy26 = analyzeStocks(trades, { start: '2025-07-01', end: '2026-06-30', today: '2026-11-08' });
+  assert.deepEqual([fy26.totals.realized, fy26.totals.realizedProfit, fy26.totals.realizedLoss, fy26.totals.salesCount], [-102, 0, -102, 1]);
+  const fy27 = analyzeStocks(trades, { start: '2026-07-01', end: '2027-06-30', today: '2026-11-08' });
+  assert.deepEqual([fy27.totals.realized, fy27.totals.realizedProfit, fy27.totals.realizedLoss], [198, 198, 0]); // 1200 − 1 − (1000 + 1)
+});

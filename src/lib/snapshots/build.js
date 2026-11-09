@@ -24,7 +24,7 @@ import { liveEntries, replayHolding, priceBook } from '../mf/profit.js';
 import { normSymbol, replayStock, stockPriceAt, stockByTime } from '../psx/portfolio.js';
 import { cashFlows, savingsAt } from '../home/combine.js';
 
-export const SNAPSHOT_VERSION = 'snap-1.3.0'; // 1.3: daily share-portfolio return (flows, dividends); 1.2: monthly savings
+export const SNAPSHOT_VERSION = 'snap-1.4.0'; // 1.4: PSX realized dated by settlement; 1.3: daily return; 1.2: monthly savings
 const DAY = 86_400_000;
 const ZERO = new Decimal(0);
 const DUST_UNITS = new Decimal('0.01');

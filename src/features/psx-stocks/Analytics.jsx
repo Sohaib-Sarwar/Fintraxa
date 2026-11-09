@@ -1,11 +1,14 @@
 import { useMemo, useState } from 'react';
-import { Box, Typography, Skeleton, useMediaQuery } from '@mui/material';
+import { Box, Typography, Skeleton, IconButton, Tooltip, useMediaQuery } from '@mui/material';
+import { ReceiptLongRounded } from '@mui/icons-material';
 import { usePsxPortfolio } from '../../lib/psx/usePsxPortfolio';
-import { useDividends } from '../../lib/psx/useDividends';
+import { useNccpl } from '../../lib/psx/useNccpl';
+import { nccplPeriod, taxYearOf } from '../../lib/psx/nccpl';
+import { useProfile } from '../../lib/profile/useProfile';
 import { getStockSector } from '../../lib/psxSectors';
-import { useDateRange, rangeLabel, todayIso } from '../../lib/dateRange';
+import { useDateRange, rangeLabel, todayIso, shortDate } from '../../lib/dateRange';
 import { formatCurrency } from '../../lib/formatters';
-import { useFx, PageHeader, PillSelect, ValueChart, GainCard, FONT_NUM, signColor } from '../../components/fx';
+import { useFx, PageHeader, PillSelect, ValueChart, FONT_NUM, signColor } from '../../components/fx';
 import { useAssetSnapshots } from '../../lib/snapshots/useSnapshots';
 import { sumByDate } from '../../lib/snapshots/series';
 import { buildSnapshots } from '../../lib/snapshots/build';
@@ -14,10 +17,16 @@ import { BROKERS } from '../../lib/psx/confirmations';
 import BrokerLogo from './BrokerLogo';
 import StockLogo from '../../components/StockLogo';
 import StockDetailsDialog from './StockDetailsDialog';
+import NccplReport from './NccplReport';
+import { RealizedPanel, UnrealizedPanel, SectionTitle } from './GainPanels';
 
 const signed = (v) => (v === null || v === undefined ? '—' : `${v > 0 ? '+' : v < 0 ? '−' : ''}${formatCurrency(Math.abs(v))}`);
 
-/** Realized and unrealized profit and dividends on PSX stocks for the range, by broker, sector or stock. */
+/**
+ * Realized and unrealized profit on PSX stocks for the range, by broker, sector or stock.
+ * Realized shows what the sales actually earned next to NCCPL's taxable figure and CGT (all stocks);
+ * the report icon opens the NCCPL-style statement. Dividends have their own page.
+ */
 export default function PSXAnalytics() {
   const t = useFx();
   const isMobile = useMediaQuery('(max-width:900px)');
@@ -26,16 +35,19 @@ export default function PSXAnalytics() {
   const [symbolPick, setSymbol] = useState('all');
   const [brokerPick, setBroker] = useState('all');
   const [stock, setStock] = useState(null);
+  const [reportOpen, setReportOpen] = useState(false);
   const label = rangeLabel(range);
 
-  // Options = stocks active in the range (held at its start or traded in it) plus any that paid a dividend in it.
+  // Options = stocks active in the range (held at its start, traded or settled in it).
   const { portfolio: base, trades, history } = usePsxPortfolio(range);
-  const { summary: baseDivs } = useDividends(range);
+  const { report } = useNccpl();
+  const { data: profile } = useProfile();
+  const period = useMemo(() => (report && report.lots.length ? nccplPeriod(report, range) : null), [report, range]);
   const options = useMemo(() => {
-    const syms = [...new Set([...(base?.positions ?? []).map((x) => x.symbol), ...(baseDivs ? baseDivs.bySymbol.keys() : [])])].sort();
+    const syms = [...new Set((base?.positions ?? []).map((x) => x.symbol))].sort();
     const sectors = [...new Set(syms.map((s) => getStockSector(s)))].sort();
     return { syms, sectors };
-  }, [base, baseDivs]);
+  }, [base]);
   // Brokers the trades came through ('manual' = entered by hand), offered when there is a choice.
   const brokers = useMemo(() => {
     const set = new Set(trades.map((x) => x.broker ?? 'manual'));
@@ -66,9 +78,15 @@ export default function PSXAnalytics() {
     const { holdings } = buildSnapshots({ psx: { trades: brokerTrades, history: history ?? {} }, from, to: today, today });
     return sumByDate(holdings);
   }, [brokerTrades, psxRows, history, symbol, sector]);
-  const brokerSymbols = useMemo(() => (brokerTrades ? new Set(brokerTrades.map((x) => normSymbol(x.symbol))) : null), [brokerTrades]);
-  const { summary: divs } = useDividends(range, { sector, symbol, symbols: brokerSymbols });
 
+  const reportButton = (
+    <Tooltip title="NCCPL capital gains report" arrow>
+      <IconButton onClick={() => setReportOpen(true)} aria-label="Open NCCPL capital gains report"
+        sx={{ border: `1px solid ${t.border}`, borderRadius: '12px', width: 38, height: 38, color: t.ink2 }}>
+        <ReceiptLongRounded sx={{ fontSize: 20 }} />
+      </IconButton>
+    </Tooltip>
+  );
   const filters = (
     <>
       {brokers.length > 1 && (
@@ -80,10 +98,11 @@ export default function PSXAnalytics() {
       <PillSelect value={symbol} onChange={setSymbol} label="Stock" width={isMobile ? 130 : 160}
         items={[{ value: 'all', label: 'All stocks' }, ...options.syms.filter((s) => sector === 'all' || getStockSector(s) === sector)
           .map((s) => ({ value: s, label: s, icon: <StockLogo symbol={s} size="sm" /> }))]} />
+      {reportButton}
     </>
   );
 
-  if (isLoading || !p || !divs) {
+  if (isLoading || !p) {
     return (
       <Box>
         <PageHeader title="Analytics" />
@@ -95,26 +114,24 @@ export default function PSXAnalytics() {
   }
 
   const tt = p.totals;
-  // Stocks active in the range, plus any that paid a dividend in it without a recorded trade.
-  const bySym = new Map(p.positions.map((x) => [x.symbol, { ...x, dividends: divs.bySymbol.get(x.symbol)?.net ?? 0 }]));
-  for (const d of divs.bySymbol.values()) {
-    if (!bySym.has(d.symbol)) bySym.set(d.symbol, { symbol: d.symbol, dividendOnly: true, dividends: d.net, realized: 0, realizedFees: 0, unrealizedNet: null, isOpen: false });
-  }
-  const total = (x) => (x.realized ?? 0) + (x.unrealizedNet ?? 0) + x.dividends;
-  const rows = [...bySym.values()].sort((a, b) => total(b) - total(a));
+  const filtered = broker !== 'all' || sector !== 'all' || symbol !== 'all';
+  const rows = [...p.positions].sort((a, b) => ((b.realized ?? 0) + (b.unrealized ?? 0)) - ((a.realized ?? 0) + (a.unrealized ?? 0)));
+  const endLabel = shortDate(range.end < todayIso() ? range.end : todayIso());
 
   return (
     <Box sx={{ pb: isMobile ? 1 : 0 }}>
       <PageHeader title="Analytics" actions={!isMobile && filters} />
-      {isMobile && <Box sx={{ display: 'flex', gap: 0.75, mb: 1.5 }}>{filters}</Box>}
+      {isMobile && <Box sx={{ display: 'flex', gap: 0.75, mb: 1.5, flexWrap: 'wrap' }}>{filters}</Box>}
 
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, minmax(0, 1fr))' }, gap: 2, mb: 2 }}>
-        <GainCard kind="realized" net={tt.realized} gross={tt.realizedGross} tax={tt.realizedFees} taxLabel="Broker fees" netLabel="After fees" grossLabel="Before fees"
-          hint="Profit on shares sold in this period: proceeds after the sell fee − average cost, which already includes the buy fees. Before fees adds both fees back." />
-        <GainCard kind="unrealized" net={tt.unrealizedNet} gross={tt.unrealized} tax={tt.unrealizedTax}
-          hint="Profit on shares you still hold: their value at the end of the period − their average cost. No tax is due until you sell; the estimate is 15% of the net gain, and nothing on a net loss." />
-        <GainCard kind="realized" title="Dividends" net={divs.net} gross={divs.gross} tax={divs.deductions} taxLabel="Tax withheld" netLabel="After tax" grossLabel="Gross"
-          hint="Cash dividends paid in this period, by payment date. Gross is the declared amount on your shares; tax is what was withheld at source (15% filer, 30% non-filer); net is what reached your account, as printed on the statement." />
+      <SectionTitle sub={`sales settled in ${label}`}>Realized</SectionTitle>
+      <Box sx={{ mb: 3 }}>
+        <RealizedPanel totals={tt} period={period} filtered={filtered} onReport={() => setReportOpen(true)}
+          rateNote={profile?.filer_status === 'non_filer' ? 'CGT is shown at the 15% filer rate; as a non-filer yours may be higher.' : ''} />
+      </Box>
+
+      <SectionTitle sub={`shares held on ${endLabel}`}>Unrealized</SectionTitle>
+      <Box sx={{ mb: 3 }}>
+        <UnrealizedPanel totals={tt} positions={p.positions} />
       </Box>
 
       <Box sx={{ mb: 2 }}>
@@ -134,23 +151,23 @@ export default function PSXAnalytics() {
               '& td': { fontSize: '0.78rem', textAlign: 'right', py: 1, px: 1, borderTop: `1px solid ${t.hairline}`, fontFamily: FONT_NUM, whiteSpace: 'nowrap', letterSpacing: '-0.02em' },
               '& td:first-of-type': { textAlign: 'left', pl: 0, fontFamily: 'inherit', letterSpacing: 0 },
             }}>
-              <thead><tr><th>Stock</th><th>Realized (net)</th><th>Broker fees</th><th>Unrealized (net)</th><th>Dividends (net)</th><th>Value</th></tr></thead>
+              <thead><tr><th>Stock</th><th>Realized before fees</th><th>Broker fees</th><th>Realized (net)</th><th>Unrealized</th><th>Value</th></tr></thead>
               <tbody>
                 {rows.map((x) => (
-                  <Box component="tr" key={x.symbol} onClick={x.dividendOnly ? undefined : () => setStock(x)} sx={{ cursor: x.dividendOnly ? 'default' : 'pointer', '&:hover td': { bgcolor: t.surface2 } }}>
+                  <Box component="tr" key={x.symbol} onClick={() => setStock(x)} sx={{ cursor: 'pointer', '&:hover td': { bgcolor: t.surface2 } }}>
                     <td>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <StockLogo symbol={x.symbol} size="sm" />
                         <Box sx={{ minWidth: 0 }}>
                           <Typography noWrap sx={{ fontSize: '0.78rem', fontWeight: 650 }}>{x.symbol}</Typography>
-                          <Typography noWrap sx={{ fontSize: '0.64rem', color: t.muted, maxWidth: 240 }}>{getStockSector(x.symbol)}{x.dividendOnly ? ', no trades recorded' : ''}</Typography>
+                          <Typography noWrap sx={{ fontSize: '0.64rem', color: t.muted, maxWidth: 240 }}>{getStockSector(x.symbol)}</Typography>
                         </Box>
                       </Box>
                     </td>
-                    <Box component="td" sx={{ color: signColor(t, x.realized) }}>{signed(x.realized)}</Box>
-                    <td>{formatCurrency(x.realizedFees ?? 0, 2)}</td>
-                    <Box component="td" sx={{ color: signColor(t, x.unrealizedNet ?? 0) }}>{x.isOpen ? signed(x.unrealizedNet) : '—'}</Box>
-                    <Box component="td" sx={{ color: signColor(t, x.dividends) }}>{x.dividends ? signed(x.dividends) : '—'}</Box>
+                    <Box component="td" sx={{ color: signColor(t, x.realizedGross ?? 0) }}>{x.salesCount ? signed(x.realizedGross) : '—'}</Box>
+                    <td>{x.salesCount ? formatCurrency(x.realizedFees ?? 0, 2) : '—'}</td>
+                    <Box component="td" sx={{ color: signColor(t, x.realized), fontWeight: 650 }}>{x.salesCount ? signed(x.realized) : '—'}</Box>
+                    <Box component="td" sx={{ color: signColor(t, x.unrealized ?? 0) }}>{x.isOpen ? signed(x.unrealized) : '—'}</Box>
                     <td>{x.isOpen ? formatCurrency(x.value ?? 0) : '—'}</td>
                   </Box>
                 ))}
@@ -161,6 +178,7 @@ export default function PSXAnalytics() {
       </Box>
 
       {stock && <StockDetailsDialog position={stock} onClose={() => setStock(null)} />}
+      {reportOpen && <NccplReport taxYear={taxYearOf(range.end < todayIso() ? range.end : todayIso())} onClose={() => setReportOpen(false)} />}
     </Box>
   );
 }
