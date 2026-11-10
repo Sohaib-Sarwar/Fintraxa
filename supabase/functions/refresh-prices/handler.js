@@ -15,7 +15,7 @@
  * Fintraxa stores, which can be a statement's spelling.
  *
  * Every step is sent to the caller as it happens (one JSON object per line), so Settings can show
- * the progress live. Plain JS, shared with the Node tests (scripts/market/refresh.test.mjs).
+ * the progress live. Plain JS, shared with the Node tests (scripts/psx/refresh-prices.test.mjs).
  */
 
 export const STALE_RUN_MS = 2 * 60_000;    // a "running" row older than this was abandoned
