@@ -1,5 +1,12 @@
 // Edge Function entry: auth, CORS, the streamed response. Logic lives in handler.js (plain JS,
-// shared with the Node tests). The caller gets one JSON object per line as each step finishes.
+// shared with the Node tests).
+//
+// Two callers:
+//   * the app (Settings > Market prices), with the signed-in user's JWT: that user's holdings,
+//     streamed back one JSON object per line as each step finishes.
+//   * pg_cron, with the x-cron-secret header (checked against Vault by snapshot_verify_cron_secret,
+//     as portfolio-snapshot does): everyone's holdings, answered with the finished run.
+// verify_jwt is off because the cron call has no JWT; both paths authenticate here.
 import { createClient } from '@supabase/supabase-js';
 import { refresh } from './handler.js';
 
@@ -38,12 +45,12 @@ async function quotes(body: unknown) {
   return json;
 }
 
-/** slug → MUFAP's fund name and category, from the published fund list (the same slugs mf_funds links to). */
+/** slug → MUFAP's fund name, category and manager, from the published fund list (the same slugs mf_funds links to). */
 async function mufapIndex() {
   const res = await fetch(FUNDS_URL, { signal: AbortSignal.timeout(15_000) });
   if (!res.ok) return new Map();
   const body = await res.json();
-  return new Map((body?.data ?? []).map((r: { slug: string; fund_name: string; category: string }) => [r.slug, { fund_name: r.fund_name, category: r.category }]));
+  return new Map((body?.data ?? []).map((r: { slug: string; fund_name: string; category: string; amc?: string }) => [r.slug, { fund_name: r.fund_name, category: r.category, amc: r.amc ?? null }]));
 }
 
 Deno.serve(async (req) => {
@@ -52,13 +59,31 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405, headers: { ...base, 'Content-Type': 'application/json' } });
 
   const url = Deno.env.get('SUPABASE_URL')!;
+  const admin = createClient(url, key('SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SECRET_KEYS'), { auth: { persistSession: false, autoRefreshToken: false } });
+  const jsonHeaders = { ...base, 'Content-Type': 'application/json' };
+
+  // ── scheduled: everyone's holdings ──
+  const cronSecret = req.headers.get('x-cron-secret');
+  if (cronSecret) {
+    const { data: ok } = await admin.rpc('snapshot_verify_cron_secret', { p_secret: cronSecret });
+    if (ok !== true) return new Response(JSON.stringify({ error: 'Not allowed' }), { status: 401, headers: jsonHeaders });
+    try {
+      const run = await refresh({ userId: null, admin, quotes, mufapIndex });
+      return new Response(JSON.stringify({ id: run?.id, status: run?.status, psx: run?.psx_updated, funds: run?.mufap_updated, ms: run?.duration_ms }), { headers: jsonHeaders });
+    } catch (err) {
+      const status = (err as { status?: number })?.status === 429 ? 429 : 500;
+      console.error('[refresh-prices] scheduled run', (err as Error).message);
+      return new Response(JSON.stringify({ error: String((err as Error).message) }), { status, headers: jsonHeaders });
+    }
+  }
+
+  // ── a signed-in user: their holdings, streamed ──
   const asUser = createClient(url, key('SUPABASE_ANON_KEY', 'SUPABASE_PUBLISHABLE_KEYS'), {
     auth: { persistSession: false, autoRefreshToken: false },
     global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } },
   });
   const { data: auth } = await asUser.auth.getUser();
-  if (!auth?.user) return new Response(JSON.stringify({ error: 'Sign in again.' }), { status: 401, headers: { ...base, 'Content-Type': 'application/json' } });
-  const admin = createClient(url, key('SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SECRET_KEYS'), { auth: { persistSession: false, autoRefreshToken: false } });
+  if (!auth?.user) return new Response(JSON.stringify({ error: 'Sign in again.' }), { status: 401, headers: jsonHeaders });
 
   const enc = new TextEncoder();
   const stream = new ReadableStream({

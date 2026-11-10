@@ -182,8 +182,15 @@ MUFAP tables per fund → `market_refresh_save` → `psx_price_history` / `mf_na
 - Both SQL functions are service-role only: price tables are shared, so clients never supply prices.
 - PSX: `src/lib/psx/livePrices.js` lets a refreshed price beat the published board only when its date is newer.
   MF: the newest-dated observation already wins. The scheduled jobs (full board) are unchanged.
-- MUFAP refusing (Cloudflare challenge) is reported as such and not retried; the last published NAVs stay.
-- Tests: `scripts/psx/refresh-prices.test.mjs`. Deploy: `npx supabase@2 functions deploy refresh-prices --project-ref qrekpudclwesajfhrokv --use-api`.
+- MUFAP refusing (Cloudflare challenge) is reported as such and not retried. Funds also come from their manager's
+  own price page (`source: 'amc'` in the worker; registry `AMCS` in quotes.js: UBL, Al Meezan, keyed by MUFAP's
+  `amc` name) and the newest date wins, MUFAP on a tie; saved as `mf_nav_history.source = 'amc'`. A fund whose
+  manager is not in `AMCS` still depends on MUFAP: add its manager there (parser by header text, fixture, test).
+- Scheduled too: pg_cron `market-refresh-holdings-{close,evening,night}` (11:40 UTC weekdays, 15:40 and 18:40 UTC daily)
+  → `market_private.request_holdings_refresh()` → the same function with `x-cron-secret` (vault
+  `snapshot_cron_secret`, checked by `snapshot_verify_cron_secret`) → everyone's holdings, run logged with
+  `user_id` null / `kind = 'scheduled'` (never visible to users). `verify_jwt` is off; both paths authenticate in code.
+- Tests: `scripts/psx/refresh-prices.test.mjs`. Deploy: `npx supabase@2 functions deploy refresh-prices --no-verify-jwt --project-ref qrekpudclwesajfhrokv --use-api`.
 
 ## PSX capital gains tax (NCCPL)
 

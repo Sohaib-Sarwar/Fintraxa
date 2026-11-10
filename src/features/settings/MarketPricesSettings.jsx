@@ -13,8 +13,12 @@ const STEPS = [
   { id: 'psx', label: 'PSX prices' },
   { id: 'mufap_tab1', label: 'MUFAP NAVs' },
   { id: 'mufap_tab3', label: 'MUFAP prices' },
+  { id: 'amc', label: 'Fund managers' },
   { id: 'save', label: 'Saving and updating pages' },
 ];
+
+/** Short names for the fund managers the worker reads (quotes.js AMCS). */
+const MANAGER = { ubl: 'UBL Funds', meezan: 'Al Meezan' };
 
 /** "10 Nov 2026, 5:42 pm", Pakistan time. */
 const when = (iso) => (iso ? new Date(iso).toLocaleString('en-GB', {
@@ -33,24 +37,37 @@ function reducer(s, a) {
       steps.psx = a.psx.length ? { state: 'active' } : { state: 'skip', note: 'No stocks held' };
       steps.mufap_tab1 = a.funds.length ? { state: 'active' } : { state: 'skip', note: 'No funds held' };
       steps.mufap_tab3 = a.funds.length ? { state: 'active' } : { state: 'skip', note: 'No funds held' };
+      steps.amc = a.funds.length ? { state: 'active' } : { state: 'skip', note: 'No funds held' };
       return { ...s, steps };
     }
     case 'source': {
       if (a.source === 'psx') {
         return { ...s, steps: set('psx', { state: a.ok === a.requested ? 'ok' : 'warn', ms: a.ms, note: `${a.ok} of ${a.requested} updated` }) };
       }
+      if (a.source === 'amc') {
+        const names = (a.managers ?? []).filter((m) => m.status === 'ok').map((m) => MANAGER[m.id] ?? m.amc).filter(Boolean);
+        return {
+          ...s, steps: set('amc', a.status === 'ok'
+            ? { state: 'ok', ms: a.ms, note: `${a.matched ?? 0} of ${plural(a.requested ?? 0, 'fund')} found${names.length ? ` · ${names.join(', ')}` : ''}` }
+            : { state: 'warn', ms: a.ms, note: 'The fund managers’ websites did not answer' }),
+        };
+      }
       const blocked = a.status === 'blocked';
       return {
         ...s, steps: set(a.source, a.status === 'ok'
           ? { state: 'ok', ms: a.ms, note: `${plural(a.matched ?? 0, 'fund')} found` }
-          : { state: 'warn', ms: a.ms, note: blocked ? 'MUFAP refused the request; last published NAVs kept' : 'MUFAP did not answer; last published NAVs kept' }),
+          : { state: 'warn', ms: a.ms, note: blocked ? 'MUFAP refused the request; using the fund managers’ prices' : 'MUFAP did not answer; using the fund managers’ prices' }),
       };
     }
     case 'saving': return { ...s, steps: set('save', { state: 'active' }) };
-    case 'done': return {
-      ...s, phase: 'done', run: a.run,
-      steps: set('save', { state: 'ok', note: `${plural(a.run.psx_updated ?? 0, 'stock')}, ${plural(a.run.mufap_updated ?? 0, 'fund')} updated` }),
-    };
+    case 'done': {
+      // A source with nothing to ask (no fund with a known manager) never reports: not needed.
+      const steps = Object.fromEntries(Object.entries(s.steps).map(([id, v]) => [id, v?.state === 'active' ? { state: 'skip', note: 'Not needed' } : v]));
+      return {
+        ...s, phase: 'done', run: a.run,
+        steps: { ...steps, save: { state: 'ok', note: `${plural(a.run.psx_updated ?? 0, 'stock')}, ${plural(a.run.mufap_updated ?? 0, 'fund')} updated` } },
+      };
+    }
     case 'fail': return { ...s, phase: 'error', message: a.message };
     default: return s;
   }
@@ -100,7 +117,7 @@ export default function MarketPricesSettings() {
           <Box sx={{ flex: 1, minWidth: 220 }}>
             <Typography sx={{ fontSize: '0.95rem', fontWeight: 750 }}>Refresh my prices</Typography>
             <Typography sx={{ fontSize: '0.74rem', color: t.muted, mt: 0.25 }}>
-              The latest price of every stock and fund you hold, straight from PSX and MUFAP. Takes a few seconds.
+              The latest price of every stock and fund you hold, straight from PSX, MUFAP and the fund managers. Takes a few seconds.
             </Typography>
           </Box>
           <ButtonBase onClick={start} disabled={running}
@@ -129,6 +146,13 @@ export default function MarketPricesSettings() {
         <Typography sx={{ fontSize: '0.86rem', fontWeight: 750, mb: 1 }}>Scheduled updates</Typography>
         <Feed label="PSX board" schedule="Weekdays at 5:00 pm" feed={psxFeed} />
         <Feed label="MUFAP NAVs" schedule="Every day, hourly 6:00 pm – 12:00 am" feed={mufapFeed} />
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, py: 0.7 }}>
+          <ScheduleRounded sx={{ fontSize: 17, color: t.muted }} />
+          <Box sx={{ flex: 1 }}>
+            <Typography sx={{ fontSize: '0.8rem', fontWeight: 650 }}>Your holdings</Typography>
+            <Typography sx={{ fontSize: '0.7rem', color: t.muted }}>Also refreshed on their own at 4:40 pm on trading days, and 8:40 pm and 11:40 pm every day</Typography>
+          </Box>
+        </Box>
       </Box>
 
       <Box sx={card}>
@@ -195,8 +219,8 @@ function Results({ run }) {
             {f.price ? (
               <>
                 <Typography sx={{ fontFamily: FONT_NUM, fontSize: '0.82rem', fontWeight: 650 }}>{formatCurrency(f.price, 4)}</Typography>
-                <Tooltip title={f.kind === 'repurchase' ? 'Repurchase price, valid for this date' : 'NAV, valid for this date'} arrow>
-                  <Typography sx={{ fontSize: '0.68rem', color: t.muted, whiteSpace: 'nowrap' }}>{f.nav_date}</Typography>
+                <Tooltip arrow title={`${f.kind === 'repurchase' ? 'Repurchase price' : 'NAV'}, valid for this date · from ${f.source === 'amc' ? (f.amc ?? 'the fund manager') : 'MUFAP'}`}>
+                  <Typography sx={{ fontSize: '0.68rem', color: t.muted, whiteSpace: 'nowrap' }}>{f.nav_date} · {f.source === 'amc' ? 'Manager' : 'MUFAP'}</Typography>
                 </Tooltip>
               </>
             ) : <Typography sx={{ fontSize: '0.74rem', color: t.warn }}>Not updated</Typography>}
@@ -204,7 +228,9 @@ function Results({ run }) {
         ))}
         {run.details?.mufap?.status === 'blocked' && (
           <Typography sx={{ fontSize: '0.7rem', color: t.muted, mt: 1, lineHeight: 1.5 }}>
-            MUFAP&apos;s website is refusing automated requests at the moment, so fund prices stay at the last published NAVs.
+            {funds.some((f) => f.source === 'amc')
+              ? 'MUFAP’s website is refusing automated requests at the moment, so these prices come from each fund manager’s own website, where MUFAP gets them from.'
+              : 'MUFAP’s website is refusing automated requests at the moment, so fund prices stay at the last published NAVs.'}
           </Typography>
         )}
       </Box>
@@ -242,7 +268,7 @@ function RunRow({ r }) {
       <Typography sx={{ fontSize: '0.78rem', fontWeight: 600, minWidth: 150 }}>{when(r.requested_at)}</Typography>
       <Typography sx={{ fontSize: '0.74rem', color: tone, fontWeight: 650, minWidth: 100 }}>{label}</Typography>
       <Typography sx={{ fontSize: '0.72rem', color: t.muted, flex: 1 }}>
-        PSX {r.psx_updated}/{r.psx_requested} · MUFAP {r.mufap_updated}/{r.mufap_requested}
+        Stocks {r.psx_updated}/{r.psx_requested} · Funds {r.mufap_updated}/{r.mufap_requested}
       </Typography>
       <Typography sx={{ fontFamily: FONT_NUM, fontSize: '0.72rem', color: t.muted }}>{secs(r.duration_ms)}</Typography>
     </Box>

@@ -2,15 +2,16 @@
 // database and a fake market worker. Fake prices only.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { refresh, pickFund, MIN_GAP_MS } from '../../supabase/functions/refresh-prices/handler.js';
+import { refresh, pickFund, pickNewest, MIN_GAP_MS, BATCH } from '../../supabase/functions/refresh-prices/handler.js';
 
 /** Just enough of supabase-js: one table (market_refresh_runs) and two RPCs. */
 function fakeAdmin({ targets, lastRun = null }) {
-  const runs = []; const saved = [];
+  const runs = []; const saved = []; const filters = [];
   const table = () => {
     const q = { _op: 'select', _patch: null, _id: null };
     Object.assign(q, {
-      select: () => q, eq: (c, v) => { if (c === 'id') q._id = v; return q; }, order: () => q, limit: () => q,
+      select: () => q, eq: (c, v) => { if (c === 'id') q._id = v; else filters.push([c, 'eq', v]); return q; },
+      is: (c, v) => { filters.push([c, 'is', v]); return q; }, order: () => q, limit: () => q,
       maybeSingle: async () => ({ data: lastRun }),
       insert: (row) => { const r = { id: runs.length + 1, requested_at: new Date(0).toISOString(), status: 'running', ...row }; runs.push(r); q._row = r; return q; },
       update: (patch) => { q._patch = patch; return q; },
@@ -22,15 +23,16 @@ function fakeAdmin({ targets, lastRun = null }) {
     });
     return q;
   };
-  return {
-    runs, saved,
+  const admin = {
+    runs, saved, filters, targetArgs: [],
     from: () => table(),
     rpc: async (name, args) => {
-      if (name === 'market_refresh_targets') return { data: targets };
+      if (name === 'market_refresh_targets') { admin.targetArgs.push(args); return { data: targets }; }
       if (name === 'market_refresh_save') { saved.push(args); return { data: { psx_saved: args.p_psx.length, funds_saved: args.p_funds.length } }; }
       return { error: new Error(`unknown rpc ${name}`) };
     },
   };
+  return admin;
 }
 
 const targets = {
@@ -41,7 +43,11 @@ const targets = {
   ],
 };
 
-const worker = ({ mufapBlocked = false } = {}) => async (body) => {
+const UBL = 'UBL Fund Managers Limited';
+const worker = ({ mufapBlocked = false, amc = [] } = {}) => async (body) => {
+  if (body.source === 'amc') {
+    return { status: amc.length ? 'ok' : 'unavailable', managers: [{ amc: UBL, id: 'ubl', status: 'ok', url: 'https://ubl.example/prices' }], unsupported: [], funds: amc };
+  }
   if (body.source === 'psx') {
     return { quotes: [
       { symbol: 'MEBL', status: 'ok', price: 570.78, change: 20.53, change_pct: 3.73, as_of: '2026-11-10', as_of_text: 'Tue, Nov 10, 2026 3:49 PM' },
@@ -64,10 +70,10 @@ const worker = ({ mufapBlocked = false } = {}) => async (body) => {
 test('the newer of MUFAP\'s two tables wins; its repurchase price only counts for the same day', () => {
   // HBL Income Fund, 8 Nov 2026: tab=1 117.4659 @ 5 Nov, tab=3 117.4684 @ 6 Nov.
   assert.deepEqual(pickFund({ nav: 117.4659, validity_date: '2026-11-05' }, { nav: 117.4684, validity_date: '2026-11-06', repurchase_price: 117.4684 }),
-    { nav_date: '2026-11-06', price: 117.4684, kind: 'repurchase', nav: 117.4684 });
+    { nav_date: '2026-11-06', price: 117.4684, kind: 'repurchase', nav: 117.4684, source: 'mufap' });
   // tab=1 ahead: its NAV, and tab=3's older repurchase price is not used.
   assert.deepEqual(pickFund({ nav: 250.4, validity_date: '2026-11-09' }, { nav: 248.16, validity_date: '2026-11-04', repurchase_price: 250.44 }),
-    { nav_date: '2026-11-09', price: 250.4, kind: 'nav', nav: 250.4 });
+    { nav_date: '2026-11-09', price: 250.4, kind: 'nav', nav: 250.4, source: 'mufap' });
   assert.equal(pickFund(null, null), null);
 });
 
@@ -131,4 +137,55 @@ test('a fund is looked up by its MUFAP link, not by the name Fintraxa stores', a
   assert.deepEqual(asked[0].funds, [{ name: 'Al Ameen Islamic Cash Fund', category: 'Shariah Compliant Money Market' }]);
   assert.deepEqual(admin.saved[0].p_funds.map((r) => [r.fund_id, r.price]), [['f9', 105.1014]]);
   assert.equal(run.mufap_updated, 1);
+});
+
+// Al-Ameen Islamic Cash Fund, 10 Nov 2026: MUFAP's last row 105.0610 @ 7 Nov (refused since),
+// UBL's own page 105.1289 @ 11 Nov.
+const ublCash = { name: 'Al-Ameen Islamic Cash Fund', amc: UBL, validity_date: '2026-11-11', price: 105.1289, kind: 'repurchase', nav: 105.1289, source_url: 'https://ubl.example/prices' };
+const ameen = { id: 'f1', name: 'Al Ameen Islamic Cash Fund', category: 'Shariah Compliant Money Market', slug: 'al-ameen-islamic-cash-fund' };
+const ameenIndex = new Map([['al-ameen-islamic-cash-fund', { fund_name: 'Al Ameen Islamic Cash Fund', category: 'Shariah Compliant Money Market', amc: UBL }]]);
+
+test('the newest of MUFAP and the fund manager wins; MUFAP wins a tie', () => {
+  const mufap = { nav_date: '2026-11-07', price: 105.061, kind: 'repurchase', nav: 105.061, source: 'mufap' };
+  assert.equal(pickNewest(mufap, ublCash).source, 'amc');
+  assert.equal(pickNewest(mufap, ublCash).price, 105.1289);
+  assert.equal(pickNewest({ ...mufap, nav_date: '2026-11-11' }, ublCash).source, 'mufap', 'same day: MUFAP');
+  assert.equal(pickNewest(null, ublCash).nav_date, '2026-11-11', 'MUFAP silent: the manager');
+  assert.equal(pickNewest(mufap, null), mufap);
+  assert.equal(pickNewest(null, null), null);
+});
+
+test("MUFAP refusing no longer costs the fund its price: the manager's page is used", async () => {
+  const admin = fakeAdmin({ targets: { psx: ['MEBL'], funds: [ameen] } });
+  const asked = [];
+  const quotes = async (body) => { asked.push(body); return worker({ mufapBlocked: true, amc: [ublCash] })(body); };
+  const run = await refresh({ userId: 'u1', admin, quotes, mufapIndex: async () => ameenIndex });
+  assert.deepEqual(asked.find((b) => b.source === 'amc').funds, [{ name: 'Al Ameen Islamic Cash Fund', amc: UBL }], "asked by MUFAP's name and manager");
+  assert.deepEqual(admin.saved[0].p_funds, [{ fund_id: 'f1', nav_date: '2026-11-11', price: 105.1289, kind: 'repurchase', source: 'amc', slug: 'https://ubl.example/prices' }]);
+  assert.equal(run.mufap_updated, 1);
+  assert.equal(run.details.mufap.status, 'blocked', "MUFAP's refusal is still reported");
+  assert.equal(run.details.amc.status, 'ok');
+});
+
+test('a fund whose manager is unknown is not sent to the manager source', async () => {
+  const admin = fakeAdmin({ targets: { psx: [], funds: [ameen] } });
+  const asked = [];
+  await refresh({ userId: 'u1', admin, quotes: async (b) => { asked.push(b.source); return worker()(b); }, mufapIndex: async () => new Map() });
+  assert.ok(!asked.includes('amc'));
+});
+
+test("the scheduled run covers everyone's holdings, in batches the worker accepts", async () => {
+  const symbols = Array.from({ length: BATCH + 5 }, (_, i) => `S${i}`);
+  const admin = fakeAdmin({ targets: { psx: symbols, funds: [] } });
+  const batches = [];
+  const quotes = async (body) => {
+    batches.push(body.symbols.length);
+    return { quotes: body.symbols.map((s) => ({ symbol: s, status: 'ok', price: 10, as_of: '2026-11-10' })) };
+  };
+  const run = await refresh({ userId: null, admin, quotes });
+  assert.deepEqual(admin.targetArgs, [{ p_user: null }], "null = every user's holdings");
+  assert.deepEqual(admin.filters, [['user_id', 'is', null]], 'its own one-at-a-time check');
+  assert.equal(admin.runs[0].kind, 'scheduled');
+  assert.deepEqual(batches.sort((a, b) => b - a), [BATCH, 5]);
+  assert.equal(run.psx_updated, BATCH + 5);
 });
