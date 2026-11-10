@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Box, Dialog, Typography, IconButton, ButtonBase, InputBase, Avatar, Switch, Menu, MenuItem, CircularProgress, useMediaQuery } from '@mui/material';
 import {
   CloseRounded, PhotoCameraRounded, PersonRounded, AccountBalanceWalletRounded, AccountBalanceRounded, CategoryRounded, LockRounded, AutoAwesomeRounded,
-  PowerSettingsNewRounded, CheckCircleRounded, ErrorOutlineRounded, VisibilityRounded, VisibilityOffRounded,
+  PowerSettingsNewRounded, CheckCircleRounded, ErrorOutlineRounded, VisibilityRounded, VisibilityOffRounded, SyncRounded,
 } from '@mui/icons-material';
 import { useAuthStore } from '../../store/authStore';
 import { useAppStore, CURRENCIES } from '../../store/appStore';
@@ -16,12 +16,14 @@ import DateField from '../../components/fx/DateField';
 import { SavingsAccountsManager } from '../income-expense/SavingsAccountsDialog';
 import CategoriesManager from './CategoriesManager';
 import XyroSettings from '../xyro/XyroSettings';
+import MarketPricesSettings from './MarketPricesSettings';
 
 const SECTIONS = [
   { id: 'profile', label: 'Profile', icon: PersonRounded },
   { id: 'tax', label: 'Tax & preferences', icon: AccountBalanceWalletRounded },
   { id: 'accounts', label: 'Savings accounts', icon: AccountBalanceRounded },
   { id: 'categories', label: 'Categories', icon: CategoryRounded },
+  { id: 'prices', label: 'Market prices', icon: SyncRounded },
   { id: 'xyro', label: 'Xyro AI', icon: AutoAwesomeRounded },
   { id: 'security', label: 'Security', icon: LockRounded },
 ];
@@ -127,6 +129,7 @@ export default function SettingsDialog({ open, onClose, initialSection = 'profil
           {section === 'tax' && <TaxSection />}
           {section === 'accounts' && <SavingsAccountsManager />}
           {section === 'categories' && <CategoriesManager />}
+          {section === 'prices' && <MarketPricesSettings />}
           {section === 'xyro' && <XyroSettings />}
           {section === 'security' && <SecuritySection onSignOut={handleSignOut} />}
         </Box>

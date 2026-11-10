@@ -12,6 +12,7 @@ import { psxStocksQuery, stockPriceMap } from '../marketQueries';
 import { analyzeStocks, normSymbol } from './portfolio';
 import { getStockSector } from '../psxSectors';
 import { todayIso } from '../dateRange';
+import { preferNewerPrices } from './livePrices';
 
 /** Same key the Trades/Analytics pages use, so the trades are fetched once. */
 export const stockTradesQuery = (userId) => ({
@@ -34,10 +35,10 @@ export const stockClosesQuery = (symbols) => ({
   queryFn: async () => {
     const out = {};
     for (let from = 0; ; from += 1000) {
-      const { data, error } = await supabase.from('psx_price_history').select('symbol, price_date, close::text')
+      const { data, error } = await supabase.from('psx_price_history').select('symbol, price_date, close::text, change::text, change_pct::text')
         .in('symbol', symbols).order('price_date').order('symbol').range(from, from + 999);
       if (error) throw error;
-      for (const r of data ?? []) (out[r.symbol] ??= []).push({ date: r.price_date, close: r.close });
+      for (const r of data ?? []) (out[r.symbol] ??= []).push({ date: r.price_date, close: r.close, change: r.change, change_pct: r.change_pct });
       if (!data || data.length < 1000) return out;
     }
   },
@@ -53,7 +54,9 @@ export function usePsxPortfolio(range, filter = {}) {
   const market = useQuery(psxStocksQuery());
   const symbols = useMemo(() => [...new Set((trades.data ?? []).map((t) => normSymbol(t.symbol)).filter(Boolean))].sort(), [trades.data]);
   const closes = useQuery(stockClosesQuery(symbols));
-  const live = useMemo(() => stockPriceMap(market.data), [market.data]);
+  // The board, with any newer price a Settings refresh stored (see ./livePrices.js).
+  const boardAsOf = String(market.data?.freshness?.data_as_of ?? market.data?.data_as_of ?? '').slice(0, 10) || null;
+  const live = useMemo(() => preferNewerPrices(stockPriceMap(market.data), closes.data, boardAsOf), [market.data, closes.data, boardAsOf]);
   const start = range?.start; const end = range?.end;
   const sector = filter.sector ?? 'all'; const symbol = filter.symbol ?? 'all';
   const broker = filter.broker ?? 'all'; // a broker code, 'manual' (no broker) or 'all'

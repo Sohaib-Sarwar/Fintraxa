@@ -171,6 +171,20 @@ changing `profit.js`, `portfolio.js`, `combine.js` or `build.js`, then redeploy 
 - Realized PSX profit = proceeds after the sell fee − average cost, which already includes buy fees, dated by the
   sale's SETTLEMENT date (as brokers and NCCPL do). Analytics leads with that after-fees figure; unrealized with gross.
 
+## Refresh my prices (on demand)
+
+Settings > Market prices → Edge Function `refresh-prices` (streams NDJSON progress) → the microservice worker's
+`POST /v1/quotes` (PSX company page per held symbol; MUFAP tab=1 and tab=3, held funds only) → newer of the two
+MUFAP tables per fund → `market_refresh_save` → `psx_price_history` / `mf_nav_history`, run logged in
+`market_refresh_runs`. Then the price queries are invalidated and today's snapshot is requested.
+- Holdings come from `market_refresh_targets(user)` at every run: bought later = included, sold out = excluded.
+  Funds are looked up by MUFAP's name/category for their `mufap_slug` (published funds.json), not Fintraxa's name.
+- Both SQL functions are service-role only: price tables are shared, so clients never supply prices.
+- PSX: `src/lib/psx/livePrices.js` lets a refreshed price beat the published board only when its date is newer.
+  MF: the newest-dated observation already wins. The scheduled jobs (full board) are unchanged.
+- MUFAP refusing (Cloudflare challenge) is reported as such and not retried; the last published NAVs stay.
+- Tests: `scripts/psx/refresh-prices.test.mjs`. Deploy: `npx supabase@2 functions deploy refresh-prices --project-ref qrekpudclwesajfhrokv --use-api`.
+
 ## PSX capital gains tax (NCCPL)
 
 `src/lib/psx/nccpl.js` computes CGT the way NCCPL does, separately from the actual profit above: FIFO lots per stock by
