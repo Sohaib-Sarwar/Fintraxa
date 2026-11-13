@@ -3,8 +3,8 @@
 | | |
 |---|---|
 | Document | `docs/mobile/MOBILE_APP_PLAN.md` |
-| Version | 1.2 — 2026-11-13 (APK distribution, no app store; Expo Go testing §12.0) |
-| Status | **Approved direction, not started.** Milestone status table in §14 is the live tracker |
+| Version | 1.3 — 2026-11-14 (execution started: M0–M3 core built and verified; see §14/§15) |
+| Status | **In progress.** `mobile/` runs in Expo Go (SDK 58). Milestone status table in §14 is the live tracker |
 | Owner | Product owner of Fintraxa (approves every gate marked ⛔) |
 | Executor | A Claude model working in this repo |
 | Platform | Android first (phones), iOS later from the same codebase |
@@ -752,13 +752,13 @@ everyone) → watch Sentry crash-free/ANR and `app_feedback` for 7 days → JS f
 
 | Milestone | Status | Notes |
 |---|---|---|
-| M0 Foundations | Not started | |
-| M1 Shell, auth, fingerprint | Not started | |
-| M2 Read surfaces | Not started | |
-| M3 Write surfaces | Not started | |
-| M4 Smart upload | Not started | |
-| M5 Tax, notifications, assistant, account | Not started | |
-| M6 Hardening and release | Not started | |
+| M0 Foundations | **Done (deviation)** | Engines shared by Metro alias `@core/*` → `../src/lib` (no file moves, web untouched); purity + parity tests; design refs in `design-references.md` |
+| M1 Shell, auth, fingerprint | **Mostly done** | Expo Router shell, tabs + centre Add, encrypted session (AES-GCM), sign-in/up/reset, fingerprint unlock + auto-lock + invalidation, prefs sync, encrypted offline cache, update banner/forced update. Open: M1-T8 Sentry + EAS Update wiring, M1-T9 first EAS preview APK (⛔ needs owner's Expo login) |
+| M2 Read surfaces | **Mostly done** | Today, Money (+category sheet), Invest (Overview/Funds/Stocks), fund & stock screens with snapshot charts, Tax (NCCPL), Dividends, Trades, all transactions, Market-prices refresh (streamed). Open: imports list (review stays on web) |
+| M3 Write surfaces | **Partly done** | Quick add expense/income (optimistic, offline-queued), edit, delete with Undo. Open: manual trade/dividend/fund entry, categories & savings-account management (web for now) |
+| M4 Smart upload | Not started | Needs ⛔ `documents` bucket + `doc-intake` function |
+| M5 Tax, notifications, assistant, account | Not started | Tax screen done early (M2). Push, Xyro, delete-account (⛔ function) open |
+| M6 Hardening and release | Not started | Measured so far: Hermes bundle 5.6 MB (§15) |
 
 ---
 
@@ -772,7 +772,15 @@ everyone) → watch Sentry crash-free/ANR and `app_feedback` for 7 days → JS f
 | 2026-11-13 | Distribute as signed APK (EAS internal distribution), no app store; operate as a live app | Owner wants direct installs for feedback rounds; quality bar unchanged |
 | 2026-11-13 | Document recognition is deterministic (existing detectors), not an LLM | Owner rule; reproducible |
 
-(Executor: add the chosen Expo SDK and library versions here at M0, and measured performance numbers at M6.)
+| 2026-11-13 | Owner: mobile UI is **not** a mirror of the web — new design from current fintech references; in-app feedback (`app_feedback`) **declined**; migration for `user_preferences.tracks/auto_lock_minutes` + `app_releases` approved and applied; package `com.fintraxa.app` confirmed | Owner answers in chat |
+| 2026-11-14 | **Expo SDK 58** (expo 58.0.25, RN 0.88.1, React 19.3, Reanimated 4.7.1 + worklets 0.13, Gesture Handler 3.3, Expo Router 58, FlashList 2.3, TanStack Query 5.107, supabase-js 2.119, TypeScript 6.0). Expo Go 58 is on the Play Store (Android client 58.0.5) | Newest stable SDK; still Expo Go-runnable |
+| 2026-11-14 | **No `packages/core` move (M0-T1 deviation):** Metro `resolveRequest` maps `@core/*` to `../src/lib/*` and resolves the engines' bare imports (`decimal.js`) from `mobile/node_modules`; `mobile/` stays out of npm workspaces | Same acceptance (one source of the engines, no second React, web untouched and Vercel unaffected) with zero risk to the live web app. `coreBoundary.test.ts` enforces purity of every engine file the app reaches |
+| 2026-11-14 | **AsyncStorage + AES-256-GCM (expo-crypto) instead of MMKV**, both for the session and the persisted query cache (512 KB chunks for Android's 2 MB row limit) | MMKV is not in Expo Go; this keeps the Expo Go phase and still encrypts at rest |
+| 2026-11-14 | **Fingerprint "gate" mode in Expo Go, "bound" mode in builds:** Expo Go cannot use SecureStore `requireAuthentication`, so there the fingerprint guards an in-memory unlock; real builds store the session key with `requireAuthentication` (Keystore-bound) — `src/lib/vault.ts` | Expo's documented Expo Go limitation |
+| 2026-11-14 | Charts with **react-native-svg** (area + cost reference + scrub readout + high/low labels) instead of victory-native/Skia; **own bottom sheet** (Modal + Reanimated + Gesture Handler v3 `usePanGesture`) instead of `@gorhom/bottom-sheet` | Fewer native deps, Expo Go-safe, React Compiler-clean |
+| 2026-11-14 | Password reset / email confirm links open the **web app** (`https://fintraxa.vercel.app/auth`), so no `fintraxa://auth-callback` redirect setting was needed | Avoids an Auth-settings gate; the web already handles both flows |
+| 2026-11-14 | Net worth = funds + stocks (cash excluded), exactly like the web Home, not plan §5's "funds/stocks/savings" | Figure parity (G4) wins over the sketch |
+| 2026-11-14 | Measured: Hermes bundle **5.6 MB** (was 8 MB before per-icon Lucide imports). ~85% is framework (RN, Expo Router, Reanimated); app + engines ≈ 0.3 MB. §11's 4 MB target is below a bare Expo Router + Reanimated app on RN 0.88 — revisit at M6 with tree shaking | Recorded, not hidden |
 
 ---
 

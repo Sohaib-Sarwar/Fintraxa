@@ -5,19 +5,47 @@ Plan: `docs/mobile/MOBILE_APP_PLAN.md` (§12 covers builds, updates and feedback
 
 ## 0. Fastest: Expo Go (no APK, start here)
 
-1. On the S24 Ultra, install **Expo Go** from the Play Store.
-2. On the PC, in the Expo project folder (`mobile/`, or `mobile-preview/` for the quick preview of
-   https://fintraxa.vercel.app/home), run:
-   ```
-   npx expo start
-   ```
-3. In Expo Go tap **Scan QR code** and scan the code in the terminal. Fintraxa opens; every save on the PC appears on
-   the phone in about a second.
-4. Hostel Wi-Fi blocking it? Run `npx expo start --tunnel`, or use your phone's hotspot.
+The app in `mobile/` runs in **Expo Go for SDK 58**, against the real Fintraxa backend (sign in with your normal
+account — email or username).
 
-Expo Go works until the app needs a native module Expo Go doesn't include (fast storage, "share PDF to Fintraxa").
+**Once, on the S24 Ultra:** Play Store → install **Expo Go** (it must be the current version, which runs SDK 58;
+update it if Play shows an update). Phone and PC on the same Wi-Fi is easiest.
+
+**Once, on the PC:**
+```
+cd fintraxa-app/mobile
+npm install
+```
+
+**Every session:**
+```
+cd fintraxa-app/mobile
+npx expo start            # a QR code appears in the terminal
+```
+Open **Expo Go → Scan QR code** and scan it. The first load bundles the app (~20–40 s); after that every save on
+the PC appears on the phone in about a second (press `r` in the terminal to reload, `j` for DevTools).
+
+**Can't connect?** (hostel/campus Wi-Fi often blocks phone↔PC traffic)
+- `npx expo start --tunnel` — works on any network (first run installs a small tunnel helper; slower), or
+- turn on the phone's hotspot and connect the PC to it, then plain `npx expo start`, or
+- USB: `adb reverse tcp:8081 tcp:8081`, then in Expo Go enter `exp://127.0.0.1:8081` manually.
+
+**What to try (smoke test):** sign in → choose what you track → offer of fingerprint unlock → Today (net worth,
+today's change, chart — drag across it) → Money (‹ › months, tap a category) → Invest (Funds / Stocks, open a holding,
+Tax) → **+** (amount on the keypad, category, Save) → open the new transaction → Delete → Undo → Me (theme, hide
+amounts, Lock now, Refresh my prices). Compare a few figures with https://fintraxa.vercel.app/home — they must match.
+
+**Expo Go limits (by design, not bugs):**
+- Fingerprint unlock works, but in Expo Go it guards the app in memory; the Keystore-bound key (`requireAuthentication`)
+  only exists in an installed Fintraxa build. Me › Security says which mode is active.
+- "Hide content in recent apps" is on by default and also blocks screenshots of Fintraxa — switch it off in
+  Me › Security when you want screenshots.
+- No splash image or custom icon in Expo Go (it shows Expo Go's), and the update banner is hidden (Expo Go has its own
+  version numbers). Don't judge speed in Expo Go — it runs in debug mode.
+- A component gallery with sample figures is at `/dev-ui` (development only).
+
+Expo Go works until the app needs a native module Expo Go doesn't include (share-a-PDF-to-Fintraxa, Sentry).
 From then on you install the **development build** below once, and keep the same QR + instant-refresh loop.
-Don't judge speed in Expo Go — it runs in debug mode.
 
 ---
 

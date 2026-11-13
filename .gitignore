@@ -53,3 +53,15 @@ coverage/
 
 # PSX market-summary downloads (scripts/psx/backfill-closes.py)
 scripts/psx/.psx-cache/
+
+# Expo mobile app (mobile/)
+mobile/.expo/
+mobile/dist/
+mobile/web-build/
+mobile/android/
+mobile/ios/
+mobile/expo-env.d.ts
+mobile/*.jks
+mobile/*.keystore
+mobile/credentials.json
+supabase/.temp/

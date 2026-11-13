@@ -12,8 +12,9 @@ statement contents here: the repo is pushed.
 
 Market-data service: `../PSX & MUFAP Microservice/CONTEXT.md` (separate repo).
 
-Mobile app (Android first, Expo): plan and live status in `docs/mobile/MOBILE_APP_PLAN.md` — read it before any mobile work.
-It ships as **sideloaded APKs (no app store) but is run as a live app**; owner's test phone setup: `docs/mobile/DEVICE_SETUP.md`.
+Mobile app (Android first, Expo SDK 58) lives in **`mobile/`** — map in [§15](#15-mobile-app-mobile); plan and live status in
+`docs/mobile/MOBILE_APP_PLAN.md` (read it before any mobile work). It ships as **sideloaded APKs (no app store) but is run
+as a live app**; owner's phone setup and Expo Go steps: `docs/mobile/DEVICE_SETUP.md`.
 
 ---
 
@@ -133,13 +134,17 @@ read market data), `market/refreshPrices.js` (streaming), `mf/statementUpload.js
 
 **Tables (public, all RLS on)** by domain:
 - Finance: `categories` (`type` income/expense, `kind` active/passive/spend/transfer, `icon` = MUI icon name),
-  `income_expense_transactions` (`type` credit/debit), `savings_accounts`, `passive_income_postings`, `user_preferences`.
+  `income_expense_transactions` (`type` credit/debit), `savings_accounts`, `passive_income_postings`, `user_preferences`
+  (`currency`; mobile: `tracks` jsonb `{spending,funds,stocks}`, `auto_lock_minutes` 0–60).
 - Mutual funds: `mf_ledger_entries` + `mf_ledger_components` (append-only ledger), `mf_accounts`, `mf_amcs`, `mf_funds`,
   `mf_fund_aliases`, `mf_nav_history`, `mf_statement_imports`, `mf_staged_transactions`, `mf_import_lines`,
   `mf_approval_requests`, `mf_audit_log`; `mutual_fund_transactions` = legacy, read-only, never read by the client.
 - PSX: `stock_transactions` (price numeric(14,4), `settlement_date`, `broker`, `fee`), `stock_dividends`, `favorite_stocks`, `psx_price_history`.
 - Market/snapshots: `market_index_history` (+ view `market_index_daily`), `market_refresh_runs`, `portfolio_snapshots`, `holding_snapshots`.
 - Users/admin: `profiles` (username, full_name, filer_status `filer`/`non_filer`/…, avatar_path), `user_profiles`, `admin_audit_log`, `feature_flags`, `deletion_log`.
+- Mobile releases: `app_releases` (version_code pk, version_name, channel preview/production, apk_url https, notes, min_supported_code,
+  migrations) — `authenticated` SELECT only (all other grants revoked); rows written by the owner via SQL. Drives the app's update
+  banner / forced-update screen. Never delete rows.
 - Private schemas (no client access): `mf_private` (ledger logic), `snapshot_private.dirty` (user → recompute-from date),
   `market_private` (`psx_summary_days`, `snapshot_requests`, held_symbols/held_funds), `fx_private.login_attempts`.
 
@@ -179,7 +184,7 @@ base schema (`20250301…`, `20260927…baseline_live_schema`), MF ledger (`2026
 history (`20261107140000`), PSX dividends/confirmations (`20261108120000/130000`), finance passive/savings
 (`20261108140000/150000`), profiles + username login (`20261108160000`), daily snapshots (`20261108170000`),
 index benchmark (`20261109100000`), delete_category (`20261109101000`), backfill + feed health (`20261109110000`),
-price precision (`20261109120000`), market refresh (`20261110120000`, `…160000` AMC + schedule).
+price precision (`20261109120000`), market refresh (`20261110120000`, `…160000` AMC + schedule), mobile prefs + releases (`20261113120000`).
 `sql/` files are superseded — do not run.
 
 ## 9. Market data
@@ -244,9 +249,40 @@ Per question: `useXyroData` → `context.buildSnapshot` (precomputed facts, exac
 11. Railway `Dockerfile`/`nginx.conf` lack the CSP and newer env vars — Vercel is the real deploy.
 12. Category icons are MUI icon **names** stored in the DB; changing the icon picker orphans saved categories.
 
+## 15. Mobile app (`mobile/`)
+
+Expo SDK 58 (RN 0.88, React 19.3, New Architecture, React Compiler on), TypeScript strict, Expo Router (`src/app`),
+TanStack Query, Zustand, supabase-js. **Runs in Expo Go** (no MMKV/Skia/Sentry yet). Not an npm workspace: own
+`package.json`/`node_modules`; root ESLint ignores `mobile/`, `.vercelignore` keeps it out of Vercel.
+
+| Path | What |
+|---|---|
+| `metro.config.js` | `@core/*` → `../src/lib/*` (**the web's own engine files, unchanged**); their bare imports (`decimal.js`) resolve from `mobile/node_modules` |
+| `src/data/engines.ts` | the one typing seam over the JS engines (analyzeFunds/Stocks, nccpl, summarize, dividends, staleFeeds…) |
+| `src/data/queries.ts` | every read; keys mirror the web (`ie-all-transactions`, `mf-ledger`, `stock-transactions`, `psx-closes`, `['psx','stocks']`…); market JSON slimmed before caching |
+| `src/data/portfolio.ts`, `selectors.ts` | engine-backed views (same inputs as the web hooks) + pure screen figures (day change, Today, Money month, needs-you, since-last-looked) |
+| `src/data/mutations.ts` | add (optimistic, client UUID, offline-queued via persisted paused mutations), edit, delete-with-Undo (server delete after 5 s), prefs |
+| `src/lib/vault.ts`, `crypto.ts`, `supabase.ts` | AES-256-GCM session storage; key in SecureStore (bound to fingerprint in builds, "gate" mode in Expo Go); reads wait while locked |
+| `src/lib/queryClient.ts` | encrypted persisted cache (512 KB chunks), NetInfo/AppState wired into TanStack, per-user buster |
+| `src/lib/auth.ts`, `features/session/*` | email or username (`username-login`) sign-in, sign-up/reset via web links, lock screen, auto-lock |
+| `src/app/(auth)/*`, `src/app/(app)/*` | welcome/sign-in/sign-up/forgot · tabs Today/Money/Invest/Me + Add (centre +), transaction, transactions, fund/[key], stock/[symbol], tax, dividends, trades, onboarding, biometrics; `dev-ui` gallery (dev only) |
+| `src/ui/*` | design system "Ink, Paper, Gold": tokens (contrast-tested), Text, Figures (hero count-up, Delta, StatRow), ListRow, Sheet, Segmented, Keypad, charts (SVG), Calendar, feedback (toast/undo, offline, skeleton), icons (per-icon Lucide imports) |
+
+Commands (from `mobile/`): `npx expo start` (Expo Go QR) · `npm test` (jest-expo: parity with the web's hand-worked engine
+cases, engine purity, selectors, formatting, encrypted storage, contrast, icons) · `npx tsc --noEmit` · `npx eslint .` ·
+`npx expo export --platform android` (Hermes bundle check). Icons/splash: `node scripts/build-mobile-icons.mjs public/brand/mark.png mobile/assets`.
+Not built yet: EAS builds/Update + Sentry (need the owner's Expo login), smart upload (M4), push, Xyro, delete-account.
+
+Mobile gotchas: Gesture Handler 3 → use `usePanGesture` + shared-value `.get()/.set()` (React Compiler lint); route guards use
+`Stack.Protected` **plus** the segment redirect in `src/app/_layout.tsx` (Protected alone left "/" unmatched when signed out);
+category glyphs map MUI names → MaterialIcons (`src/ui/categoryIcons.ts`, tested); import icons only via `@/ui/icons`.
+
 ## Change log
 
 Newest first. One line per change: date, commit (or "data"), what and why. Data fixes name the user only by role.
+
+- 2026-11-14 — Mobile app `mobile/` (Expo SDK 58, Expo Go-runnable): auth + encrypted session + fingerprint unlock/auto-lock, Today / Money / Invest (funds, stocks, tax, dividends, trades) / Me, quick add/edit/delete with Undo, offline encrypted cache, update banner; engines shared via Metro alias; 91 jest tests; root ESLint ignores `mobile/`, `.vercelignore` added; plan §14/§15 and DEVICE_SETUP updated; design refs `docs/mobile/design-references.md`.
+- 2026-11-13 — Migration `20261113120000_mobile_app_preferences_releases` applied (owner-approved): `user_preferences.tracks` + `auto_lock_minutes`, table `app_releases` (authenticated read-only). Test: `scripts/psx/mobile-prefs-db.test.mjs`. In-app feedback table declined by the owner.
 
 - 2026-11-13 — Mobile plan: Expo Go testing (§12.0), optional `mobile-preview/` WebView of https://fintraxa.vercel.app/home (M1-T0), M1 must run in Expo Go until the first non-Expo-Go module.
 - 2026-11-13 — Mobile plan v1.1: APK distribution (EAS internal), live-app rules (backward-compatible migrations, `app_releases` update banner/forced update, EAS Update channels, in-app feedback → `app_feedback`), Flutter rejected; `docs/mobile/DEVICE_SETUP.md` for the Galaxy S24 Ultra.
