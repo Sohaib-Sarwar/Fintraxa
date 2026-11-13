@@ -3,7 +3,25 @@
 Owner's guide, also read by the executing model. Keep it current when the setup changes.
 Plan: `docs/mobile/MOBILE_APP_PLAN.md` (§12 covers builds, updates and feedback).
 
-There are two kinds of builds you will install:
+## 0. Fastest: Expo Go (no APK, start here)
+
+1. On the S24 Ultra, install **Expo Go** from the Play Store.
+2. On the PC, in the Expo project folder (`mobile/`, or `mobile-preview/` for the quick preview of
+   https://fintraxa.vercel.app/home), run:
+   ```
+   npx expo start
+   ```
+3. In Expo Go tap **Scan QR code** and scan the code in the terminal. Fintraxa opens; every save on the PC appears on
+   the phone in about a second.
+4. Hostel Wi-Fi blocking it? Run `npx expo start --tunnel`, or use your phone's hotspot.
+
+Expo Go works until the app needs a native module Expo Go doesn't include (fast storage, "share PDF to Fintraxa").
+From then on you install the **development build** below once, and keep the same QR + instant-refresh loop.
+Don't judge speed in Expo Go — it runs in debug mode.
+
+---
+
+There are two kinds of builds you will install after the Expo Go phase:
 
 | Build | What it is | When |
 |---|---|---|

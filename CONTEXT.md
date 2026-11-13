@@ -25,7 +25,7 @@ It ships as **sideloaded APKs (no app store) but is run as a live app**; owner's
 | Repo | `fintraxa-app/` = git repo `Sohaib-Sarwar/Fintraxa`, branch `main` (work is committed and pushed to `main`) |
 | Stack | Vite 7, React 19, MUI 7, React Router 6, TanStack Query 5 (IndexedDB-persisted), Zustand, Recharts 3, framer-motion, decimal.js, vite-plugin-pwa |
 | Backend | Supabase project **`Fintraxa`, ref `qrekpudclwesajfhrokv`** (ap-northeast-2). No app server: RLS + SQL RPCs + Edge Functions (Deno) + pg_cron/pg_net |
-| Hosting | Vercel (`vercel.json`: SPA rewrite, strict CSP, HSTS). Railway/Docker/nginx files are legacy |
+| Hosting | Vercel — live at **https://fintraxa.vercel.app** (`vercel.json`: SPA rewrite, strict CSP, HSTS). Railway/Docker/nginx files are legacy |
 | Market data | Static JSON on GitHub Pages from the microservice + its Cloudflare Worker (`/v1/quotes`) |
 | Currency/tax | PKR; tax year = 1 Jul–30 Jun; CGT 15% filer; decimals via decimal.js, never JS floats for money |
 
@@ -248,6 +248,7 @@ Per question: `useXyroData` → `context.buildSnapshot` (precomputed facts, exac
 
 Newest first. One line per change: date, commit (or "data"), what and why. Data fixes name the user only by role.
 
+- 2026-11-13 — Mobile plan: Expo Go testing (§12.0), optional `mobile-preview/` WebView of https://fintraxa.vercel.app/home (M1-T0), M1 must run in Expo Go until the first non-Expo-Go module.
 - 2026-11-13 — Mobile plan v1.1: APK distribution (EAS internal), live-app rules (backward-compatible migrations, `app_releases` update banner/forced update, EAS Update channels, in-app feedback → `app_feedback`), Flutter rejected; `docs/mobile/DEVICE_SETUP.md` for the Galaxy S24 Ultra.
 - 2026-11-13 — `docs/mobile/MOBILE_APP_PLAN.md`: production plan for the Android app (Expo + shared core, smart document upload, fingerprint unlock, figure budget, milestones M0–M6). Not started.
 - 2026-11-13 — CONTEXT.md created; CLAUDE.md files point here; rule: every change updates this file.

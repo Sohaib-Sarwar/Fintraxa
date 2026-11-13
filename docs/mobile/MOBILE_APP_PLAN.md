@@ -3,12 +3,13 @@
 | | |
 |---|---|
 | Document | `docs/mobile/MOBILE_APP_PLAN.md` |
-| Version | 1.1 — 2026-11-13 (APK distribution, no app store; see §12) |
+| Version | 1.2 — 2026-11-13 (APK distribution, no app store; Expo Go testing §12.0) |
 | Status | **Approved direction, not started.** Milestone status table in §14 is the live tracker |
 | Owner | Product owner of Fintraxa (approves every gate marked ⛔) |
 | Executor | A Claude model working in this repo |
 | Platform | Android first (phones), iOS later from the same codebase |
 | Distribution | **Signed APK, sideloaded — no Google Play or other store.** Owner's device: Samsung Galaxy S24 Ultra |
+| Web app (live) | https://fintraxa.vercel.app (home: `/home`) — same Supabase backend the mobile app uses |
 | Operating mode | **Treat it as a live production app from the first tester build**: real Supabase project, real users' data, backward-compatible changes, crash reporting, versioned releases, in-app updates and feedback |
 | Stack decision | Expo (React Native, New Architecture) + shared pure-JS core with the web app + existing Supabase |
 
@@ -502,6 +503,37 @@ Techniques (all required):
 
 ## 12. Distribution, updates and feedback (APK, no store) + Android requirements
 
+### 12.0 Testing with Expo Go (fastest, no APK)
+
+Expo Go is Expo's app from the Play Store. It runs a project straight from the PC: scan a QR code, the app opens,
+every code save shows up on the phone in about a second. Use it from the very first day.
+
+Owner, once: install **Expo Go** on the S24 Ultra from the Play Store. Then, for every session:
+
+```
+cd mobile            # or mobile-preview for the quick preview below
+npx expo start       # shows a QR code in the terminal
+```
+
+Open Expo Go → **Scan QR code**. If hostel/campus Wi-Fi blocks phone-to-PC traffic, use `npx expo start --tunnel`
+(works on any network), or the phone's hotspot, or USB with `adb reverse tcp:8081 tcp:8081`.
+
+Rules for the executor:
+- Keep `mobile/` runnable in Expo Go for as long as possible: M1-T1 and M1-T2 must work in Expo Go (Expo Router,
+  theme, fonts, tabs, `expo-secure-store`, `expo-local-authentication`, Reanimated, Gesture Handler are all in Expo Go).
+- Expo Go only contains Expo's built-in native modules and must match the project's Expo SDK (Expo Go on the Play Store
+  supports the latest SDK). The first module **not** in Expo Go (`react-native-mmkv` in M1-T3/M1-T7, later the share
+  intent plugin, `victory-native`/Skia if not bundled, Sentry native) ends the Expo Go phase: from then on the owner
+  uses the **development build** (§12.1, installed once from a link) — the daily loop stays the same QR/Fast Refresh
+  flow. Say so in chat before adding that first module.
+- Performance is never judged in Expo Go or a development build (debug mode); only on `preview`/`production` APKs.
+
+**Quick preview (optional, before M1):** `mobile-preview/` — a throwaway Expo app (outside the workspaces, not
+shipped) that opens the live web app `https://fintraxa.vercel.app/home` full screen in a `react-native-webview`, with
+the status bar themed black and Android back mapped to web history. Purpose: let the owner feel Fintraxa inside Expo
+Go on the S24 on day one. It is not the mobile app — the real app rebuilds the screens natively (M1–M5). Delete it
+once M2 ships.
+
 ### 12.1 Build profiles (`mobile/eas.json`)
 
 | Profile | Purpose | Output | Update channel | Who installs |
@@ -614,10 +646,13 @@ mapped to §7 components. Accept: owner skims and approves direction (lightweigh
 
 ### M1 — App shell, auth, fingerprint · ~1.5 weeks
 
+**M1-T0 (optional) Quick preview in Expo Go** — `mobile-preview/` per §12.0, pointing at `https://fintraxa.vercel.app/home`. Accept: owner scans the QR in Expo Go on the S24 and can sign in and browse; back button navigates web history; no changes to the web app.
+
 **M1-T1 Expo app scaffold** — `mobile/` with Expo Router, TypeScript strict, New Architecture, Hermes, React
 Compiler, ESLint, `jest-expo`, path alias to `@fintraxa/core`, `app.config.ts` (package `com.fintraxa.app` — confirm
 with owner ⛔, scheme `fintraxa`, adaptive + monochrome icon, splash, edge-to-edge, target 36).
-Accept: dev build runs on an emulator; `@fintraxa/core` parity tests pass under `jest-expo` (Hermes-compatible).
+Accept: runs in **Expo Go** on the owner's S24 Ultra via `npx expo start` + QR (and on an emulator);
+`@fintraxa/core` parity tests pass under `jest-expo` (Hermes-compatible).
 
 **M1-T2 UI kit + theme** — tokens → `ThemeProvider`, fonts (Inter, Inter Tight) loaded before splash hides,
 components from §7.4 with a hidden `/_dev/ui` gallery screen. Accept: every component in dark + light, font scale
