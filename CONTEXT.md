@@ -13,6 +13,7 @@ statement contents here: the repo is pushed.
 Market-data service: `../PSX & MUFAP Microservice/CONTEXT.md` (separate repo).
 
 Mobile app (Android first, Expo): plan and live status in `docs/mobile/MOBILE_APP_PLAN.md` — read it before any mobile work.
+It ships as **sideloaded APKs (no app store) but is run as a live app**; owner's test phone setup: `docs/mobile/DEVICE_SETUP.md`.
 
 ---
 
@@ -247,6 +248,7 @@ Per question: `useXyroData` → `context.buildSnapshot` (precomputed facts, exac
 
 Newest first. One line per change: date, commit (or "data"), what and why. Data fixes name the user only by role.
 
+- 2026-11-13 — Mobile plan v1.1: APK distribution (EAS internal), live-app rules (backward-compatible migrations, `app_releases` update banner/forced update, EAS Update channels, in-app feedback → `app_feedback`), Flutter rejected; `docs/mobile/DEVICE_SETUP.md` for the Galaxy S24 Ultra.
 - 2026-11-13 — `docs/mobile/MOBILE_APP_PLAN.md`: production plan for the Android app (Expo + shared core, smart document upload, fingerprint unlock, figure budget, milestones M0–M6). Not started.
 - 2026-11-13 — CONTEXT.md created; CLAUDE.md files point here; rule: every change updates this file.
 - 2026-11-10 data — owner's account: mess bills re-entered from the hostel portal (34 bills, category "Mess Bill", dated the 5th of each bill month, notes "Hostel Mess Bill Mon YYYY").

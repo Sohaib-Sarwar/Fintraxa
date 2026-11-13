@@ -3,11 +3,13 @@
 | | |
 |---|---|
 | Document | `docs/mobile/MOBILE_APP_PLAN.md` |
-| Version | 1.0 — 2026-11-13 |
+| Version | 1.1 — 2026-11-13 (APK distribution, no app store; see §12) |
 | Status | **Approved direction, not started.** Milestone status table in §14 is the live tracker |
 | Owner | Product owner of Fintraxa (approves every gate marked ⛔) |
 | Executor | A Claude model working in this repo |
 | Platform | Android first (phones), iOS later from the same codebase |
+| Distribution | **Signed APK, sideloaded — no Google Play or other store.** Owner's device: Samsung Galaxy S24 Ultra |
+| Operating mode | **Treat it as a live production app from the first tester build**: real Supabase project, real users' data, backward-compatible changes, crash reporting, versioned releases, in-app updates and feedback |
 | Stack decision | Expo (React Native, New Architecture) + shared pure-JS core with the web app + existing Supabase |
 
 ---
@@ -18,8 +20,13 @@
 2. Work **milestone by milestone, task by task** (§13). A task is done only when every acceptance check passes and
    you have run its verification commands. Never mark a task done on the strength of "it compiles".
 3. **Gates (⛔)** need the owner's explicit "yes" in chat before you act: database migrations, new/redeployed Edge
-   Functions, Supabase Auth settings, EAS cloud builds (they cost credits), anything in Play Console, signing keys,
-   any purchase or account creation. Prepare everything, then ask once with a short summary.
+   Functions, Supabase Auth settings, EAS cloud builds (the free plan has a small monthly Android build quota),
+   publishing an EAS Update to the `production` channel, signing keys, any purchase or account creation. Prepare
+   everything, then ask once with a short summary. There is **no app store**: never create Play Console artefacts.
+3a. **Live-app discipline.** Testers run real builds against the real backend. Every migration must keep the web app
+   *and every installed APK version still allowed to run* working (additive changes; rename/drop only after the
+   minimum supported version moves past it — §12.4). Never ship a build that has not been installed and smoke-tested
+   on the owner's S24 Ultra first.
 4. Version numbers in this plan were current on 2026-11-13 (Expo SDK 57 / React Native 0.86 / React 19.2). At M0,
    check the latest stable Expo SDK and each library's compatibility table; prefer the newest stable SDK.
    Record what you chose in §15.
@@ -50,9 +57,13 @@ get a document *into* the system in seconds. Not a smaller website: a calmer one
 | G6 | Smooth | 60 fps (120 fps on capable screens) scrolling and transitions; no frame > 32 ms in key flows |
 | G7 | Secure | Fingerprint unlock that actually protects the session (key bound to biometrics), auto-lock, no secrets in logs |
 | G8 | Stable | Crash-free sessions ≥ 99.7%; ANR rate < 0.2% |
+| G9 | Fast feedback loop | Tester → "Send feedback" in ≤ 2 taps (with screen + version attached); JS fixes reach installed APKs via EAS Update without reinstalling |
 
-**Non-goals for v1**: bank SMS reading (Play policy forbids it for non-SMS apps), OCR of photos/screenshots, budgets,
-multi-currency accounts, tablets/foldables beyond "works", iOS release (code stays iOS-safe; ship later), Urdu UI (v1.1).
+
+**Non-goals for v1**: Play Store / any store listing, bank SMS reading (kept out even though sideloading would allow
+it: it needs a sensitive permission most users refuse and would block a future Play release), OCR of
+photos/screenshots, budgets, multi-currency accounts, tablets/foldables beyond "works", iOS build (code stays
+iOS-safe), Urdu UI (v1.1).
 
 ---
 
@@ -344,7 +355,7 @@ Goal: fingerprint unlock that protects the session cryptographically, not just a
 7. **Other protections:** app-switcher snapshot blurred (`FLAG_SECURE` optional toggle "Hide app content in recent
    apps", default ON); no tokens, amounts or emails in logs or Sentry breadcrumbs; certificate pinning not used
    (Supabase rotates certs); jailbreak/root detection not used (no payment features).
-8. **Account deletion** in Me › Delete account (Play policy requires in-app + web): confirm sheet → re-authenticate
+8. **Account deletion** in Me › Delete account (a live app holding financial data must let people leave): confirm sheet → re-authenticate
    (biometric or password) → `delete-account` Edge Function (§9) → signed out, local data wiped.
 9. Passkeys: out of scope for v1; revisit when Supabase passkey support is GA.
 
@@ -430,9 +441,11 @@ Supabase (RLS) ──► TanStack Query (packages/core query factories via mobil
 | Storage bucket `documents` | private; path `{uid}/{sha256}.pdf`; 10 MB limit; PDF only | RLS by folder = `auth.uid()` |
 | Edge Function `doc-intake` | input: storage path (+ optional password); extracts text (unpdf, same `_shared/mf/pdfRows.js`), classifies (broker / CDC / AMC detectors), parses trades/dividends with `packages/core`, for MF hands off to the `mf-import` pipeline; returns `{kind, confidence, summary, rows, duplicates, warnings}` | verify_jwt on; no LLM; logs without amounts |
 | Trades/dividends save | reuse existing table inserts with the existing duplicate rules (`duplicateStatus`, `dividendDuplicates`) — via RPCs `psx_save_trades(rows)` / `psx_save_dividends(rows)` that re-check duplicates server-side | keeps web and mobile consistent |
-| Edge Function `delete-account` | re-auth check, deletes user rows (all tables), storage objects (`mf-statements`, `documents`, `avatars`), push tokens, then the auth user; writes `deletion_log` | also linked from a public web page `/delete-account` (Play requirement) |
+| Edge Function `delete-account` | re-auth check, deletes user rows (all tables), storage objects (`mf-statements`, `documents`, `avatars`), push tokens, then the auth user; writes `deletion_log` | same flow also offered on the web app (Settings) |
 | Edge Function `notify` | called by pg_cron after the close/NAV/snapshot runs; builds per-user digests from snapshots; respects preferences + quiet hours; sends via Expo Push API; prunes dead tokens | one routine push per day max |
 | Auth settings | add redirect `fintraxa://auth-callback` (password reset, email confirm) | Supabase dashboard / Management API — owner action |
+| `app_releases` table | `version_code int pk, version_name, released_at, apk_url, notes, min_supported_code int, channel` | readable by `authenticated`; written by owner only (SQL/admin). Drives the in-app update banner and forced updates (§12.3) |
+| `app_feedback` table + bucket `feedback` | `id, user_id, created_at, message, category (bug/idea/data/other), route, app_version, version_code, device_model, os_version, screenshot_path, status (new/seen/fixed)` | RLS: insert/select own rows; owner reads all via SQL or a small web admin view. Screenshot optional, private bucket `feedback/{uid}/…` |
 
 ---
 
@@ -487,25 +500,87 @@ Techniques (all required):
 
 ---
 
-## 12. Android platform requirements (production)
+## 12. Distribution, updates and feedback (APK, no store) + Android requirements
 
-- **Target API 36 (Android 16)** — required for new apps and updates on Google Play since 31 Aug 2026; minSdk per
-  Expo SDK default (≥ 24).
-- **Edge-to-edge** (enforced when targeting 35+): draw behind system bars, handle insets everywhere
-  (`react-native-safe-area-context`), test 3-button and gesture navigation.
+### 12.1 Build profiles (`mobile/eas.json`)
+
+| Profile | Purpose | Output | Update channel | Who installs |
+|---|---|---|---|---|
+| `development` | development client for daily work (Fast Refresh from the PC) | debug APK, `developmentClient: true` | — | owner's S24 Ultra |
+| `preview` | tester builds for feedback rounds | release-signed APK, `distribution: "internal"`, `android.buildType: "apk"` | `preview` | owner + invited testers |
+| `production` | the "live" app | release-signed APK, same settings | `production` | everyone using Fintraxa mobile |
+
+- Package name `com.fintraxa.app` (owner confirms ⛔). Debug builds use `com.fintraxa.app.dev` so both can be
+  installed side by side (`app.config.ts` switches on `APP_VARIANT`).
+- Builds run on EAS (cloud; the free plan has a small monthly Android build quota, so batch native changes) or locally
+  with `npx expo run:android --variant release` on the owner's Windows PC (Android SDK + JDK 17).
+  `eas build --local` is not supported on native Windows (WSL only) — don't plan around it.
+- **Signing:** EAS-managed keystore. Immediately after the first release build, the owner downloads a backup
+  (`eas credentials` → Android → download keystore) and stores it outside the repo. Losing it means every tester must
+  uninstall and reinstall (server data is safe; local settings are lost).
+- **Versioning:** `version` = semver (`1.0.0`), `android.versionCode` auto-incremented by EAS (`autoIncrement`), shown in
+  Me › About and attached to every feedback and Sentry event.
+
+### 12.2 Installing on phones
+
+- EAS internal distribution gives an install page + QR code per build; or share the `.apk` file directly
+  (WhatsApp/Drive). Testers need "Install unknown apps" allowed for the app they open it from; Samsung phones need
+  **Auto Blocker off** while installing. Play Protect may show "unrecognised app" — "More details → Install anyway".
+- Owner device setup is documented in `docs/mobile/DEVICE_SETUP.md` (Galaxy S24 Ultra). Keep it current.
+
+### 12.3 Updates for a live, sideloaded app
+
+- **JavaScript/asset changes** → `eas update --channel preview|production -m "…"`. `runtimeVersion` policy:
+  `fingerprint` (native changes automatically get a new runtime, so an update can never reach an incompatible APK).
+  The app checks for updates on launch and foreground, downloads in the background and applies on next launch;
+  Me › About shows "Update ready — restart" for impatient testers. ⛔ for the `production` channel.
+- **Native changes** (new native module, SDK upgrade, permissions) → new APK. The app reads `app_releases`:
+  - newer `version_code` available → dismissible banner "Fintraxa 1.3 is available" → opens `apk_url` in the browser;
+  - installed `version_code` < `min_supported_code` → blocking screen with the download button (used only when a
+    backend change would break old builds).
+- **Rollback:** republish the previous EAS Update (`eas update:republish`) — never delete a release row; set
+  `min_supported_code` back if needed.
+- **Release notes:** every release row has plain-language notes; the app shows them once after updating ("What's new").
+
+### 12.4 Backend compatibility rules (because old APKs stay installed)
+
+- Migrations are additive: new columns nullable or defaulted; new RPCs instead of changed signatures.
+- Renames/drops only after `min_supported_code` excludes every build that used the old shape, and after the web app
+  is updated.
+- Edge Functions accept the previous request shape for at least one release.
+- Each release row lists the backend migrations it depends on.
+
+### 12.5 Feedback and crash reporting
+
+- **Send feedback**: Me › Send feedback, and a two-finger long-press anywhere (shake is too easy to trigger in pockets).
+  Sheet: category chips (Bug, Idea, Wrong number, Other), message, "attach screenshot of this screen" (captured before
+  the sheet opened, privacy mask respected), auto-attached route, app version, device model, OS. Saved to
+  `app_feedback`; screenshot to the `feedback` bucket. Works offline (queued).
+- **Crashes and errors**: Sentry (`@sentry/react-native`) for release builds, environment = channel, release = version +
+  update id; PII scrubbing (no amounts, emails, tokens, notes, document text); source maps uploaded by the EAS build hook.
+- **Owner's triage**: a saved SQL view `app_feedback_open` (new + seen) and, later, a small admin page in the web app.
+  Each fixed item gets `status = 'fixed'` and the version that fixed it.
+
+### 12.6 Android platform requirements (apply even without a store)
+
+- **Target API 36 (Android 16)** — current One UI on the S24 Ultra is Android 16-based; also keeps the door open for a
+  future Play release.
+  minSdk per Expo SDK default.
+- **Edge-to-edge**: draw behind system bars, handle insets everywhere (`react-native-safe-area-context`), test
+  3-button and gesture navigation.
 - **Predictive back**: enable and test on every screen and sheet.
-- **16 KB memory page support**: required for apps targeting Android 15+; verify every native dependency in the
-  final build (Play Console pre-launch report flags failures).
-- **Runtime permissions**: notifications (Android 13+) only — no storage permission needed (document picker/share
-  intent grant per-file access); no SMS, contacts, location, camera in v1.
-- **App icon**: adaptive icon + **monochrome themed icon** (Android 13+), from the brand mark.
-- **Splash screen API** via `expo-splash-screen` (brand mark on black).
+- **16 KB memory page support**: verify native dependencies (future devices; Play requirement if ever published).
+- **Runtime permissions**: notifications (Android 13+) only — the document picker and share intent grant per-file
+  access; no storage, SMS, contacts, location or camera permission in v1. No `REQUEST_INSTALL_PACKAGES` (updates
+  open the browser).
+- **App icon**: adaptive icon + monochrome themed icon (Android 13+), from the brand mark.
+- **Splash screen** via `expo-splash-screen` (brand mark on black).
 - **App shortcuts** (static): Add expense, Upload document, Invest.
 - **Share target**: `ACTION_SEND` for `application/pdf` (single file) via the share-intent config plugin.
-- **Play Console compliance**: Data safety form (financial info, personal info; data encrypted in transit; deletion
-  available), account deletion URL, Financial features declaration (personal finance tracking, no lending/payments),
-  privacy policy URL, content rating, target audience 18+. New personal developer accounts must run a closed test
-  with the required number of testers for the required days before production — plan two weeks for it.
+- **Samsung specifics**: test with One UI's gesture navigation, Edge panels, "Secure Folder" install, and Samsung's
+  battery optimisation (notifications must still arrive; guide users to "Never sleeping apps" only if delivery fails).
+- If a Play release is ever wanted: Data safety form, financial features declaration, account deletion URL, privacy
+  policy, content rating, and the closed-testing period for new personal developer accounts. Not part of v1.
 
 ---
 
@@ -567,6 +642,10 @@ app shortcuts, predictive back. Includes ⛔ migration for `user_preferences` co
 prefetch on login/foreground, offline pill. Accept: airplane mode → every tab renders last data; cold start shows
 cached Today without skeleton.
 
+**M1-T8 Live-app plumbing** — Sentry (scrubbed), EAS Update wiring (`runtimeVersion: fingerprint`, channels), ⛔ migration for `app_releases` + `app_feedback` + bucket, update banner/forced-update screen, Send feedback sheet (offline queue), Me › About (version, update id, "check for updates"). Accept: a test EAS Update reaches the installed preview APK; a feedback item with screenshot lands in Supabase; a forced-update row blocks an old build.
+
+**M1-T9 First tester build** — ⛔ `preview` APK on EAS, installed on the S24 Ultra via the install page. Accept: sign in, fingerprint, tabs render, feedback works. From here on every milestone ends with a preview APK or update and a feedback round.
+
 ### M2 — Read surfaces · ~2 weeks
 
 **M2-T1 Today** — hero net worth, today's change, Needs you, Since you last looked (store `last_seen_at` per device in
@@ -616,9 +695,9 @@ the web statement; shares to WhatsApp/Files.
 preferences, quiet hours, privacy). Accept: each notification type delivered on device from a test trigger; at most
 one routine push per day enforced by a test.
 **M5-T3 Xyro sheet** (core pipeline, key in SecureStore, streaming answers). **M5-T4 ⛔ Delete account** (function +
-in-app flow + web page). **M5-T5 Me/settings** complete. **M5-T6 (optional) Android widget** — net worth + today.
+in-app flow + web Settings). **M5-T5 Me/settings** complete. **M5-T6 (optional) Android widget** — net worth + today.
 
-### M6 — Hardening and release · ~2 weeks + closed-test wait
+### M6 — Hardening and live release · ~2 weeks
 
 **M6-T1 Performance pass** — measure §11 on both reference devices; fix until met; record numbers in §15.
 **M6-T2 Accessibility pass** — TalkBack walkthrough of every flow, 200% font, contrast check, touch targets.
@@ -626,10 +705,11 @@ in-app flow + web page). **M5-T5 Me/settings** complete. **M5-T6 (optional) Andr
 type (fixtures), approve, tax PDF, delete account (on a throwaway account). Run in EAS or locally.
 **M6-T4 Security review** — logs/Sentry scrubbed, storage encrypted, RLS on new tables, functions authenticate,
 no secrets in the bundle (`grep` the exported bundle for keys), dependency audit.
-**M6-T5 ⛔ Store listing** — screenshots (dark + light), short/long description, privacy policy page, data safety,
-financial features declaration, account deletion URL, content rating. **M6-T6 ⛔ Release** — EAS production build →
-internal testing → closed testing (required period) → production rollout 10% → 50% → 100% watching crash-free and
-ANR in Play Console and Sentry. EAS Update channel `production` for JS-only fixes afterwards.
+**M6-T5 Release runbook** — `docs/mobile/RELEASE.md`: version bump, build, smoke test on the S24 Ultra (checklist:
+cold start, fingerprint, add expense, upload each doc type, tax PDF, notifications, offline), `app_releases` row with
+notes, EAS Update rules, rollback steps, keystore backup check.
+**M6-T6 ⛔ Live release 1.0** — `production` APK → owner smoke test → testers in two waves (owner + 2–3 people, then
+everyone) → watch Sentry crash-free/ANR and `app_feedback` for 7 days → JS fixes via `production` updates.
 
 ---
 
@@ -652,7 +732,9 @@ ANR in Play Console and Sentry. EAS Update channel `production` for JS-only fixe
 | Date | Decision | Why |
 |---|---|---|
 | 2026-11-13 | Expo/React Native + shared pure-JS core; Android first; Supabase unchanged plus §9.4 additions | Reuses the tested engines; native feel on low-end Android; OTA updates |
-| 2026-11-13 | No SMS reading, no OCR in v1 | Play SMS policy; accuracy |
+| 2026-11-13 | No SMS reading, no OCR in v1 | Sensitive permission, future Play compatibility; accuracy |
+| 2026-11-13 | Flutter considered and rejected | Would rewrite ~7,600 lines of tested JS money logic in Dart and re-verify it against NCCPL/AMC figures; loses code shared with the web app and Edge Functions; OTA updates need a third-party service. Flutter's rendering performance is not the issue — reuse and correctness are |
+| 2026-11-13 | Distribute as signed APK (EAS internal distribution), no app store; operate as a live app | Owner wants direct installs for feedback rounds; quality bar unchanged |
 | 2026-11-13 | Document recognition is deterministic (existing detectors), not an LLM | Owner rule; reproducible |
 
 (Executor: add the chosen Expo SDK and library versions here at M0, and measured performance numbers at M6.)
@@ -668,7 +750,10 @@ ANR in Play Console and Sentry. EAS Update channel `production` for JS-only fixe
 | Biometric storage quirks (prompt on save) | Repeated prompts | Key-in-memory design (§8); real-device testing only |
 | Engine output differs under Hermes | Wrong money figures | Parity harness (M0-T2) runs in both Node and `jest-expo`; any diff blocks the milestone |
 | MUFAP/PSX feed delays | Stale figures | Existing `refresh-prices` + feed-health notice; "as of" captions everywhere |
-| Closed-testing requirement delays launch | Schedule | Start internal + closed testing at the end of M5, not M6 |
+| Sideload friction (Auto Blocker, "Install unknown apps", Play Protect warning) | Testers give up | One-page install guide with screenshots; install page/QR from EAS; owner helps the first wave |
+| Lost signing keystore | Every tester must reinstall | Backup right after the first release build (§12.1); check it in each release runbook |
+| Old APKs break after a backend change | Crashes for some testers | §12.4 compatibility rules; `min_supported_code` forced update |
+| EAS free build quota runs out mid-month | Can't ship native fixes | Batch native changes; JS fixes via EAS Update; local `expo run:android --variant release` as fallback |
 | Scope creep from the web feature set | Fatigue, delay | §5 table is the contract; research/tools stay web-only in v1 |
 | Real documents leaking into git | Privacy | Fixtures are synthetic; real-doc checks run locally in `tests/private/` (gitignored) |
 
@@ -678,9 +763,10 @@ ANR in Play Console and Sentry. EAS Update channel `production` for JS-only fixe
 
 - All tasks in §13 accepted; §11 targets met on both reference devices and recorded.
 - Figure parity with the web app proven by tests and a manual check on the QA account.
-- Play Console: no policy warnings, pre-launch report clean (incl. 16 KB pages), closed test completed.
+- Live release 1.0 installed by the owner and testers from the install page; update banner, forced update, EAS
+  Update and Send feedback proven end to end; keystore backed up; `docs/mobile/RELEASE.md` and `DEVICE_SETUP.md` current.
 - `CONTEXT.md` has a "Mobile app" section (structure, commands, release steps) and Change log lines for every task.
-- Crash-free ≥ 99.7% and ANR < 0.2% after the 100% rollout week.
+- Crash-free ≥ 99.7% and ANR < 0.2% (Sentry) over the first week of the live release.
 
 ---
 
@@ -691,6 +777,9 @@ ANR in Play Console and Sentry. EAS Update channel `production` for JS-only fixe
   save-and-read prompt behaviour: https://forums.expo.dev/t/securestore-requireauthentication-requires-auth-on-save-and-retrieval/74513 ·
   biometric refresh-token pattern: https://thoughtbot.com/blog/biometrics-authentication-for-your-mobile-app
 - Supabase with Expo (encrypted session storage): https://supabase.com/docs/guides/getting-started/tutorials/with-expo-react-native.md
+- EAS APK builds and internal distribution: https://docs.expo.dev/build-reference/apk/ · https://docs.expo.dev/build/internal-distribution/ ·
+  local builds (Windows unsupported, WSL only): https://docs.expo.dev/build-reference/local-builds.md · plans: https://docs.expo.dev/billing/plans.md
+- Samsung Auto Blocker: https://www.samsung.com/uk/support/mobile-devices/protect-your-galaxy-device-with-the-new-auto-blocker-feature/
 - Google Play target API: https://support.google.com/googleplay/android-developer/answer/11926878?hl=en-AU
 - Google Play SMS/Call Log policy: https://support.google.com/googleplay/android-developer/answer/10208820?hl=en
 - Google Play User Data (account deletion): https://support.google.com/googleplay/android-developer/answer/10144311
