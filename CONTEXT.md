@@ -12,6 +12,8 @@ statement contents here: the repo is pushed.
 
 Market-data service: `../PSX & MUFAP Microservice/CONTEXT.md` (separate repo).
 
+Mobile app (Android first, Expo): plan and live status in `docs/mobile/MOBILE_APP_PLAN.md` — read it before any mobile work.
+
 ---
 
 ## 1. Quick facts
@@ -245,6 +247,7 @@ Per question: `useXyroData` → `context.buildSnapshot` (precomputed facts, exac
 
 Newest first. One line per change: date, commit (or "data"), what and why. Data fixes name the user only by role.
 
+- 2026-11-13 — `docs/mobile/MOBILE_APP_PLAN.md`: production plan for the Android app (Expo + shared core, smart document upload, fingerprint unlock, figure budget, milestones M0–M6). Not started.
 - 2026-11-13 — CONTEXT.md created; CLAUDE.md files point here; rule: every change updates this file.
 - 2026-11-10 data — owner's account: mess bills re-entered from the hostel portal (34 bills, category "Mess Bill", dated the 5th of each bill month, notes "Hostel Mess Bill Mon YYYY").
 - 2026-11-10 7bc0512 — refresh-prices also reads fund managers' pages (source `amc`); holdings refreshed by pg_cron 3×/day.
