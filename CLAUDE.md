@@ -1,5 +1,11 @@
 # Fintraxa — app conventions
 
+**Start with `CONTEXT.md`**: the map of the app (routes, features, lib, Supabase tables/RPCs/functions/cron,
+market data, tests, gotchas, recent changes). Don't re-explore what it already covers. This file is the rules.
+
+**Every change updates `CONTEXT.md` in the same commit** (fix the sections it makes wrong, add a dated line to
+its Change log). Data fixes made straight in Supabase get a Change log line too. Not done until it says so.
+
 ## Supabase
 
 Always the project named **`Fintraxa`**, ref **`qrekpudclwesajfhrokv`** (ap-northeast-2).
