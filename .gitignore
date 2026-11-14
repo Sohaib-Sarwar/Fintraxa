@@ -36,7 +36,11 @@ Thumbs.db
 # Local overrides
 *.local
 Stock Analyzer/
-.github/
+.github/*
+# …except the mobile continuous-deploy workflow (2026-11-15).
+!.github/workflows/
+.github/workflows/*
+!.github/workflows/mobile-deploy.yml
 # Vercel
 .vercel/
 

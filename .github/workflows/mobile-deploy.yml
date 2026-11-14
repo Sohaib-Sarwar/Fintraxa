@@ -1,0 +1,60 @@
+# Mobile continuous deploy (owner, 2026-11-15): every push to the `mobile` branch that touches the app reaches the
+# phone by itself.
+#   • JS / design / logic only  → an EAS Update on the `preview` channel; installed APKs pick it up in the background
+#     (mobile/src/lib/otaUpdates.ts) — no reinstall, no build quota.
+#   • native change (new native module, icon, permissions, SDK) → the native fingerprint changes, so a new APK is
+#     built with the `preview` profile instead (install it once from the EAS link).
+# Needs the repository secret EXPO_TOKEN (expo.dev → Account settings → Access tokens).
+name: Mobile deploy
+
+on:
+  push:
+    branches: [mobile]
+    paths:
+      - 'mobile/**'
+      - 'src/lib/**' # the app bundles the web's engine files through the @core alias
+      - '.github/workflows/mobile-deploy.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: mobile-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Expo / EAS CLI
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install
+        working-directory: mobile
+        run: npm ci
+
+      - name: Check (types + unit tests) before shipping
+        working-directory: mobile
+        run: |
+          npx tsc --noEmit
+          npx jest src/ui src/data src/lib src/features
+
+      - name: Update the phone (OTA) or build a new APK when native code changed
+        uses: expo/expo-github-action/continuous-deploy-fingerprint@main
+        with:
+          profile: preview
+          branch: preview
+          platform: android
+          working-directory: mobile
