@@ -64,4 +64,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     eas: { projectId: 'feff0bb7-b40c-4bde-b14b-4a3328eb46dd' },
   },
   owner: 'transfinancial',
+  // Over-the-air updates (owner, 2026-11-15: "make the updates automatically"): JS / asset changes ship with
+  // `eas update --channel preview` and reach installed APKs on their own. The runtime version is the native
+  // fingerprint, so an update that needs different native code is never delivered to an older APK.
+  runtimeVersion: { policy: 'fingerprint' },
+  updates: {
+    url: 'https://u.expo.dev/feff0bb7-b40c-4bde-b14b-4a3328eb46dd',
+    checkAutomatically: 'ON_LOAD',
+    fallbackToCacheTimeout: 0,
+  },
 });

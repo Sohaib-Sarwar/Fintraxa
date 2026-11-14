@@ -17,6 +17,7 @@ import { Platform, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { LockScreen } from '@/features/session/LockScreen';
+import { useOtaUpdates } from '@/lib/otaUpdates';
 import { useSession } from '@/features/session/useSession';
 import { useAuth } from '@/lib/auth';
 import { isExpoGo } from '@/lib/env';
@@ -89,6 +90,7 @@ function Root({ fontsReady }: { fontsReady: boolean }) {
   const boot = useSession();
   const [settled, setSettled] = useState(false);
   useRecentsPrivacy();
+  useOtaUpdates();
   // Splash stays until fonts are in and the user is on the right screen (or the lock screen is up).
   useEffect(() => {
     if (fontsReady && (boot === 'locked' || (boot === 'ready' && settled))) SplashScreen.hideAsync().catch(() => {});
