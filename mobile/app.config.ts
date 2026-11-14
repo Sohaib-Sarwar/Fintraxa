@@ -60,5 +60,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     marketApi: 'https://sohaib-sarwar.github.io/PSX-MUFAP-MicroService/api',
     webApp: 'https://fintraxa.vercel.app',
     router: { origin: false },
+    // EAS project (owner's Expo account), needed for cloud APK builds.
+    eas: { projectId: 'feff0bb7-b40c-4bde-b14b-4a3328eb46dd' },
   },
+  owner: 'transfinancial',
 });
