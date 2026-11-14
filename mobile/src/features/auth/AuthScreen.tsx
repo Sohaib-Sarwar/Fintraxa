@@ -10,7 +10,7 @@ import { BlurTargetView } from 'expo-blur';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
-import { Dimensions, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Dimensions, Keyboard, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import Animated, {
   Easing, FadeIn, FadeInDown, FadeOut, FadeOutUp, interpolate, Extrapolation, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming,
@@ -160,6 +160,7 @@ export function AuthScreen({ initial = 'in' }: { initial?: Mode }) {
   };
 
   const submit = async (close: () => void) => {
+    Keyboard.dismiss(); // the keyboard goes away as soon as Sign in / Create account is tapped
     const up = sheet === 'up';
     setError(null); setNotice(null);
     const next = validate(up);
