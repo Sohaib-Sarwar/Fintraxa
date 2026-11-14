@@ -4,6 +4,10 @@
  * declares the call shapes it relies on here, once, instead of casting at every call site.
  */
 import { summarize as summarizeJs } from '@core/finance/summary.js';
+import { assetRows as assetRowsJs, valueSeries as valueSeriesJs } from '@core/snapshots/series.js';
+import { analyzePassive as analyzePassiveJs, passiveEvents as passiveEventsJs, SOURCE_LABEL as SOURCE_LABEL_JS } from '@core/finance/passive.js';
+import { duplicateStatus as duplicateStatusJs, oversoldRefs as oversoldRefsJs, toTradeRows as toTradeRowsJs } from '@core/psx/confirmations.js';
+import { dividendDuplicates as dividendDuplicatesJs, dividendKey as dividendKeyJs } from '@core/psx/dividends.js';
 import { analyzeFunds as analyzeFundsJs } from '@core/mf/profit.js';
 import { analyzeStocks as analyzeStocksJs, normSymbol as normSymbolJs } from '@core/psx/portfolio.js';
 import { nccplPeriod as nccplPeriodJs, nccplReport as nccplReportJs, taxYearLabel as taxYearLabelJs, taxYearOf as taxYearOfJs } from '@core/psx/nccpl.js';
@@ -45,3 +49,32 @@ export const summarizeDividends = summarizeDividendsJs as Loose as (rows: unknow
 export const preferNewerPrices = preferNewerPricesJs as Loose as (live: Record<string, unknown>, history: unknown, boardAsOf: string | null) => Record<string, unknown>;
 export const staleFeeds = staleFeedsJs as Loose as (rows: FeedHealthRow[], now?: Date) => { feed: string; name: string; latest: string | null; behind: number }[];
 export const getStockSector = getStockSectorJs as (symbol: string) => string;
+
+export type PassiveSource = 'mutual_funds' | 'dividends' | 'savings' | 'other';
+export type PassiveEvent = { id: string; date: string; month: string; source: PassiveSource; title: string; sub: string; symbol?: string | null; gross: unknown; tax: unknown; net: unknown; posted: boolean };
+export type PassiveMonth = { month: string; label: string; gross: number; tax: number; net: number } & Record<PassiveSource, number>;
+export type PassiveAnalysis = {
+  totals: { gross: number; tax: number; net: number; count: number };
+  bySource: Record<PassiveSource, { gross: number; tax: number; net: number; count: number }>;
+  months: PassiveMonth[]; avgPerMonth: number; effectiveTaxRate: number | null;
+  mom: { month: string; net: number; previous: number; changePct: number | null } | null;
+  runRate3: { months: number; perMonth: number } | null;
+  events: PassiveEvent[];
+};
+export const passiveEvents = passiveEventsJs as Loose as (o: { mfMonths: unknown[]; dividends: unknown[]; transactions: unknown[]; today: string }) => PassiveEvent[];
+export const analyzePassive = analyzePassiveJs as Loose as (events: PassiveEvent[], o: { start: string; end: string; today: string }) => PassiveAnalysis;
+export const SOURCE_LABEL = SOURCE_LABEL_JS as Record<PassiveSource, string>;
+
+export const duplicateStatus = duplicateStatusJs as Loose as (confirmations: unknown[], existing: unknown[]) => Record<string, 'recorded' | 'similar'>;
+/** FIFO holdings check (the web's TradeImportDialog): imported sales that sell more than the recorded holdings on that date. */
+export const oversoldRefs = oversoldRefsJs as Loose as (confirmations: unknown[], isSelected: (ref: string) => boolean, existing: unknown[]) => Set<string>;
+export const toTradeRows = toTradeRowsJs as Loose as (c: unknown, trades: unknown[]) => Record<string, unknown>[];
+export const dividendDuplicates = dividendDuplicatesJs as Loose as (rows: unknown[], existing: unknown[]) => Record<string, 'saved' | 'possible'>;
+export const dividendKey = dividendKeyJs as (x: { symbol: string; payment_date: string; warrant_no?: string | null }) => string;
+
+/** One point of the web ValueChart (src/lib/snapshots/series.js valueSeries): a period's close. */
+export type ValuePoint = { month: string; label: string; title: string; live: boolean; date?: string; value: number; invested: number; unrealized: number; realized: number };
+/** The web's daily rows for one asset class: snapshots, plus the engine's early points before the first snapshot. */
+export const assetRows = assetRowsJs as Loose as (portfolio: unknown[], asset: 'funds' | 'stocks', analysis?: unknown) => unknown[];
+/** The web's Value vs invested series: value / invested / unrealized at each period's close, realized summed in it. */
+export const valueSeries = valueSeriesJs as Loose as (rows: unknown[], o: { period: 'day' | 'week' | 'month' | 'year'; start?: string; end?: string; today: string; fillGaps?: boolean }) => ValuePoint[];

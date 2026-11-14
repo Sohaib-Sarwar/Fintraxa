@@ -27,6 +27,16 @@ describe('money format (plan §5 rules)', () => {
     expect(compactNumber(1250000)).toBe('1.25M');
     expect(compactNumber(84000)).toBe('84K');
     expect(compactNumber(950)).toBe('950');
+    // whole numbers keep their zeros (was 120M → "12M")
+    expect(compactNumber(120_000_000)).toBe('120M');
+    expect(compactNumber(250_400_000)).toBe('250M');
+    expect(compactNumber(100_000)).toBe('100K');
+    expect(compactNumber(10_000_000)).toBe('10M');
+    expect(compactNumber(20_040_000)).toBe('20M');
+    expect(compactNumber(12_345_678)).toBe('12.3M');
+    expect(compactNumber(-150_000_000)).toBe('-150M');
+    expect(compactNumber(999_600)).toBe('1M');
+    expect(compactNumber(1_000_000_000)).toBe('1B');
     expect(money(2_500_000_000, { compact: true })).toBe('Rs 2.5B');
   });
   test('change line, percent, tone, units, share, exact sums', () => {

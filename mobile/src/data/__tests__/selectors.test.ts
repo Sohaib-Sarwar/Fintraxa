@@ -1,4 +1,4 @@
-import { byDay, dayNet, fundDayChanges, holdingsPoints, monthFigures, needsYou, sinceLastLooked, todayFigures, type Price } from '../selectors';
+import { byDay, dayNet, dividendsByMonth, monthEndBarsFor, fundDayChanges, holdingsPoints, monthEndBars, monthFigures, needsYou, sinceLastLooked, todayFigures, type Price } from '../selectors';
 import type { FundPosition, FundsAnalysis, StocksAnalysis, Txn } from '../types';
 
 const pos = (o: Partial<FundPosition>): FundPosition => ({
@@ -33,7 +33,7 @@ describe('fundDayChanges', () => {
 
 const funds = (value: number, invested: number): FundsAnalysis => ({
   totals: { value, invested, held: 1, incomplete: false, realized: { gross: 0, cgt: 0, charges: 0, net: 0, sales: 0 }, unrealized: { gross: value - invested, tax: 0, net: 0 } },
-  positions: [], allPositions: [],
+  positions: [], allPositions: [], months: [],
 });
 const stocks = (value: number, invested: number, dayChange: number | null): StocksAnalysis => ({
   totals: { value, invested, unrealized: value - invested, unrealizedPct: null, realized: 0, held: 1, dayChange, unpriced: 0, salesCount: 0 },
@@ -137,5 +137,37 @@ describe('byDay / dayNet', () => {
     expect(g.map((d) => d.date)).toEqual(['2026-11-14', '2026-11-13']);
     expect(dayNet(g[0].rows)).toBe(500.5);
     expect(dayNet(g[1].rows)).toBe(-100);
+  });
+});
+
+describe('monthEndBars (Home monthly overview, web Home monthly logic)', () => {
+  const snap = (d: string, f: number, s: number) => ({ snap_date: d, funds_value: f, funds_cost: 0, stocks_value: s, stocks_cost: 0, savings: 0, net_worth: 0 });
+  test('closing snapshot of each month; current month live; untracked months skipped', () => {
+    const snaps = [snap('2026-08-30', 1, 1), snap('2026-09-15', 100, 50), snap('2026-09-30', 110.1, 50.2), snap('2026-10-31', 120, 60)];
+    const bars = monthEndBars(snaps, { month: '2026-11', funds: 125, stocks: 61.5 }, 4);
+    expect(bars.map((b) => [b.key, b.label, b.value])).toEqual([['2026-08', 'Aug', 2], ['2026-09', 'Sep', 160.3], ['2026-10', 'Oct', 180], ['2026-11', 'Nov', 186.5]]);
+    expect(monthEndBars(snaps, { month: '2026-11', funds: 1, stocks: 1 }, 6).length).toBe(4); // Jun, Jul untracked
+  });
+});
+
+describe('dividendsByMonth', () => {
+  test('sums net amounts per payment month with exact decimals', () => {
+    const rows = [
+      { payment_date: '2026-10-03', net_amount: '1000.10' },
+      { payment_date: '2026-10-28', net_amount: '0.20' },
+      { payment_date: '2026-11-01', net_amount: '50' },
+    ];
+    expect(dividendsByMonth(rows)).toEqual({ '2026-10': 1000.3, '2026-11': 50 });
+  });
+  test('no dividends → empty', () => expect(dividendsByMonth([])).toEqual({}));
+});
+
+describe('monthEndBarsFor (the months of a period)', () => {
+  const snap = (snap_date: string, funds_value: number, stocks_value: number) => ({ snap_date, funds_value, stocks_value, funds_cost: 0, stocks_cost: 0, savings: 0, net_worth: 0 });
+  test('last snapshot of each listed month; live month uses live values; empty months skipped', () => {
+    const snaps = [snap('2025-07-10', 1, 1), snap('2025-07-31', 100, 50), snap('2025-09-30', 200, 0)];
+    const bars = monthEndBarsFor(snaps, { month: '2026-11', funds: 999, stocks: 1 }, ['2025-07', '2025-08', '2025-09']);
+    expect(bars.map((b) => [b.key, b.value])).toEqual([['2025-07', 150], ['2025-09', 200]]);
+    expect(monthEndBarsFor([], { month: '2026-11', funds: 10, stocks: 5 }, ['2026-11'])[0].value).toBe(15);
   });
 });

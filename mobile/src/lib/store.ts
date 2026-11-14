@@ -1,13 +1,17 @@
 /**
- * Device preferences (not secret, so plain AsyncStorage): theme, privacy mask, fingerprint flag, auto-lock,
+ * Device preferences (not secret, so plain AsyncStorage): theme + accent colour, privacy mask, fingerprint flag, auto-lock,
  * "hide in recent apps", haptics, per-user onboarding and "since you last looked" marks.
  * Account-wide preferences (what the user tracks, auto-lock) are also synced to user_preferences.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
+import type { AccentKey } from '@/ui/tokens';
+import type { CardDesignId } from '@/features/today/cardDesigns';
+import type { RangeChoice } from './range';
 
 export type ThemePref = 'system' | 'dark' | 'light';
+export type Material = 'solid' | 'glass';
 export type Tracks = { spending: boolean; funds: boolean; stocks: boolean };
 export const ALL_TRACKS: Tracks = { spending: true, funds: true, stocks: true };
 
@@ -16,6 +20,18 @@ export type LastSeen = { at: number; worth: number; stocks: number; funds: numbe
 
 type State = {
   themePref: ThemePref;
+  /** Accent colour preset (buttons, nav, charts). */
+  accent: AccentKey;
+  /** The user's own accent colour (#RRGGBB), used when `accent` is 'custom'. */
+  customAccent: string;
+  /** The period every money page shows (FY button). Presets roll over by themselves; custom keeps its dates. */
+  range: RangeChoice;
+  /** Surfaces: solid, or Apple-style frosted glass (nav, cards). */
+  material: Material;
+  /** Liquid Glass transparency: 0 = frosted (Regular) … 1 = clear. */
+  glassClear: number;
+  /** Home card design (swiped on the card). */
+  cardDesign: CardDesignId;
   hideAmounts: boolean;
   biometricEnabled: boolean;
   /** Owner of the biometric flag, so another account on the same phone never inherits it. */
@@ -40,6 +56,12 @@ export const useApp = create<State>()(
   persist(
     (set) => ({
       themePref: 'system',
+      accent: 'lime',
+      customAccent: '#7C9CFF',
+      cardDesign: 'obsidian',
+      material: 'solid',
+      glassClear: 0.5,
+      range: { id: 'fy' },
       hideAmounts: false,
       biometricEnabled: false,
       biometricUser: null,

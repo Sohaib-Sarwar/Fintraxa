@@ -38,7 +38,7 @@ export function SettingRow({ icon: Icon, title, subtitle, value, toggle, onToggl
       {value ? <Text variant="label" tone="ink2">{value}</Text> : null}
       {isSwitch ? (
         <Switch value={!!toggle} onValueChange={(v) => { haptic.tick(); onToggle?.(v); }} disabled={disabled}
-          trackColor={{ false: p.surface3, true: p.accent }} thumbColor={p.mode === 'dark' ? '#F5F5F7' : '#FFFFFF'} ios_backgroundColor={p.surface3}
+          trackColor={{ false: p.surface3, true: p.accent }} thumbColor={toggle ? (p.mode === 'dark' ? p.accentInk : '#FFFFFF') : p.mode === 'dark' ? '#8A8FA3' : '#FFFFFF'} ios_backgroundColor={p.surface3}
           accessibilityElementsHidden importantForAccessibility="no" />
       ) : onPress ? <ChevronRight size={18} color={p.muted} /> : null}
     </Pressable>

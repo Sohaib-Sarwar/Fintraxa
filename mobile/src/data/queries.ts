@@ -31,7 +31,9 @@ export async function fetchAll<T>(build: () => Pageable): Promise<T[]> {
 
 // ── Personal finance ─────────────────────────────────────────────
 
-const TXN_SELECT = '*, categories(name, icon, kind, type), savings_accounts(name, bank_symbol, bank_name)';
+// Same as the web's useFinance TXN_SELECT: `default_tax_rate` is what marks savings-account profit (passive.js
+// passiveSource) — without it every profit credit fell into "Other" instead of Savings.
+const TXN_SELECT = '*, categories(name, icon, kind, type, default_tax_rate), savings_accounts(name, bank_symbol, bank_name)';
 export const TXNS_KEY = 'ie-all-transactions';
 /** Same list as the web's AFFECTED in useFinance.js, plus the phone's own derived keys. */
 export const FINANCE_KEYS = ['ie-all-transactions', 'ie-transactions', 'ie-free-cash', 'mf-free-cash', 'home-ie-txns', 'home-ie-txns-all', 'categories'];
@@ -150,7 +152,7 @@ export function useCloses(symbols: string[]) {
   });
 }
 
-const DIV_COLS = 'id, symbol, company_name, payment_date, shares::text, gross_amount::text, tax_amount::text, zakat_amount::text, net_amount::text, source, created_at';
+const DIV_COLS = 'id, symbol, company_name, payment_date, warrant_no, shares::text, gross_amount::text, tax_amount::text, jh_tax_amount::text, zakat_amount::text, net_amount::text, source, created_at';
 export function useDividends() {
   const uid = useUid();
   return useQuery({
@@ -165,7 +167,7 @@ export function useDividends() {
 // ── Snapshots ────────────────────────────────────────────────────
 
 const NUM = (cols: string[]) => cols.map((c) => `${c}::float8`).join(', ');
-const SNAP_COLS = `snap_date, ${NUM(['funds_value', 'funds_cost', 'stocks_value', 'stocks_cost', 'savings', 'net_worth'])}`;
+const SNAP_COLS = `snap_date, ${NUM(['funds_value', 'funds_cost', 'funds_unrealized', 'funds_realized_day', 'stocks_value', 'stocks_cost', 'stocks_unrealized', 'stocks_realized_day', 'savings', 'net_worth'])}`;
 let catchUpAsked = false;
 
 /** Daily portfolio rows; if today's is missing the server is asked once per launch to catch up. */
@@ -270,7 +272,7 @@ export function useProfile() {
     enabled: !!uid,
     staleTime: 30 * 60_000,
     queryFn: async () => {
-      const { data, error } = await supabase.from('profiles').select('username, full_name, filer_status').eq('user_id', uid!).maybeSingle();
+      const { data, error } = await supabase.from('profiles').select('username, full_name, filer_status, avatar_path').eq('user_id', uid!).maybeSingle();
       if (error) throw error;
       return (data ?? null) as Profile | null;
     },
@@ -317,5 +319,20 @@ export function useHoldingSnapshots(assetType: 'mf' | 'psx', assetKey: string | 
     queryFn: () => fetchAll<{ snap_date: string; units: number; cost: number; value: number }>(() => supabase.from('holding_snapshots')
       .select(`snap_date, ${NUM(['units', 'cost', 'value'])}`)
       .eq('user_id', uid!).eq('asset_type', assetType).eq('asset_key', assetKey!).gte('snap_date', since).order('snap_date')),
+  });
+}
+
+/** Signed URL for the profile photo (private `avatars` bucket, same as the web), refreshed hourly. */
+export function useAvatarUrl(path: string | null | undefined) {
+  return useQuery({
+    queryKey: ['avatar-url', path],
+    enabled: !!path,
+    staleTime: 50 * 60_000,
+    gcTime: 55 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase.storage.from('avatars').createSignedUrl(path!, 3600);
+      if (error) throw error;
+      return data.signedUrl;
+    },
   });
 }

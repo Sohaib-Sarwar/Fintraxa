@@ -39,10 +39,20 @@ export const fyOf = (iso: string) => {
 export const fyRange = (y: number) => ({ start: `${y}-07-01`, end: `${y + 1}-06-30` });
 export const fyLabel = (y: number) => `FY ${y}-${String(y + 1).slice(2)}`;
 
+/** "November" — a month's name alone (chart hold cards). */
+export const monthName = (month: string) => MONTH_LONG[Number(month.slice(5, 7)) - 1];
+
 export const monthLabel = (month: string, long = false) => {
   const [y, m] = month.split('-').map(Number);
   return `${(long ? MONTH_LONG : MON)[m - 1]} ${y}`;
 };
+
+const WEEKDAY_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+/** "Saturday, 14 November 2026". */
+export function longDate(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  return `${WEEKDAY_LONG[new Date(y, m - 1, d).getDay()]}, ${d} ${monthLabel(iso.slice(0, 7), true)}`;
+}
 
 /** "13 Nov" (same year as today) or "13 Nov 2025". */
 export function shortDate(iso: string | null | undefined, today = todayIso()): string {

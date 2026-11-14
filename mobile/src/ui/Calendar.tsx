@@ -9,7 +9,10 @@ import { useTheme } from './theme';
 
 const WEEK = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
-/** Month grid date picker (no native module). Future days are disabled — money can't be spent tomorrow. */
+/**
+ * Month grid date picker (no native module), in the user's accent: the chosen day is an accent circle, today
+ * has an accent ring. Future days are disabled — money can't be spent tomorrow.
+ */
 export function Calendar({ value, onChange, max = todayIso() }: { value: string; onChange: (iso: string) => void; max?: string }) {
   const p = useTheme();
   const [month, setMonth] = useState(value.slice(0, 7));
@@ -34,11 +37,12 @@ export function Calendar({ value, onChange, max = todayIso() }: { value: string;
           if (!iso) return <View key={`e${i}`} style={styles.cell} />;
           const off = iso > max;
           const on = iso === value;
+          const today = iso === todayIso();
           return (
             <Pressable key={iso} disabled={off} onPress={() => { haptic.tick(); onChange(iso); }} style={styles.cell}
               accessibilityRole="button" accessibilityState={{ selected: on, disabled: off }} accessibilityLabel={iso}>
-              <View style={[styles.day, on && { backgroundColor: p.ink }]}>
-                <Text variant="body" style={{ color: on ? p.bg : off ? p.muted : p.ink, fontVariant: ['tabular-nums'] }}>{Number(iso.slice(8))}</Text>
+              <View style={[styles.day, on ? { backgroundColor: p.accent } : today ? { borderWidth: 1.5, borderColor: p.mode === 'dark' ? p.accent : p.accentDeep } : null]}>
+                <Text variant="body" style={{ color: on ? p.accentInk : off ? p.muted : p.ink, opacity: off ? 0.45 : 1, fontVariant: ['tabular-nums'], fontFamily: on || today ? 'Inter_600SemiBold' : 'Inter_400Regular' }}>{Number(iso.slice(8))}</Text>
               </View>
             </Pressable>
           );

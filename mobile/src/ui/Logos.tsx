@@ -15,31 +15,58 @@ const AMC = {
   ubl: require('../../assets/amc/ubl.webp'),
 } as const;
 
+/** Letters on a soft tile whose hue comes from the name, so the same company always looks the same. */
 function Initials({ text, size }: { text: string; size: number }) {
   const p = useTheme();
+  let h = 0;
+  for (const ch of text) h = (h * 31 + ch.charCodeAt(0)) % 360;
+  const bg = p.mode === 'dark' ? `hsl(${h}, 32%, 22%)` : `hsl(${h}, 55%, 90%)`;
+  const fg = p.mode === 'dark' ? `hsl(${h}, 70%, 82%)` : `hsl(${h}, 45%, 30%)`;
   return (
-    <View style={[styles.circle, { width: size, height: size, borderRadius: size / 2, backgroundColor: p.surface3 }]}>
-      <Text variant="label" tone="ink2" style={{ fontSize: Math.round(size * 0.34) }}>{text.slice(0, 2).toUpperCase()}</Text>
+    <View style={[styles.circle, { width: size, height: size, borderRadius: size / 2, backgroundColor: bg }]}>
+      <Text variant="label" style={{ color: fg, fontSize: Math.round(size * 0.34), fontFamily: 'Inter_700Bold' }}>{text.replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase()}</Text>
     </View>
   );
 }
 
-/** PSX company logo, served (and disk-cached by expo-image) from the web app's /stock-logos; initials if none. */
+/**
+ * PSX company logo. The files are TradingView's 18×18 SVGs with their own full-bleed square background,
+ * made to be cropped to a circle — so the image fills the whole circle (drawing it at 70% inside a white
+ * ring showed a grey square in a white circle). Disk-cached by expo-image; initials if there is none.
+ */
 export const StockLogo = memo(function StockLogo({ symbol, size = 40 }: { symbol: string; size?: number }) {
   const p = useTheme();
   const [failed, setFailed] = useState(false);
   if (failed) return <Initials text={symbol} size={size} />;
   return (
-    <View style={[styles.circle, { width: size, height: size, borderRadius: size / 2, backgroundColor: '#FFFFFF', borderColor: p.border, borderWidth: StyleSheet.hairlineWidth }]}>
+    <View style={[styles.circle, { width: size, height: size, borderRadius: size / 2, backgroundColor: p.surface3 }]}>
       <Image
         source={{ uri: `${env.webApp}/stock-logos/${encodeURIComponent(symbol.toUpperCase())}.svg` }}
-        style={{ width: size * 0.7, height: size * 0.7 }}
-        contentFit="contain"
+        style={{ width: size, height: size }}
+        contentFit="cover"
         cachePolicy="disk"
         recyclingKey={symbol}
+        transition={120}
         onError={() => setFailed(true)}
         accessibilityIgnoresInvertColors
       />
+    </View>
+  );
+});
+
+/** `bleed`: the logo file is a full-colour square (KTrade's green tile) — it fills the circle instead of sitting
+ * small inside a white disc. */
+const BROKER = {
+  akd: { src: require('../../assets/brokers/akd.webp'), bleed: false },
+  ktrade: { src: require('../../assets/brokers/ktrade.webp'), bleed: true },
+} as const;
+
+export const BrokerLogo = memo(function BrokerLogo({ code, size = 44 }: { code: string; size?: number }) {
+  const b = BROKER[code as keyof typeof BROKER];
+  if (!b) return <Initials text={code} size={size} />;
+  return (
+    <View style={[styles.circle, { width: size, height: size, borderRadius: size / 2, backgroundColor: '#FFFFFF', overflow: 'hidden' }]}>
+      <Image source={b.src} style={b.bleed ? { width: size * 1.02, height: size * 1.02 } : { width: size * 0.72, height: size * 0.72 }} contentFit="cover" />
     </View>
   );
 });
@@ -55,10 +82,12 @@ export const AmcLogo = memo(function AmcLogo({ code, name, size = 40 }: { code: 
   );
 });
 
-export const CategoryIcon = memo(function CategoryIcon({ icon, size = 40, tone = 'neutral' }: { icon: string | null | undefined; size?: number; tone?: 'neutral' | 'income' | 'selected' }) {
+export const CategoryIcon = memo(function CategoryIcon({ icon, size = 40, tone = 'neutral' }: { icon: string | null | undefined; size?: number; tone?: 'neutral' | 'income' | 'selected' | 'accent' | 'glass' }) {
   const p = useTheme();
-  const bg = tone === 'selected' ? p.ink : tone === 'income' ? p.posSoft : p.surface2;
-  const fg = tone === 'selected' ? p.bg : tone === 'income' ? p.pos : p.ink;
+  // 'glass': a quiet translucent disc for glass rows (owner: sleek, not coloured).
+  const glassBg = p.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(16,20,12,0.05)';
+  const bg = tone === 'glass' ? glassBg : tone === 'accent' ? p.accent : tone === 'selected' ? p.ink : tone === 'income' ? p.posSoft : p.surface2;
+  const fg = tone === 'accent' ? p.accentInk : tone === 'selected' ? p.bg : tone === 'income' ? p.pos : p.ink;
   return (
     <View style={[styles.circle, { width: size, height: size, borderRadius: size / 2, backgroundColor: bg }]}>
       <MaterialIcons name={muiToGlyph(icon)} size={Math.round(size * 0.5)} color={fg} />
@@ -68,4 +97,18 @@ export const CategoryIcon = memo(function CategoryIcon({ icon, size = 40, tone =
 
 const styles = StyleSheet.create({
   circle: { alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+});
+
+/** Profile photo, or the first letter on an accent-tinted circle (no outline: owner). */
+export const Avatar = memo(function Avatar({ uri, name, size = 46 }: { uri?: string | null; name: string; size?: number }) {
+  const p = useTheme();
+  return (
+    <View style={[styles.circle, { width: size, height: size, borderRadius: size / 2, backgroundColor: p.accentSoft }]}>
+      {uri ? (
+        <Image source={{ uri }} style={{ width: size, height: size }} contentFit="cover" transition={150} cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
+      ) : (
+        <Text variant="headline" style={{ color: p.mode === 'dark' ? p.accent : p.accentDeep, fontSize: Math.round(size * 0.42) }}>{(name || 'F').slice(0, 1).toUpperCase()}</Text>
+      )}
+    </View>
+  );
 });

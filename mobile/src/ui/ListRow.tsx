@@ -13,6 +13,8 @@ type Props = {
   trailing?: ReactNode;
   trailingSub?: ReactNode;
   onPress?: () => void;
+  /** Long-press (e.g. the transaction actions sheet). */
+  onLongPress?: () => void;
   chevron?: boolean;
   accessibilityLabel?: string;
 };
@@ -21,12 +23,14 @@ type Props = {
  * Dense, full-width row (design refs: plain lists beat per-row cards for holdings and transactions):
  * leading logo/icon · title + subtitle · trailing figure + its change.
  */
-export const ListRow = memo(function ListRow({ leading, title, subtitle, trailing, trailingSub, onPress, chevron, accessibilityLabel }: Props) {
+export const ListRow = memo(function ListRow({ leading, title, subtitle, trailing, trailingSub, onPress, onLongPress, chevron, accessibilityLabel }: Props) {
   const p = useTheme();
   return (
     <Pressable
       onPress={onPress ? () => { haptic.tick(); onPress(); } : undefined}
-      disabled={!onPress}
+      onLongPress={onLongPress ? () => { haptic.light(); onLongPress(); } : undefined}
+      delayLongPress={350}
+      disabled={!onPress && !onLongPress}
       accessibilityRole={onPress ? 'button' : undefined}
       accessibilityLabel={accessibilityLabel}
       android_ripple={onPress ? { color: p.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)' } : undefined}

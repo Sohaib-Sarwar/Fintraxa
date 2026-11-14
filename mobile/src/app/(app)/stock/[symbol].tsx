@@ -1,20 +1,25 @@
 import Decimal from 'decimal.js';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { HoldingChart } from '@/features/invest/HoldingChart';
 import { getStockSector } from '@/data/engines';
 import { useDividendSummary, useStocksAnalysis } from '@/data/portfolio';
 import { ALL_TIME_START, shortDate, todayIso } from '@/lib/dates';
-import { money, pct, units } from '@/lib/format';
+import { addMoney, compactNumber, group, isLong, share, units } from '@/lib/format';
+import { BlackGlass, GLASS_INK, GLASS_INK2, GLASS_LINE, GlassStats } from '@/ui/BlackGlass';
 import { EmptyState, Skeleton } from '@/ui/feedback';
-import { Delta, HeroFigure, Money, StatRow, useHidden } from '@/ui/Figures';
+import { useHidden } from '@/ui/Figures';
+import { ChevronRight, ScrollText } from '@/ui/icons';
 import { StockLogo } from '@/ui/Logos';
-import { Card, Divider, Gap, Pill, SectionHeader } from '@/ui/primitives';
+import { Gap } from '@/ui/primitives';
 import { Screen } from '@/ui/Screen';
 import { Text } from '@/ui/Text';
-import { space } from '@/ui/tokens';
+import { dark, font, space } from '@/ui/tokens';
 
+/**
+ * One PSX holding (owner, 2026-11-14): black Apple glass, only the necessary, little scrolling — what it's worth
+ * and today's move, six figures and the total return, and a link to all its trades.
+ */
 export default function StockDetail() {
   const hidden = useHidden();
   const { symbol } = useLocalSearchParams<{ symbol: string }>();
@@ -23,76 +28,80 @@ export default function StockDetail() {
   const divs = useDividendSummary(range);
   const x = analysis?.allPositions.find((pos) => pos.symbol === symbol);
 
-  if (isLoading && !analysis) return <Screen back><Skeleton height={46} width="70%" /><Gap h={space.xl} /><Skeleton height={160} radius={20} /></Screen>;
-  if (!x) return <Screen back><EmptyState title="Stock not found" body="No trades in this symbol." /></Screen>;
+  if (isLoading && !analysis) return <Screen back title={symbol}><Skeleton height={200} radius={22} /><Gap h={space.md} /><Skeleton height={200} radius={22} /></Screen>;
+  if (!x) return <Screen back title={symbol}><EmptyState title="Stock not found" body="No trades in this symbol." /></Screen>;
 
-  const dividends = divs.all.filter((dv) => dv.symbol === x.symbol).reduce((s, dv) => s.plus(dv.net_amount), new Decimal(0));
+  const rs = (v: number | null) => (hidden ? '••••' : v === null ? '—' : `Rs ${isLong(v, 1e7) ? compactNumber(v) : group(v, Math.abs(v) < 1e4 ? 2 : 0)}`);
+  const signed = (v: number) => (hidden ? '••••' : `${v > 0 ? '+' : v < 0 ? '−' : ''}${rs(Math.abs(v))}`);
+  const tint = (v: number) => (v > 0 ? dark.pos : v < 0 ? dark.neg : GLASS_INK);
+  const dividends = Number(divs.all.filter((dv) => dv.symbol === x.symbol).reduce((s, dv) => s.plus(dv.net_amount), new Decimal(0)).toFixed(2));
   const day = x.dayChange !== null ? Number(new Decimal(String(x.dayChange)).times(String(x.shares)).toFixed(2)) : null;
-  const info: [string, React.ReactNode][] = [
-    ['Last price', x.price !== null ? `${money(x.price, { decimals: 2 })}${x.priceDate ? ` · ${shortDate(x.priceDate)}` : ''}` : 'No price'],
-    ['Sector', getStockSector(x.symbol)],
-    ['Invested', <Money key="i" value={x.invested} />],
-    ['Realized, all time', <Money key="r" value={x.realized} tone="auto" sign />],
-    ['Dividends received', <Money key="d" value={Number(dividends.toFixed(2))} />],
-  ];
+  const unreal = x.isOpen ? x.unrealized ?? 0 : 0;
+  const total = addMoney(unreal, x.realized, dividends);
+  const totalPct = share(total, x.invested || null);
+
   return (
-    <Screen back>
-      <View style={styles.title}>
-        <StockLogo symbol={x.symbol} size={44} />
-        <View style={{ flex: 1 }}>
-          <Text variant="headline">{x.symbol}</Text>
-          <Text variant="caption" tone="ink2" numberOfLines={1}>{x.companyName}</Text>
+    <Screen back title={x.symbol}>
+      <BlackGlass style={styles.hero}>
+        <View style={styles.head}>
+          <StockLogo symbol={x.symbol} size={48} />
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={styles.symbol}>{x.symbol}</Text>
+            <Text style={styles.small} numberOfLines={1}>{x.companyName} · {getStockSector(x.symbol)}</Text>
+          </View>
         </View>
-        {x.dayChangePct !== null ? <Pill tone={x.dayChangePct > 0 ? 'pos' : x.dayChangePct < 0 ? 'neg' : 'flat'} text={pct(x.dayChangePct)} /> : null}
-      </View>
-      <HeroFigure label={x.isOpen ? 'Current value' : 'Sold out'} value={x.isOpen ? x.value : x.realized}
-        caption={x.isOpen ? `${units(x.shares)} shares${x.priceDate ? ` · close ${shortDate(x.priceDate)}` : ''}` : 'Realized profit on this stock'}>
-        {x.isOpen ? <Delta amount={day} percent={x.dayChangePct} suffix="today" /> : null}
-      </HeroFigure>
-      {x.isOpen ? (
-        <>
-          <StatRow stats={[
-            { label: 'Unrealized', value: x.unrealized, tone: 'auto', sign: true, sub: x.unrealizedPct !== null ? pct(x.unrealizedPct) : null },
-            { label: 'Avg cost', value: x.avgCost, sub: 'Incl. buy fees' },
-            { label: 'Shares', value: null, text: units(x.shares) },
-          ]} />
-          <HoldingChart type="psx" assetKey={x.symbol} live={{ value: x.value, cost: x.invested }} />
-        </>
-      ) : null}
+        <Text style={[styles.small, { marginTop: space.lg }]}>{x.isOpen ? 'Market value' : 'Sold out · realized profit'}</Text>
+        <Text style={styles.value} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{x.isOpen ? rs(x.value) : signed(x.realized)}</Text>
+        {x.isOpen ? (
+          <Text style={styles.small}>
+            {day !== null ? <Text style={{ color: tint(day), fontFamily: font.num }}>{signed(day)}{x.dayChangePct !== null ? ` · ${x.dayChangePct > 0 ? '+' : ''}${x.dayChangePct.toFixed(2)}%` : ''}</Text> : null}
+            {day !== null ? '  today' : ''}{x.price !== null ? `${day !== null ? '  ·  ' : ''}Last ${hidden ? '••' : group(x.price, 2)}${x.priceDate ? ` · ${shortDate(x.priceDate)}` : ''}` : ''}
+          </Text>
+        ) : null}
+      </BlackGlass>
 
-      <SectionHeader title="Details" />
-      <Card padded={false} style={{ paddingHorizontal: space.lg }}>
-        {info.map(([k, v], i) => (
-          <View key={k}>
-            {i > 0 ? <Divider /> : null}
-            <View style={styles.row}>
-              <Text variant="body" tone="ink2">{k}</Text>
-              {typeof v === 'string' ? <Text variant="num" style={{ flexShrink: 1, textAlign: 'right' }}>{v}</Text> : v}
-            </View>
+      <BlackGlass style={styles.block}>
+        <GlassStats items={[
+          { label: 'Shares', value: units(x.shares) },
+          { label: 'Avg cost (incl. fees)', value: x.avgCost === null ? '—' : rs(x.avgCost) },
+          { label: 'Invested', value: rs(x.invested) },
+          { label: 'Unrealized', value: signed(unreal), color: tint(unreal), sub: x.unrealizedPct !== null && !hidden ? `${x.unrealizedPct > 0 ? '+' : ''}${x.unrealizedPct.toFixed(1)}%` : undefined, subColor: tint(unreal) },
+          { label: 'Realized (after fees)', value: signed(x.realized), color: tint(x.realized) },
+          { label: 'Dividends received', value: signed(dividends), color: tint(dividends) },
+        ]} />
+        <View style={styles.total}>
+          <Text style={styles.totalLabel}>Total return</Text>
+          <View style={{ alignItems: 'flex-end' }}>
+            <Text style={[styles.totalValue, { color: tint(total) }]}>{signed(total)}</Text>
+            {totalPct !== null && !hidden ? <Text style={styles.small}>{totalPct > 0 ? '+' : ''}{totalPct.toFixed(1)}% of invested</Text> : null}
           </View>
-        ))}
-      </Card>
+        </View>
+      </BlackGlass>
 
-      <SectionHeader title="Trades" />
-      <Card padded={false} style={{ paddingHorizontal: space.lg }}>
-        {x.trades.map((t, i) => (
-          <View key={t.id}>
-            {i > 0 ? <Divider /> : null}
-            <View style={styles.row}>
-              <View style={{ flex: 1 }}>
-                <Text variant="bodyStrong">{t.type === 'buy' ? 'Bought' : 'Sold'} {units(t.quantity)} @ {money(t.price, { decimals: 2 }).replace('Rs ', '')}</Text>
-                <Text variant="caption" tone="ink2">{shortDate(t.date)}{t.broker ? ` · ${t.broker.toUpperCase()}` : ''}{t.fee ? ` · fee ${money(t.fee, { hidden, decimals: 2 })}` : ''}</Text>
-              </View>
-              <Text variant="num">{money(new Decimal(String(t.quantity)).times(String(t.price)).toFixed(2), { hidden })}</Text>
-            </View>
-          </View>
-        ))}
-      </Card>
+      <BlackGlass style={[styles.block, styles.link]} onPress={() => router.push({ pathname: '/stock-trades/[symbol]', params: { symbol: x.symbol } })}
+        accessibilityLabel={`Transactions, ${x.trades.length}`}>
+        <View style={styles.linkIcon}><ScrollText size={18} color={GLASS_INK} /></View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.linkTitle}>Transactions</Text>
+          <Text style={styles.small}>{x.trades.length} trade{x.trades.length === 1 ? '' : 's'} · buys and sells</Text>
+        </View>
+        <ChevronRight size={18} color={GLASS_INK2} />
+      </BlackGlass>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  title: { flexDirection: 'row', alignItems: 'center', gap: space.md, marginBottom: space.md },
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 56, gap: space.md },
+  hero: { paddingVertical: space.lg },
+  head: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  symbol: { color: GLASS_INK, fontFamily: font.bold, fontSize: 19, letterSpacing: 0.2 },
+  small: { color: GLASS_INK2, fontFamily: font.regular, fontSize: 12 },
+  value: { color: dark.pos, fontFamily: font.numHeavy, fontSize: 32, lineHeight: 39, letterSpacing: -0.8, marginTop: 2 },
+  block: { marginTop: space.md },
+  total: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.sm, paddingTop: space.md, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: GLASS_LINE },
+  totalLabel: { color: GLASS_INK, fontFamily: font.semibold, fontSize: 14.5 },
+  totalValue: { fontFamily: font.numHeavy, fontSize: 18, lineHeight: 23 },
+  link: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingVertical: space.lg },
+  linkIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.08)' },
+  linkTitle: { color: GLASS_INK, fontFamily: font.semibold, fontSize: 15 },
 });

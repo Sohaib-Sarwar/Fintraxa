@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { haptic } from '@/lib/haptics';
 import { Text } from './Text';
 import { useTheme } from './theme';
+import { font } from './tokens';
 
 export { pressKey } from '@/lib/amount';
 
@@ -34,5 +35,5 @@ export const Keypad = memo(function Keypad({ onKey }: { onKey: (k: string) => vo
 const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
   key: { width: '33.333%', height: 60, alignItems: 'center', justifyContent: 'center', borderRadius: 16 },
-  digit: { fontSize: 26, lineHeight: 32, fontFamily: 'InterTight_500Medium' },
+  digit: { fontSize: 26, lineHeight: 32, fontFamily: font.numMedium },
 });

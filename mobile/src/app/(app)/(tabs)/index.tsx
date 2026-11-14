@@ -1,197 +1,192 @@
+import Decimal from 'decimal.js';
 import { router } from 'expo-router';
-import { AlertTriangle, ChevronRight, Clock, FileText, Plus } from '@/ui/icons';
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
-import { TransactionRow } from '@/features/money/TransactionRow';
+import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+import { useInvestView } from '@/features/nav/investView';
 import { UpdateBanner } from '@/features/me/UpdateBanner';
 import { useToday } from '@/features/today/useToday';
+import { useAvatarUrl, useDividends, useProfile, useSnapshots } from '@/data/queries';
+import { dividendsByMonth, monthEndBarsFor, type MonthBar } from '@/data/selectors';
+import { RangeButton } from '@/features/range/RangeButton';
+import { usePeriod } from '@/features/range/usePeriod';
+import { useDividendSummary } from '@/data/portfolio';
 import { firstName, useAuth } from '@/lib/auth';
-import { addDays, greeting, shortDate, timeAgoLabel, todayIso } from '@/lib/dates';
-import { compactNumber, money } from '@/lib/format';
-import { AreaChart, type Point } from '@/ui/charts';
+import { monthLabel, monthName, monthOf, todayIso } from '@/lib/dates';
+import { compactNumber, isLong } from '@/lib/format';
+import { type DonutItem } from '@/features/today/AllocationDonut';
+import { ChartCard, TipRows } from '@/features/today/ChartCard';
+import { NetWorthCard } from '@/features/today/NetWorthCard';
+import { useWorthSheet } from '@/features/today/worthSheetStore';
 import { EmptyState, ErrorState, OfflinePill, Skeleton } from '@/ui/feedback';
-import { Delta, HeroFigure, Money, StatRow, useHidden } from '@/ui/Figures';
-import { Card, Chip, Divider, Gap, SectionHeader } from '@/ui/primitives';
+import { Money, useHidden } from '@/ui/Figures';
+import { AlertTriangle, FileText, FileUp } from '@/ui/icons';
+import { AmcLogo, Avatar, StockLogo } from '@/ui/Logos';
+import { Card, Gap, SectionHeader } from '@/ui/primitives';
 import { Screen } from '@/ui/Screen';
-import { Sheet } from '@/ui/Sheet';
 import { Text } from '@/ui/Text';
 import { useTheme } from '@/ui/theme';
-import { space } from '@/ui/tokens';
+import { accentText, font, space } from '@/ui/tokens';
 
-const PERIODS = [{ id: '1M', days: 30 }, { id: '3M', days: 91 }, { id: '1Y', days: 365 }, { id: 'All', days: 0 }] as const;
 
-function asOfCaption(psx: string | null, nav: string | null, tracks: { funds: boolean; stocks: boolean }) {
-  const parts = [tracks.stocks && psx ? `PSX close ${shortDate(psx)}` : null, tracks.funds && nav ? `NAV ${shortDate(nav)}` : null].filter(Boolean);
-  return parts.length ? `As of ${parts.join(' · ')}` : null;
+type HomeBar = MonthBar & { dividends: number };
+/** Header row height inside Screen (row 46 + its top/bottom padding). */
+const HEADER_H = 44 + space.sm + space.md;
+/** The nav's top edge is 80 dp above the safe area; the cards stop 14 dp above it. */
+const BOTTOM_SPACE = 80 + 14;
+type PieTab = 'all' | 'funds' | 'stocks';
+
+/**
+ * Header (owner, 2026-11-14): avatar (opens profile & settings) with the name beside it; the glass period
+ * button ("FY 2026-27") on the right, the same place as on every money page.
+ */
+function HomeHeader({ name }: { name: string }) {
+  const p = useTheme();
+  const profile = useProfile();
+  const avatar = useAvatarUrl(profile.data?.avatar_path);
+  return (
+    <View style={styles.header}>
+      <Pressable onPress={() => router.push('/me')} accessibilityRole="button" accessibilityLabel="Open your profile and settings" hitSlop={6}
+        style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}>
+        <Avatar uri={avatar.data} name={name} size={42} />
+      </Pressable>
+      <Text style={[styles.name, { color: p.ink }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{name || 'Welcome'}</Text>
+      <RangeButton />
+    </View>
+  );
 }
 
-export default function Today() {
+/** What a held bar shows: the month, then funds, PSX and dividends received that month. */
+function MonthTip({ b, funds, stocks }: { b: HomeBar; funds: boolean; stocks: boolean }) {
+  const rows = [
+    ...(funds ? [{ k: 'Mutual funds', v: b.funds }] : []),
+    ...(stocks ? [{ k: 'PSX shares', v: b.stocks }] : []),
+    ...(stocks ? [{ k: 'Dividends', v: b.dividends }] : []),
+  ];
+  return <TipRows title={monthName(b.key)} rows={rows.map((r) => ({ k: r.k, v: <Money value={r.v} variant="label" compact={isLong(r.v, 1_000_000)} /> }))} />;
+}
+
+export default function Home() {
   const p = useTheme();
   const hidden = useHidden();
   const user = useAuth((s) => s.user);
   const d = useToday();
-  const [period, setPeriod] = useState<(typeof PERIODS)[number]['id']>('3M');
-  const [scrub, setScrub] = useState<Point | null>(null);
-  const [explain, setExplain] = useState(false);
-
-  const chart = useMemo(() => {
-    const days = PERIODS.find((x) => x.id === period)!.days;
-    if (!days) return d.points;
-    const from = addDays(todayIso(), -days);
-    return d.points.filter((pt) => pt.date >= from);
-  }, [d.points, period]);
-
+  const snaps = useSnapshots();
+  const divs = useDividends();
+  const period = usePeriod();
+  const fyDivs = useDividendSummary(period.upTo);
+  const setView = useInvestView((s) => s.setView);
+  const [month, setMonth] = useState<string | null>(null);
+  const openWorth = useWorthSheet((st) => st.open);
+  const [viewport, setViewport] = useState(0);
+  const [pieTab, setPieTab] = useState<PieTab>('all');
+  const { height: winH } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const name = firstName(user, d.profileName);
-  const eyebrow = name ? `${greeting()}, ${name}` : greeting();
-  const showInvest = d.tracks.funds || d.tracks.stocks;
+  const header = <HomeHeader name={name} />;
+  const f = d.figures;
+  const thisMonth = monthOf(todayIso());
+
+  const bars = useMemo<HomeBar[]>(() => {
+    const byMonth = dividendsByMonth(divs.data ?? []);
+    return monthEndBarsFor(snaps.data ?? [], { month: thisMonth, funds: f.funds, stocks: f.stocks }, period.months).map((b) => ({ ...b, dividends: byMonth[b.key] ?? 0 }));
+  }, [snaps.data, divs.data, thisMonth, f.funds, f.stocks, period.months]);
+  // Mobile net worth (owner, 2026-11-14) = mutual funds + PSX shares + dividends received in the chosen period (default this FY).
+  const divFy = d.tracks.stocks ? fyDivs.summary?.net ?? 0 : 0;
+  const worth = Number(new Decimal(String(f.worth)).plus(String(divFy)).toFixed(2));
+  // Web Home's allocation items: every open fund and share holding with its logo.
+  const pieItems = useMemo<DonutItem[]>(() => {
+    const fundsRows = (d.tracks.funds ? d.funds?.positions ?? [] : []).filter((x) => x.isOpen && (x.value ?? 0) > 0)
+      .map((x) => ({ key: `f-${x.key}`, label: x.fundName ?? 'Fund', value: x.value ?? 0, logo: (n: number) => <AmcLogo code={x.amcCode} name={x.amcName} size={n} /> }));
+    const stockRows = (d.tracks.stocks ? d.stocks?.positions ?? [] : []).filter((x) => x.isOpen && (x.value ?? 0) > 0)
+      .map((x) => ({ key: `s-${x.symbol}`, label: x.symbol, value: x.value ?? 0, logo: (n: number) => <StockLogo symbol={x.symbol} size={n} /> }));
+    return pieTab === 'funds' ? fundsRows : pieTab === 'stocks' ? stockRows : [...fundsRows, ...stockRows];
+  }, [d.funds, d.stocks, d.tracks.funds, d.tracks.stocks, pieTab]);
+  const selKey = month && bars.some((b) => b.key === month) ? month : bars[bars.length - 1]?.key;
 
   if (d.loading) {
     return (
-      <Screen eyebrow={eyebrow} tabBar>
-        <Skeleton height={14} width={90} />
-        <Gap h={10} />
-        <Skeleton height={46} width="70%" />
-        <Gap h={12} />
-        <Skeleton height={24} width={180} />
-        <Gap h={space.xxl} />
-        <Skeleton height={180} radius={20} />
-        <Gap h={space.lg} />
-        <Skeleton height={86} radius={20} />
+      <Screen header={header} tabBar>
+        <Skeleton height={250} radius={28} />
+        <Gap h={space.xl} />
+        <Skeleton height={260} radius={24} />
       </Screen>
     );
   }
-  if (d.error) return <Screen eyebrow={eyebrow} tabBar><ErrorState onRetry={d.refetch} /></Screen>;
-  if (!d.hasAnything) {
-    return (
-      <Screen eyebrow={eyebrow} title="Let’s get you started" tabBar>
-        <EmptyState icon={<Plus size={36} color={p.accent} />} title="Nothing tracked yet"
-          body="Log what you spend in seconds with the + button. Funds and shares you add on the web app appear here automatically."
-          action="Add your first expense" onAction={() => router.push('/add')} />
-      </Screen>
-    );
-  }
+  if (d.error) return <Screen header={header} tabBar><ErrorState onRetry={d.refetch} /></Screen>;
 
-  const f = d.figures;
+  const showInvest = d.tracks.funds || d.tracks.stocks;
+  const open = (v: 'funds' | 'stocks') => { setView(v); router.navigate('/invest'); };
+  // Card + chart fill exactly the space between the header and the nav (owner): viewport − header − nav.
+  const fill = Math.max(480, (viewport || winH) - insets.top - HEADER_H - insets.bottom - BOTTOM_SPACE);
+
   return (
-    <Screen eyebrow={eyebrow} tabBar onRefresh={d.refetch}
-      right={<Pressable onPress={() => router.navigate('/me')} accessibilityRole="button" accessibilityLabel="Open Me" hitSlop={8}
-        style={[styles.avatar, { backgroundColor: p.surface2, borderColor: p.border }]}><Text variant="label">{(name || 'F').slice(0, 1)}</Text></Pressable>}>
+    <Screen header={header} tabBar bottomSpace={BOTTOM_SPACE} onViewport={setViewport} onRefresh={() => Promise.all([d.refetch(), snaps.refetch(), divs.refetch()])}>
       <UpdateBanner />
       <OfflinePill />
-      {showInvest ? (
-        <>
-          <HeroFigure label={scrub ? shortDate(scrub.date) : 'Net worth'} value={scrub ? scrub.value : f.worth}
-            caption={scrub ? 'Funds and stocks at that day’s close' : asOfCaption(f.psxAsOf, f.navAsOf, d.tracks)} onPress={() => setExplain(true)}>
-            {!scrub ? <Delta amount={f.change} percent={f.changePct} suffix="today" /> : null}
-          </HeroFigure>
-          <Animated.View entering={FadeIn.duration(300)}>
-            <AreaChart points={chart} onScrub={setScrub} format={(v) => (hidden ? '••••' : `Rs ${compactNumber(v)}`)} />
-          </Animated.View>
-          <View style={styles.periods} accessibilityRole="tablist">
-            {PERIODS.map((x) => <Chip key={x.id} label={x.id} selected={period === x.id} onPress={() => setPeriod(x.id)} accessibilityLabel={`Show ${x.id === 'All' ? 'all time' : x.id}`} />)}
-          </View>
-          <Gap h={space.lg} />
-          <StatRow stats={[
-            ...(d.tracks.spending ? [{ label: 'Saved this month', value: f.saved, tone: 'auto' as const, onPress: () => router.navigate('/money') }] : []),
-            { label: 'Invested', value: f.invested, sub: 'Cost of what you hold', onPress: () => router.navigate('/invest') },
-          ]} />
-        </>
+
+      <View style={{ height: fill }}>
+      {!d.hasAnything ? (
+        <Card>
+          <EmptyState icon={<FileUp size={34} color={accentText(p)} />} title="Nothing tracked yet"
+            body="Tap + below: log an expense or income, or upload a fund statement, broker confirmation or CDC dividend report." />
+        </Card>
       ) : (
-        <HeroFigure label="Saved this month" value={f.saved} caption="Income minus spending, this calendar month" onPress={() => router.navigate('/money')} />
+        <Animated.View entering={FadeInDown.duration(360)}>
+          <NetWorthCard label={showInvest ? 'Net worth' : 'Saved this month'} value={showInvest ? worth : f.saved} onPress={() => openWorth({
+            total: showInvest ? worth : f.saved,
+            funds: showInvest && d.tracks.funds ? f.funds : null,
+            stocks: showInvest && d.tracks.stocks ? f.stocks : null,
+            dividends: showInvest && d.tracks.stocks ? divFy : null,
+            period: period.label,
+          })}
+            holders={showInvest ? [
+              ...(d.tracks.funds ? [{ label: 'Mutual funds', value: f.funds, onPress: () => open('funds') }] : []),
+              ...(d.tracks.stocks ? [{ label: 'PSX', value: f.stocks, onPress: () => open('stocks') }] : []),
+              ...(d.tracks.stocks ? [{ label: 'Dividends', value: divFy, onPress: () => router.push({ pathname: '/passive-source', params: { source: 'dividends' } }) }] : []),
+            ] : []} />
+        </Animated.View>
       )}
+
+      {showInvest && bars.length ? (
+        <View style={styles.chartWrap}>
+          <ChartCard<HomeBar, PieTab> barTitle={selKey ? monthLabel(selKey, true) : ''} bars={bars} selected={selKey} onSelect={setMonth} hidden={hidden}
+            format={(v) => (hidden ? '••••' : `Rs ${compactNumber(v)}`)} renderTip={(b) => <MonthTip b={b} funds={d.tracks.funds} stocks={d.tracks.stocks} />}
+            pieItems={pieItems} pieCenter={pieTab === 'funds' ? 'Mutual funds' : pieTab === 'stocks' ? 'Stocks' : 'Net worth'}
+            pieTabs={d.tracks.funds && d.tracks.stocks ? { value: pieTab, onChange: setPieTab, options: [{ value: 'all', label: 'All' }, { value: 'funds', label: 'Funds' }, { value: 'stocks', label: 'Stocks' }] } : undefined} />
+        </View>
+      ) : null}
+      </View>
 
       {d.needs.length ? (
         <>
           <SectionHeader title="Needs you" />
-          <Card padded={false}>
-            {d.needs.map((n, i) => (
-              <View key={n.key}>
-                {i > 0 ? <Divider inset={56} /> : null}
-                <View style={styles.needRow}>
-                  <View style={[styles.needIcon, { backgroundColor: n.tone === 'warn' ? p.warnSoft : p.accentSoft }]}>
-                    {n.tone === 'warn' ? <AlertTriangle size={18} color={p.warn} /> : <FileText size={18} color={p.ink} />}
-                  </View>
-                  <View style={{ flex: 1, gap: 2 }}>
-                    <Text variant="bodyStrong">{n.title}</Text>
-                    <Text variant="caption" tone="ink2">{n.detail}</Text>
-                  </View>
+          <View style={{ gap: space.sm }}>
+            {d.needs.map((n) => (
+              <Card key={n.key} style={styles.needCard}>
+                <View style={[styles.needIcon, { backgroundColor: n.tone === 'warn' ? p.warnSoft : p.accentSoft }]}>
+                  {n.tone === 'warn' ? <AlertTriangle size={18} color={p.warn} /> : <FileText size={18} color={p.mode === 'dark' ? p.accent : p.accentDeep} />}
                 </View>
-              </View>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text variant="bodyStrong">{n.title}</Text>
+                  <Text variant="caption" tone="ink2">{n.detail}</Text>
+                </View>
+              </Card>
             ))}
-          </Card>
+          </View>
         </>
       ) : null}
 
-      {d.since.length && d.prevSeenAt ? (
-        <>
-          <SectionHeader title="Since you last looked" />
-          <Card>
-            <View style={styles.sinceHead}>
-              <Clock size={14} color={p.muted} />
-              <Text variant="caption" tone="muted">Last opened {timeAgoLabel(d.prevSeenAt)}</Text>
-            </View>
-            {d.since.map((s) => (
-              <View key={s.key} style={styles.sinceRow}>
-                <Text variant="body">{s.text}</Text>
-                <Money value={s.amount} sign tone="auto" />
-              </View>
-            ))}
-          </Card>
-        </>
-      ) : null}
-
-      {d.tracks.spending && d.recent.length ? (
-        <>
-          <SectionHeader title="Recent" action="See all" onAction={() => router.push('/transactions')} />
-          <Card padded={false} style={{ paddingHorizontal: space.lg }}>
-            {d.recent.map((t, i) => (
-              <View key={t.id}>
-                {i > 0 ? <Divider inset={52} /> : null}
-                <TransactionRow t={t} showDate />
-              </View>
-            ))}
-          </Card>
-        </>
-      ) : null}
-
-      <Sheet open={explain} onClose={() => setExplain(false)} title="How net worth is calculated">
-        <Text variant="body" tone="ink2">What you hold today, at the latest published prices. Cash in bank accounts isn’t included.</Text>
-        <Gap h={space.lg} />
-        {d.tracks.funds ? <BreakdownRow label="Mutual funds" sub="Units × latest repurchase price (NAV if none)" value={f.funds} onPress={() => { setExplain(false); router.navigate('/invest'); }} /> : null}
-        {d.tracks.stocks ? <BreakdownRow label="PSX shares" sub="Shares × last close (or newer refreshed price)" value={f.stocks} onPress={() => { setExplain(false); router.navigate('/invest'); }} /> : null}
-        <Divider />
-        <View style={styles.sinceRow}>
-          <Text variant="bodyStrong">Net worth</Text>
-          <Text variant="numLarge">{money(f.worth, { hidden })}</Text>
-        </View>
-        <Gap h={space.md} />
-        <Text variant="caption" tone="muted">“Today” is the change in the last PSX session plus the latest NAV move of each fund. Figures come from the same engines as the web app.</Text>
-      </Sheet>
     </Screen>
   );
 }
 
-function BreakdownRow({ label, sub, value, onPress }: { label: string; sub: string; value: number; onPress: () => void }) {
-  const p = useTheme();
-  return (
-    <Pressable onPress={onPress} accessibilityRole="button" style={styles.breakdown}>
-      <View style={{ flex: 1, gap: 2 }}>
-        <Text variant="bodyStrong">{label}</Text>
-        <Text variant="caption" tone="ink2">{sub}</Text>
-      </View>
-      <Money value={value} />
-      <ChevronRight size={18} color={p.muted} />
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
-  avatar: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', borderWidth: StyleSheet.hairlineWidth },
-  periods: { flexDirection: 'row', gap: space.sm, marginTop: space.md },
-  needRow: { flexDirection: 'row', gap: space.md, padding: space.lg, alignItems: 'flex-start' },
-  needIcon: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  sinceHead: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: space.sm },
-  sinceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', minHeight: 40 },
-  breakdown: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 64 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: space.md, height: 44 },
+  name: { flex: 1, fontFamily: font.semibold, fontSize: 19, lineHeight: 24, letterSpacing: -0.3 },
+  chartWrap: { flex: 1, marginTop: space.md },
+  needCard: { flexDirection: 'row', gap: space.md, alignItems: 'flex-start', padding: space.lg },
+  needIcon: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  lineRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', minHeight: 42 },
 });

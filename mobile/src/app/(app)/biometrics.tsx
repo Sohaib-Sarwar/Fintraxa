@@ -36,7 +36,7 @@ export default function EnableBiometrics() {
   return (
     <View style={[styles.root, { backgroundColor: p.bg, paddingTop: insets.top, paddingBottom: insets.bottom + space.xl }]}>
       <View style={styles.center}>
-        <View style={[styles.badge, { backgroundColor: p.accentSoft }]}><Fingerprint size={52} color={p.accent} strokeWidth={1.6} /></View>
+        <View style={[styles.badge, { backgroundColor: p.accentSoft }]}><Fingerprint size={52} color={p.ink} strokeWidth={1.6} /></View>
         <Text variant="title" align="center">Unlock with your fingerprint next time?</Text>
         <Text variant="body" tone="ink2" align="center">Faster than a password, and your figures stay hidden from anyone else holding your phone. Your fingerprint never leaves the phone.</Text>
       </View>

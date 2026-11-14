@@ -1,166 +1,186 @@
 import Decimal from 'decimal.js';
 import { router } from 'expo-router';
-import { ChevronLeft, ChevronRight, Wallet } from '@/ui/icons';
-import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
-import { TransactionRow } from '@/features/money/TransactionRow';
+import { useCallback, useMemo, useState } from 'react';
+import { StyleSheet, useWindowDimensions, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MonthCardPager, type MonthFigures } from '@/features/money/MonthCardPager';
+import { RangeButton } from '@/features/range/RangeButton';
+import { usePeriod } from '@/features/range/usePeriod';
+import { useCardInk } from '@/features/today/NetWorthCard';
+import { ChartCard } from '@/features/today/ChartCard';
+import { summarize, type Summary } from '@/data/engines';
 import { useTransactions } from '@/data/queries';
-import { byDay, dayNet, monthFigures } from '@/data/selectors';
-import type { Txn } from '@/data/types';
-import { addMonths, dayHeading, monthLabel, monthOf, monthRange, todayIso } from '@/lib/dates';
-import { haptic } from '@/lib/haptics';
-import { pct } from '@/lib/format';
-import { ShareBar } from '@/ui/charts';
-import { EmptyState, ErrorState, OfflinePill, Skeleton } from '@/ui/feedback';
-import { HeroFigure, Money, StatRow } from '@/ui/Figures';
-import { ListRow } from '@/ui/ListRow';
+import { addMonths, monthLabel, monthName, monthOf, monthRange, todayIso } from '@/lib/dates';
+import { compactNumber } from '@/lib/format';
+import { ErrorState, OfflinePill, Skeleton } from '@/ui/feedback';
+import type { Bar } from '@/ui/charts';
+import { Money, useHidden } from '@/ui/Figures';
+import { ArrowDownRight, ArrowUpRight, Banknote, ShoppingBag } from '@/ui/icons';
 import { CategoryIcon } from '@/ui/Logos';
-import { Card, Divider, Gap, IconButton, Pill, SectionHeader } from '@/ui/primitives';
+import { Gap } from '@/ui/primitives';
 import { Screen } from '@/ui/Screen';
-import { Sheet } from '@/ui/Sheet';
 import { Text } from '@/ui/Text';
 import { useTheme } from '@/ui/theme';
-import { space } from '@/ui/tokens';
+import { alpha, dark, font, space } from '@/ui/tokens';
 
-const DAYS_SHOWN = 10;
+type Side = 'spend' | 'income';
+/** Screen header row (title 44 + padding) and the space kept above the nav, as on Home. */
+const HEADER_H = 44 + space.sm + space.md;
+const BOTTOM_SPACE = 80 + 14;
 
-export default function MoneyTab() {
-  const p = useTheme();
+/**
+ * Spending change inside the card, right of the total — set formally (owner): a slim arrow icon, the percentage
+ * in the card's ink, "vs Oct" under it. Only the arrow carries a quiet tint (down = green, up = red).
+ */
+function ChangePill({ vs, prev, sameDays }: { vs: number; prev: string; sameDays: boolean }) {
+  const c = useCardInk();
+  const flat = Math.abs(vs) < 0.05;
+  const Arrow = vs < 0 ? ArrowDownRight : ArrowUpRight;
+  return (
+    <View style={styles.change} accessible
+      accessibilityLabel={`Spending ${flat ? 'unchanged' : vs < 0 ? 'down' : 'up'} ${Math.abs(vs)} percent vs ${sameDays ? 'the same days of ' : ''}${prev}`}>
+      <View style={styles.changeRow}>
+        {flat ? null : <Arrow size={14} color={alpha(vs < 0 ? dark.pos : dark.neg, 0.9)} strokeWidth={2.4} />}
+        <Text style={[styles.changeText, { color: c.ink }, !c.shadow && { textShadowRadius: 0 }]}>{flat ? '0.0%' : `${Math.abs(vs).toFixed(1)}%`}</Text>
+      </View>
+      <Text style={[styles.changeSub, { color: c.ink2 }]}>vs {prev}</Text>
+    </View>
+  );
+}
+
+const MAX_MONTHS = 36;
+const MONTH_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+/**
+ * Wallet (owner, 2026-11-14): just the month card and the chart card, filling the screen above the nav.
+ * Swipe the card left/right for other months (each month its own design, blurred transitions). Spent is the
+ * big figure, with the change vs last month beside it; Earned, Saved and Passive the small ones. Tap Spent or
+ * Earned → that month's expenses / income in Transactions; Passive → the Passive income page. The chart's glass
+ * switch (icons) picks Expenses or Income; hold a bar for that month's categories; tap one to move the card.
+ */
+export default function WalletTab() {
+  const hidden = useHidden();
   const txns = useTransactions();
+  const period = usePeriod();
   const today = todayIso();
   const thisMonth = monthOf(today);
   const [month, setMonth] = useState(thisMonth);
-  const [category, setCategory] = useState<string | null>(null);
+  const [side, setSide] = useState<Side>('spend');
+  const [viewport, setViewport] = useState(0);
+  const { height: winH } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const all = useMemo(() => txns.data ?? [], [txns.data]);
 
-  const all = txns.data ?? [];
-  const range = monthRange(month);
-  const figs = useMemo(() => monthFigures(all, range, monthRange(addMonths(month, -1)), today), [all, month]); // eslint-disable-line react-hooks/exhaustive-deps -- range derives from month
-  const rows = useMemo(() => all.filter((t) => t.date >= range.start && t.date <= range.end), [all, month]); // eslint-disable-line react-hooks/exhaustive-deps
-  const days = useMemo(() => byDay(rows), [rows]);
-  const firstMonth = all.length ? monthOf(all[all.length - 1].date) : thisMonth;
+  // Cards: from the first month with a transaction (at most three years back) to this month.
+  const months = useMemo(() => {
+    const first = all.reduce((m, t) => (t.date && t.date.slice(0, 7) < m ? t.date.slice(0, 7) : m), thisMonth);
+    const out: string[] = [];
+    for (let m = thisMonth; m >= first && out.length < MAX_MONTHS; m = addMonths(m, -1)) out.push(m);
+    return out.reverse();
+  }, [all, thisMonth]);
 
-  const step = (n: number) => { haptic.tick(); setMonth((m) => addMonths(m, n)); };
-  const isCurrent = month === thisMonth;
-  const label = monthLabel(month, true).split(' ')[0];
+  // One summary per month the cards or the bars need.
+  const sums = useMemo(() => {
+    const map = new Map<string, Summary>();
+    for (const m of new Set([...months, ...period.months])) map.set(m, summarize(all, monthRange(m), today));
+    return map;
+  }, [all, months, period.months, today]);
+  const sum = useCallback((m: string) => sums.get(m) ?? summarize(all, monthRange(m), today), [sums, all, today]);
 
-  const header = (
-    <View style={styles.monthBar}>
-      <IconButton icon={ChevronLeft} label="Previous month" onPress={() => step(-1)} />
-      <Text variant="bodyStrong" accessibilityLiveRegion="polite">{isCurrent ? 'This month' : monthLabel(month, true)}</Text>
-      <View style={{ opacity: isCurrent ? 0.3 : 1 }} pointerEvents={isCurrent ? 'none' : 'auto'}>
-        <IconButton icon={ChevronRight} label="Next month" onPress={() => step(1)} />
-      </View>
-    </View>
-  );
+  // Spending vs the previous month: same days for the current month, whole months otherwise.
+  const vsFor = useCallback((m: string) => {
+    const pm = addMonths(m, -1);
+    const cur = sum(m).expenses;
+    let before: number;
+    if (m === thisMonth) {
+      const r = monthRange(pm);
+      const day = Math.min(Number(today.slice(8, 10)), Number(r.end.slice(8, 10)));
+      before = summarize(all, { start: r.start, end: `${pm}-${String(day).padStart(2, '0')}` }, today).expenses;
+    } else before = sum(pm).expenses;
+    return before > 0 ? Number(new Decimal(cur).minus(before).dividedBy(before).times(100).toFixed(1)) : null;
+  }, [sum, thisMonth, today, all]);
 
+  const openTxns = useCallback((type: 'debit' | 'credit', m: string) => {
+    const r = monthRange(m);
+    router.push({ pathname: '/transactions', params: { type, start: r.start, end: r.end } });
+  }, []);
+
+  const figures = useCallback((m: string): MonthFigures => {
+    const s = sum(m);
+    const name = MONTH_LONG[Number(m.slice(5, 7)) - 1];
+    const vs = vsFor(m);
+    return {
+      label: `Spent in ${name}${m.slice(0, 4) !== thisMonth.slice(0, 4) ? ` ${m.slice(0, 4)}` : ''}`,
+      spent: s.expenses,
+      onPress: () => openTxns('debit', m),
+      aside: vs === null ? null : <ChangePill vs={vs} prev={MONTH_LONG[Number(addMonths(m, -1).slice(5, 7)) - 1].slice(0, 3)} sameDays={m === thisMonth} />,
+      holders: [
+        { label: 'Earned', value: s.active, onPress: () => openTxns('credit', m) },
+        { label: 'Saved', value: s.saved },
+        { label: 'Passive', value: s.passive, onPress: () => router.navigate('/passive') },
+      ],
+    };
+  }, [sum, thisMonth, vsFor, openTxns]);
+
+  const bars = useMemo<Bar[]>(() => period.months.map((m) => {
+    const s = sum(m);
+    return { key: m, label: monthLabel(m).slice(0, 3), value: side === 'spend' ? s.expenses : s.active };
+  }), [period.months, sum, side]);
+
+  const right = <RangeButton />;
   if (txns.isLoading && !txns.data) {
-    return <Screen title="Money" tabBar><Skeleton height={46} width="60%" /><Gap h={space.xl} /><Skeleton height={86} radius={20} /><Gap h={space.xl} /><Skeleton height={240} radius={20} /></Screen>;
+    return <Screen title="Wallet" tabBar right={right}><Skeleton height={230} radius={22} /><Gap h={space.lg} /><Skeleton height={300} radius={24} /></Screen>;
   }
-  if (txns.error && !txns.data) return <Screen title="Money" tabBar><ErrorState onRetry={() => txns.refetch()} /></Screen>;
+  if (txns.error && !txns.data) return <Screen title="Wallet" tabBar right={right}><ErrorState onRetry={() => txns.refetch()} /></Screen>;
 
-  const vsTone = figs.vsLast === null ? 'flat' : figs.vsLast > 0.05 ? 'neg' : figs.vsLast < -0.05 ? 'pos' : 'flat';
-  const catRows = category ? rows.filter((t) => (t.categories?.name ?? 'Uncategorized') === category && t.type === 'debit') : [];
-  const catFig = figs.categories.find((c) => c.name === category);
-  const sixMonthAvg = category ? avgSpend(all, category, month, today) : null;
+  const fill = Math.max(460, (viewport || winH) - insets.top - HEADER_H - insets.bottom - BOTTOM_SPACE);
 
   return (
-    <Screen title="Money" tabBar onRefresh={() => txns.refetch()}>
+    <Screen title="Wallet" tabBar right={right} bottomSpace={BOTTOM_SPACE} onViewport={setViewport} onRefresh={() => txns.refetch()}>
       <OfflinePill />
-      {header}
-      <HeroFigure label={`Spent in ${label}`} value={figs.spent} caption={isCurrent ? 'So far this month' : null}>
-        {figs.vsLast !== null ? <Pill tone={vsTone} text={`${pct(figs.vsLast, { decimals: 1 })} vs same days last month`} /> : null}
-      </HeroFigure>
-      <StatRow stats={[
-        { label: 'Earned', value: figs.earned },
-        { label: 'Saved', value: figs.saved, tone: 'auto', sub: figs.earned > 0 ? `${Math.round((figs.saved / figs.earned) * 100)}% of income` : null },
-        { label: 'Moved to savings', value: figs.transfers, sub: 'Not spending' },
-      ]} />
-
-      {figs.categories.length ? (
-        <>
-          <SectionHeader title="Where it went" />
-          <Card padded={false} style={{ paddingHorizontal: space.lg }}>
-            {figs.categories.slice(0, 6).map((c, i) => (
-              <View key={c.name}>
-                {i > 0 ? <Divider inset={52} /> : null}
-                <ListRow
-                  leading={<CategoryIcon icon={c.icon} />}
-                  title={c.name}
-                  subtitle={`${c.count} payment${c.count === 1 ? '' : 's'} · ${c.share}%`}
-                  trailing={<Money value={c.amount} />}
-                  trailingSub={<View style={{ width: 72 }}><ShareBar share={c.share} /></View>}
-                  onPress={() => setCategory(c.name)}
-                />
-              </View>
-            ))}
-          </Card>
-        </>
-      ) : null}
-
-      <SectionHeader title="Transactions" action={all.length ? 'Search all' : undefined} onAction={() => router.push('/transactions')} />
-      {days.length ? (
-        <Card padded={false} style={{ paddingHorizontal: space.lg, paddingBottom: space.sm }}>
-          {days.slice(0, DAYS_SHOWN).map((d) => (
-            <View key={d.date}>
-              <View style={styles.dayHead}>
-                <Text variant="label" tone="ink2">{dayHeading(d.date, today)}</Text>
-                <Money value={dayNet(d.rows)} variant="caption" tone="muted" sign />
-              </View>
-              {d.rows.map((t) => <TransactionRow key={t.id} t={t} />)}
-            </View>
-          ))}
-          {days.length > DAYS_SHOWN ? (
-            <Pressable onPress={() => router.push('/transactions')} style={styles.more} accessibilityRole="button">
-              <Text variant="label" tone="accent">Show all {rows.length} in {label}</Text>
-            </Pressable>
-          ) : null}
-        </Card>
-      ) : (
-        <Card>
-          <EmptyState icon={<Wallet size={32} color={p.muted} />} title={`Nothing in ${label}`}
-            body={month < firstMonth ? 'You hadn’t started tracking yet.' : 'Tap + to log an expense or income.'} />
-        </Card>
-      )}
-
-      <Sheet open={!!category} onClose={() => setCategory(null)} title={category ?? ''}>
-        {catFig ? (
-          <>
-            <HeroFigure label={`Spent in ${label}`} value={catFig.amount} caption={`${catFig.share}% of this month’s spending`} />
-            {sixMonthAvg !== null ? (
-              <View style={styles.sheetRow}>
-                <Text variant="body" tone="ink2">6-month monthly average</Text>
-                <Money value={sixMonthAvg} />
-              </View>
-            ) : null}
-            <Gap h={space.md} />
-            {catRows.map((t) => <TransactionRow key={t.id} t={t} showDate />)}
-          </>
-        ) : null}
-      </Sheet>
+      <View style={{ height: fill }}>
+        <MonthCardPager months={months} month={month} onChange={setMonth} figures={figures} />
+        <View style={styles.chartWrap}>
+          <ChartCard<Bar, Side> barTitle={side === 'spend' ? 'Expenses' : 'Income'} bars={bars} selected={month}
+            onSelect={setMonth} hidden={hidden} format={(v) => (hidden ? '••••' : `Rs ${compactNumber(v)}`)}
+            renderTip={(b) => <CategoryTip month={b.key} total={b.value} side={side} summary={sum(b.key)} />}
+            switcher={{ value: side, onChange: setSide, options: [{ value: 'spend', label: 'Expenses', icon: ShoppingBag }, { value: 'income', label: 'Income', icon: Banknote }] }} />
+        </View>
+      </View>
     </Screen>
   );
 }
 
-/** Average monthly spend in a category over the 6 full months before `month` (months with no data count as 0 once tracking began). */
-function avgSpend(all: Txn[], category: string, month: string, today: string): number | null {
-  const first = all.length ? monthOf(all[all.length - 1].date) : null;
-  if (!first) return null;
-  let total = new Decimal(0); let n = 0;
-  for (let i = 1; i <= 6; i += 1) {
-    const m = addMonths(month, -i);
-    if (m < first) break;
-    const r = monthRange(m);
-    for (const t of all) {
-      if (t.type === 'debit' && t.date >= r.start && t.date <= r.end && t.date <= today && (t.categories?.name ?? 'Uncategorized') === category) total = total.plus(String(t.amount));
-    }
-    n += 1;
-  }
-  return n ? Number(total.dividedBy(n).toFixed(2)) : null;
+/** A held bar: the month, its total, then the biggest categories with small icons. */
+function CategoryTip({ month, total, side, summary }: { month: string; total: number; side: Side; summary: Summary }) {
+  const p = useTheme();
+  const list = (side === 'spend' ? summary.categories.expenses : summary.categories.active).filter((c) => Number(c.amount) > 0).slice(0, 5);
+  return (
+    <View style={{ gap: 6 }}>
+      <View style={styles.tipHead}>
+        <Text variant="bodyStrong" numberOfLines={1} style={{ flex: 1 }}>{monthName(month)}</Text>
+        <Money value={total} variant="label" />
+      </View>
+      <View style={[styles.tipRule, { backgroundColor: p.border }]} />
+      {list.length ? list.map((c) => (
+        <View key={c.name} style={styles.tipRow}>
+          <CategoryIcon icon={c.icon} size={18} tone="neutral" />
+          <Text variant="caption" tone="ink2" numberOfLines={1} style={{ flex: 1 }}>{c.name}</Text>
+          <Money value={Number(c.amount)} variant="caption" />
+        </View>
+      )) : <Text variant="caption" tone="muted">Nothing recorded</Text>}
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
-  monthBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: -12, marginBottom: space.xs },
-  dayHead: { flexDirection: 'row', justifyContent: 'space-between', paddingTop: space.lg, paddingBottom: 2 },
-  more: { alignItems: 'center', paddingVertical: space.md, minHeight: 48, justifyContent: 'center' },
-  sheetRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', minHeight: 44 },
+  chartWrap: { flex: 1, marginTop: space.md },
+  change: { alignItems: 'flex-end' },
+  changeRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  changeText: { color: '#F5F5F3', fontFamily: font.numMedium, fontSize: 14, lineHeight: 18, letterSpacing: -0.2,
+    textShadowColor: 'rgba(0,0,0,0.45)', textShadowRadius: 6, textShadowOffset: { width: 0, height: 1 } },
+  changeSub: { color: 'rgba(245,245,243,0.6)', fontFamily: font.medium, fontSize: 10.5, lineHeight: 13 },
+  tipHead: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  tipRule: { height: StyleSheet.hairlineWidth },
+  tipRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
 });

@@ -21,4 +21,7 @@ await canvas(600, clear).composite([{ input: await fit(560), gravity: 'center' }
 await canvas(64, black).composite([{ input: await fit(44), gravity: 'center' }]).png().toFile(`${out}/favicon.png`);
 // Small mark for in-app use (welcome / lock screens).
 await sharp(await fit(256)).png().toFile(`${out}/mark.png`);
+// Monochrome in-app mark (white silhouette; tinted to the theme's ink at runtime).
+const monoSmall = await sharp(await fit(256)).ensureAlpha().extractChannel('alpha').toBuffer();
+await sharp({ create: { width: 256, height: 256, channels: 3, background: { r: 255, g: 255, b: 255 } } }).joinChannel(monoSmall).png().toFile(`${out}/mark-mono.png`);
 console.log('done');

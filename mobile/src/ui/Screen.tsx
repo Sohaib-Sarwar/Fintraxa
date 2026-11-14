@@ -1,29 +1,55 @@
-import { router } from 'expo-router';
-import { ChevronLeft } from '@/ui/icons';
-import { useState, type ReactNode } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useState, type ReactNode } from 'react';
+import { KeyboardAvoidingView, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { IconButton } from './primitives';
+import { ChevronLeft } from './icons';
+import { CircleButton } from './primitives';
 import { Text } from './Text';
 import { useTheme } from './theme';
-import { SCREEN_PAD, space } from './tokens';
+import { NAV_CLEARANCE, SCREEN_PAD, space } from './tokens';
+
+/**
+ * Every page arrives like Funds ↔ Stocks (owner): Reanimated's FadeInDown — content fades in while settling 25 dp
+ * down into place over 260 ms. It replays each time the page comes into focus (tab switch, opening a page, coming
+ * back), on the UI thread, without remounting the page.
+ */
+function useEnter() {
+  const k = useSharedValue(0);
+  useFocusEffect(useCallback(() => {
+    k.set(0);
+    k.set(withTiming(1, { duration: 260, easing: Easing.out(Easing.cubic) }));
+  }, [k]));
+  return useAnimatedStyle(() => ({ opacity: k.get(), transform: [{ translateY: -25 * (1 - k.get()) }] }));
+}
 
 type Props = {
+  /** Large title at the left of the header row (tab screens). */
   title?: string;
-  /** Small line above the title (e.g. "Good evening"). */
-  eyebrow?: string;
-  right?: ReactNode;
+  /** Detail screens: round back button, title centred. */
   back?: boolean;
+  right?: ReactNode;
+  /** Fully custom header row (Home's greeting). */
+  header?: ReactNode;
   children: ReactNode;
   onRefresh?: () => Promise<unknown>;
   scroll?: boolean;
-  /** Extra bottom space so content clears the tab bar. */
+  /** Extra bottom space so content clears the floating nav. */
   tabBar?: boolean;
+  /** Override the bottom space (above the safe area); Home uses it to sit its cards right above the nav. */
+  bottomSpace?: number;
+  /** Height of the scrolling viewport, once laid out (Home sizes its cards to fill it). */
+  onViewport?: (height: number) => void;
 };
 
-/** Edge-to-edge screen: safe areas, large title, pull-to-refresh with the accent spinner. */
-export function Screen({ title, eyebrow, right, back, children, onRefresh, scroll = true, tabBar = false }: Props) {
+/**
+ * Edge-to-edge screen with ONE compact header row directly under the status bar (no empty rows — the old
+ * header stacked an empty 48 dp action row above the title, which read as a blank gap on every screen).
+ */
+export function Screen({ title, back, right, header, children, onRefresh, scroll = true, tabBar = false, bottomSpace, onViewport }: Props) {
   const p = useTheme();
+  const enter = useEnter();
   const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
   const refresh = onRefresh ? async () => {
@@ -31,38 +57,51 @@ export function Screen({ title, eyebrow, right, back, children, onRefresh, scrol
     try { await onRefresh(); } finally { setRefreshing(false); }
   } : undefined;
 
-  const header = (title || back || right) ? (
-    <View style={[styles.header, { paddingTop: insets.top + space.sm }]}>
-      <View style={styles.headerRow}>
-        {back ? <View style={{ marginLeft: -12 }}><IconButton icon={ChevronLeft} label="Back" onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} size={26} /></View> : null}
-        <View style={{ flex: 1 }} />
-        {right}
-      </View>
-      {eyebrow ? <Text variant="label" tone="ink2">{eyebrow}</Text> : null}
-      {title ? <Text variant="title" accessibilityRole="header" numberOfLines={2}>{title}</Text> : null}
+  const goBack = () => (router.canGoBack() ? router.back() : router.replace('/'));
+  const row = header ?? (back ? (
+    <View style={styles.row}>
+      <CircleButton icon={ChevronLeft} label="Back" onPress={goBack} />
+      <Text variant="headline" numberOfLines={1} style={styles.centerTitle} accessibilityRole="header">{title ?? ''}</Text>
+      <View style={styles.side}>{right ?? <View style={{ width: 44 }} />}</View>
     </View>
-  ) : <View style={{ height: insets.top }} />;
+  ) : title || right ? (
+    <View style={styles.row}>
+      <Text variant="title" numberOfLines={1} style={{ flex: 1 }} accessibilityRole="header">{title ?? ''}</Text>
+      {right ? <View style={styles.side}>{right}</View> : null}
+    </View>
+  ) : null);
 
-  const bottom = (tabBar ? 96 : space.xxl) + insets.bottom;
+  const top = <View style={{ paddingTop: insets.top + space.sm, paddingHorizontal: SCREEN_PAD, paddingBottom: row ? space.md : 0 }}>{row}</View>;
+  const bottom = (bottomSpace ?? (tabBar ? NAV_CLEARANCE : space.xxl)) + insets.bottom;
+
+  // Dark theme is flat pitch black (owner); the light theme keeps its faint glow.
+  const glow = p.mode === 'dark' ? null : <LinearGradient pointerEvents="none" colors={[p.glow, 'transparent']} start={{ x: 0.85, y: 0 }} end={{ x: 0.3, y: 0.55 }} style={styles.glow} />;
   if (!scroll) {
-    return <View style={[styles.flex, { backgroundColor: p.bg }]}>{header}<View style={[styles.flex, { paddingHorizontal: SCREEN_PAD }]}>{children}</View></View>;
+    return <View style={[styles.flex, { backgroundColor: p.bg }]}>{glow}{top}<Animated.View style={[styles.flex, { paddingHorizontal: SCREEN_PAD }, enter]}>{children}</Animated.View></View>;
   }
+  // Inputs stay above the keyboard (edge-to-edge Android doesn't resize the window any more).
   return (
+    <KeyboardAvoidingView behavior="padding" style={[styles.flex, { backgroundColor: p.bg }]}>
+    {glow}
     <ScrollView
-      style={[styles.flex, { backgroundColor: p.bg }]}
+      style={styles.flex}
+      onLayout={onViewport ? (e) => onViewport(e.nativeEvent.layout.height) : undefined}
       contentContainerStyle={{ paddingBottom: bottom }}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
       refreshControl={refresh ? <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={p.accent} colors={[p.accentInk]} progressBackgroundColor={p.accent} progressViewOffset={insets.top} /> : undefined}
     >
-      {header}
-      <View style={{ paddingHorizontal: SCREEN_PAD }}>{children}</View>
+      {top}
+      <Animated.View style={[{ paddingHorizontal: SCREEN_PAD }, enter]}>{children}</Animated.View>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  header: { paddingHorizontal: SCREEN_PAD, paddingBottom: space.md },
-  headerRow: { flexDirection: 'row', alignItems: 'center', minHeight: 48 },
+  glow: { position: 'absolute', top: 0, left: 0, right: 0, height: 460 },
+  row: { flexDirection: 'row', alignItems: 'center', minHeight: 44, gap: space.md },
+  centerTitle: { flex: 1, textAlign: 'center' },
+  side: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minWidth: 44, justifyContent: 'flex-end' },
 });
