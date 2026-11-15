@@ -11,7 +11,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import { Dimensions, Keyboard, Pressable, StyleSheet, TextInput, View } from 'react-native';
-import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
+import { GestureDetector, useCompetingGestures, useLongPressGesture, usePanGesture } from 'react-native-gesture-handler';
 import Animated, {
   Easing, FadeIn, FadeInDown, FadeOut, FadeOutUp, interpolate, Extrapolation, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming,
 } from 'react-native-reanimated';
@@ -25,7 +25,8 @@ import { Check, ChevronUp, Eye, EyeOff, Mail, User, X } from '@/ui/icons';
 import { SheetFrame } from '@/ui/SheetFrame';
 import { Text } from '@/ui/Text';
 import { font, space } from '@/ui/tokens';
-import { pickBackdrop } from './backdrops';
+import { useWallpaper } from './backdrops';
+import { WallpaperPicker } from './WallpaperPicker';
 import { FingerprintGlyph } from './FingerprintGlyph';
 import { LogoLoader } from './LogoLoader';
 
@@ -92,10 +93,11 @@ function Notice({ notice, onClose }: { notice: { title: string; text: string } |
 export function AuthScreen({ initial = 'in' }: { initial?: Mode }) {
   const insets = useSafeAreaInsets();
   const target = useRef<ComponentRef<typeof View>>(null);
-  const [bg] = useState(pickBackdrop);
+  const wall = useWallpaper();
+  const [picking, setPicking] = useState(false);
   const [bgReady, setBgReady] = useState(false);
   /** The sign-in / sign-up sheet; null = the landing. Opening on /sign-up shows the sign-up sheet at once. */
-  const [sheet, setSheet] = useState<Mode | null>(initial === 'up' ? 'up' : null);
+  const [sheet, setSheet] = useState<Mode | null>(() => (initial === 'up' ? 'up' : useAuth.getState().wantPassword ? 'in' : null));
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -115,6 +117,15 @@ export function AuthScreen({ initial = 'in' }: { initial?: Mode }) {
 
   useEffect(() => { bioLoginHint().then(setBioHint); canOfferBioLogin().then(setBioOffer); }, []);
   useEffect(() => { if (authNotice) useAuth.getState().setNotice(null); }, [authNotice]);
+  // "Use password" on the lock screen → the password box, even when this screen was already mounted.
+  useEffect(() => {
+    if (useAuth.getState().wantPassword) useAuth.setState({ wantPassword: false }); // consumed by the initial state
+    return useAuth.subscribe((st) => {
+      if (!st.wantPassword) return;
+      useAuth.setState({ wantPassword: false });
+      setSheet('in'); // the email field focuses itself
+    });
+  }, []);
 
   const openSheet = (m: Mode) => {
     setErrors({}); setError(null); setPassword(''); setConfirm('');
@@ -203,6 +214,10 @@ export function AuthScreen({ initial = 'in' }: { initial?: Mode }) {
       if (go) scheduleOnRN(unlock);
     },
   });
+  // Long press the landing → choose the wallpaper (owner, 2026-11-15, like the iPhone lock screen).
+  const openPicker = () => { if (sheet || busy) return; haptic.light(); setPicking(true); };
+  const hold = useLongPressGesture({ minDuration: 450, onActivate: () => { 'worklet'; scheduleOnRN(openPicker); } });
+  const gestures = useCompetingGestures(pan, hold);
   const content = useAnimatedStyle(() => ({
     transform: [{ translateY: drag.get() * 0.6 }],
     opacity: interpolate(drag.get(), [-220, 0], [0.2, 1], Extrapolation.CLAMP),
@@ -215,23 +230,23 @@ export function AuthScreen({ initial = 'in' }: { initial?: Mode }) {
   return (
     <View style={styles.root}>
       <BlurTargetView ref={target} style={StyleSheet.absoluteFill}>
-        <Image source={bg} style={StyleSheet.absoluteFill} contentFit="cover" transition={500} onLoad={() => setBgReady(true)} accessibilityIgnoresInvertColors />
+        <Image source={wall.source} style={StyleSheet.absoluteFill} contentFit="cover" transition={500} onLoad={() => setBgReady(true)} accessibilityIgnoresInvertColors />
         <LinearGradient colors={['rgba(0,0,0,0.35)', 'rgba(0,0,0,0)', 'rgba(0,0,0,0.05)', 'rgba(0,0,0,0.55)']} locations={[0, 0.3, 0.6, 1]} style={StyleSheet.absoluteFill} />
       </BlurTargetView>
 
-      <GestureDetector gesture={pan}>
+      <GestureDetector gesture={gestures}>
         <Animated.View style={[StyleSheet.absoluteFill, content]}>
           {/* The mark and name, high on the screen like a lock-screen clock. */}
           <Animated.View entering={FadeIn.duration(600)} style={[styles.brand, { top: insets.top + 80 }]}>
             <LogoLoader size={72} loading={busy || !bgReady} />
-            <Text style={styles.wordmark}>FINTRAXA</Text>
+            <Text style={styles.wordmark} numberOfLines={1}>FINTRAXA</Text>
           </Animated.View>
 
           {/* Swipe up — and the fingerprint at the S24 Ultra sensor spot when fingerprint sign-in is on. */}
           <Pressable onPress={unlock} accessibilityRole="button" accessibilityLabel={bioHint ? 'Swipe up to sign in with fingerprint' : 'Swipe up to sign in'}
             style={[styles.swipe, { bottom: sensorBottom + (bioHint ? 64 : -12) }]}>
             <Animated.View style={arrow}><ChevronUp size={26} color={INK} strokeWidth={2.2} /></Animated.View>
-            <Text style={styles.swipeText}>Swipe up</Text>
+            <Text style={styles.swipeText} numberOfLines={1}>Swipe up</Text>
           </Pressable>
           {bioHint ? (
             <Pressable onPress={unlock} hitSlop={12} accessibilityRole="button" accessibilityLabel={`Sign in with fingerprint as ${bioHint}`}
@@ -300,6 +315,7 @@ export function AuthScreen({ initial = 'in' }: { initial?: Mode }) {
           </Pressable>
         </GlassSheet>
       ) : null}
+      {picking ? <WallpaperPicker current={wall.id} onClose={() => setPicking(false)} /> : null}
     </View>
   );
 }
@@ -307,9 +323,11 @@ export function AuthScreen({ initial = 'in' }: { initial?: Mode }) {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#030604' },
   brand: { position: 'absolute', left: 0, right: 0, alignItems: 'center', gap: 6 },
-  wordmark: { color: INK, fontFamily: font.semibold, fontSize: 15, lineHeight: 20, letterSpacing: 6, opacity: 0.92 },
+  // Full width + centred, not sized to the text: Android measures letter-spaced Inter a hair short and pushed the
+  // last word onto a hidden second line ("Swipe" without "up" — owner, 2026-11-15).
+  wordmark: { alignSelf: 'stretch', textAlign: 'center', color: INK, fontFamily: font.semibold, fontSize: 15, lineHeight: 20, letterSpacing: 6, opacity: 0.92 },
   swipe: { position: 'absolute', left: 0, right: 0, alignItems: 'center', gap: 2 },
-  swipeText: { color: INK, fontFamily: font.medium, fontSize: 13, lineHeight: 18, letterSpacing: 0.4, opacity: 0.85 },
+  swipeText: { alignSelf: 'stretch', textAlign: 'center', color: INK, fontFamily: font.medium, fontSize: 13, lineHeight: 18, letterSpacing: 0.4, opacity: 0.85 },
   sensor: { position: 'absolute', alignSelf: 'center', width: 60, height: 60, alignItems: 'center', justifyContent: 'center' },
   create: { position: 'absolute', alignSelf: 'center', paddingHorizontal: 12, paddingVertical: 6 },
   createText: { color: INK2, fontFamily: font.medium, fontSize: 12.5, lineHeight: 18, textDecorationLine: 'underline' },

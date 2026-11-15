@@ -45,6 +45,8 @@ type State = {
   lastSeen: Record<string, LastSeen>;
   /** When the app was last used (touch / foreground) — so a closed app can lock on its next start. */
   lastActiveAt: number;
+  /** Lock-screen / sign-in wallpaper id (backdrops.ts); null = a different one each time. */
+  wallpaper: string | null;
   hydrated: boolean;
   set: (p: Partial<Omit<State, 'set' | 'hydrated'>>) => void;
   setTracks: (uid: string, t: Tracks) => void;
@@ -75,6 +77,7 @@ export const useApp = create<State>()(
       biometricAsked: {},
       lastSeen: {},
       lastActiveAt: 0,
+      wallpaper: null,
       hydrated: false,
       set: (p) => set(p),
       setTracks: (uid, t) => set((s) => ({ tracks: { ...s.tracks, [uid]: t } })),

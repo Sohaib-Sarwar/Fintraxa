@@ -19,6 +19,8 @@ type AuthState = {
   locked: boolean;
   /** Why the user landed on the sign-in screen, when it wasn't their choice. */
   notice: string | null;
+  /** "Use password" on the lock screen: the sign-in screen opens straight on the password box. */
+  wantPassword: boolean;
   setNotice: (n: string | null) => void;
   setLocked: (l: boolean) => void;
 };
@@ -29,6 +31,7 @@ export const useAuth = create<AuthState>((set) => ({
   user: null,
   locked: false,
   notice: null,
+  wantPassword: false,
   setNotice: (notice) => set({ notice }),
   setLocked: (locked) => set({ locked }),
 }));

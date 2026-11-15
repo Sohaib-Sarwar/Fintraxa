@@ -103,7 +103,7 @@ export default function Me() {
     if (on) { setBioPw(''); setBioErr(null); setSheet('biologin'); return; }
     await clearBioLogin();
     setBioLogin(false);
-    toast('Fingerprint sign-in is off');
+    toast('Fingerprint sign-in is off', { tone: 'info' });
   };
   const confirmBioLogin = async () => {
     const email = user?.email;
@@ -133,18 +133,18 @@ export default function Me() {
   const name = profile.data?.full_name || firstName(user) || 'You';
   const setTrack = (k: keyof Tracks, v: boolean) => {
     const next = { ...tracks, [k]: v };
-    if (!next.spending && !next.funds && !next.stocks) { toast('Keep at least one thing to track.'); return; }
+    if (!next.spending && !next.funds && !next.stocks) { toast('Keep at least one thing to track.', { tone: 'warning' }); return; }
     if (uid) app.setTracks(uid, next);
     savePrefs.mutate({ tracks: next });
   };
   const toggleBiometric = async (on: boolean) => {
     if (on) {
       const ok = await enableBiometricKey();
-      if (ok) { app.set({ biometricEnabled: true, biometricUser: uid ?? null }); haptic.success(); toast('Fingerprint unlock is on'); } else toast('Fingerprint unlock wasn’t turned on.');
+      if (ok) { app.set({ biometricEnabled: true, biometricUser: uid ?? null }); haptic.success(); toast('Fingerprint unlock is on'); } else toast('Fingerprint unlock wasn’t turned on.', { tone: 'warning' });
     } else {
       await disableBiometricKey();
       app.set({ biometricEnabled: false, biometricUser: null });
-      toast('Fingerprint unlock is off');
+      toast('Fingerprint unlock is off', { tone: 'info' });
     }
   };
   const runRefresh = async () => {

@@ -83,4 +83,5 @@ export { default as User } from 'lucide-react-native/icons/user';
 export { default as Vibrate } from 'lucide-react-native/icons/vibrate';
 export { default as Wallet } from 'lucide-react-native/icons/wallet';
 export { default as WifiOff } from 'lucide-react-native/icons/wifi-off';
+export { default as Shuffle } from 'lucide-react-native/icons/shuffle';
 export { default as X } from 'lucide-react-native/icons/x';

@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { useInvestView } from '@/features/nav/investView';
 import { UpdateBanner } from '@/features/me/UpdateBanner';
 import { useToday } from '@/features/today/useToday';
@@ -17,17 +17,17 @@ import { monthLabel, monthName, monthOf, todayIso } from '@/lib/dates';
 import { compactNumber, isLong } from '@/lib/format';
 import { type DonutItem } from '@/features/today/AllocationDonut';
 import { ChartCard, TipRows } from '@/features/today/ChartCard';
-import { NetWorthCard } from '@/features/today/NetWorthCard';
+import { CARD_RATIO, NetWorthCard } from '@/features/today/NetWorthCard';
 import { useWorthSheet } from '@/features/today/worthSheetStore';
 import { EmptyState, ErrorState, OfflinePill, Skeleton } from '@/ui/feedback';
 import { Money, useHidden } from '@/ui/Figures';
 import { AlertTriangle, FileText, FileUp } from '@/ui/icons';
 import { AmcLogo, Avatar, StockLogo } from '@/ui/Logos';
-import { Card, Gap, SectionHeader } from '@/ui/primitives';
+import { Card, SectionHeader } from '@/ui/primitives';
 import { Screen } from '@/ui/Screen';
 import { Text } from '@/ui/Text';
 import { useTheme } from '@/ui/theme';
-import { accentText, font, space } from '@/ui/tokens';
+import { accentText, font, SCREEN_PAD, space } from '@/ui/tokens';
 
 
 type HomeBar = MonthBar & { dividends: number };
@@ -81,7 +81,11 @@ export default function Home() {
   const openWorth = useWorthSheet((st) => st.open);
   const [viewport, setViewport] = useState(0);
   const [pieTab, setPieTab] = useState<PieTab>('all');
-  const { height: winH } = useWindowDimensions();
+  const { height: winH, width: winW } = useWindowDimensions();
+  // Production first paint (owner, 2026-11-15: "after login Home doesn't look production level"): from the cache the
+  // page is simply there, no animation; only a cold start (nothing cached) cross-fades from placeholders that have
+  // the exact shape of the card and chart, so nothing jumps.
+  const [cold] = useState(d.loading);
   const insets = useSafeAreaInsets();
   const name = firstName(user, d.profileName);
   const header = <HomeHeader name={name} />;
@@ -105,12 +109,17 @@ export default function Home() {
   }, [d.funds, d.stocks, d.tracks.funds, d.tracks.stocks, pieTab]);
   const selKey = month && bars.some((b) => b.key === month) ? month : bars[bars.length - 1]?.key;
 
+  // Card + chart fill exactly the space between the header and the nav (owner): viewport − header − nav.
+  const fill = Math.max(480, (viewport || winH) - insets.top - HEADER_H - insets.bottom - BOTTOM_SPACE);
+  const cardH = Math.round((winW - SCREEN_PAD * 2) / CARD_RATIO);
+
   if (d.loading) {
     return (
-      <Screen header={header} tabBar>
-        <Skeleton height={250} radius={28} />
-        <Gap h={space.xl} />
-        <Skeleton height={260} radius={24} />
+      <Screen header={header} tabBar bottomSpace={BOTTOM_SPACE} onViewport={setViewport}>
+        <View style={{ height: fill }}>
+          <Skeleton height={cardH} radius={28} />
+          <View style={styles.chartWrap}><Skeleton height="100%" radius={24} /></View>
+        </View>
       </Screen>
     );
   }
@@ -118,8 +127,7 @@ export default function Home() {
 
   const showInvest = d.tracks.funds || d.tracks.stocks;
   const open = (v: 'funds' | 'stocks') => { setView(v); router.navigate('/invest'); };
-  // Card + chart fill exactly the space between the header and the nav (owner): viewport − header − nav.
-  const fill = Math.max(480, (viewport || winH) - insets.top - HEADER_H - insets.bottom - BOTTOM_SPACE);
+  const enter = cold ? FadeIn.duration(220) : undefined;
 
   return (
     <Screen header={header} tabBar bottomSpace={BOTTOM_SPACE} onViewport={setViewport} onRefresh={() => Promise.all([d.refetch(), snaps.refetch(), divs.refetch()])}>
@@ -133,7 +141,7 @@ export default function Home() {
             body="Tap + below: log an expense or income, or upload a fund statement, broker confirmation or CDC dividend report." />
         </Card>
       ) : (
-        <Animated.View entering={FadeInDown.duration(360)}>
+        <Animated.View entering={enter}>
           <NetWorthCard label={showInvest ? 'Net worth' : 'Saved this month'} value={showInvest ? worth : f.saved} onPress={() => openWorth({
             total: showInvest ? worth : f.saved,
             funds: showInvest && d.tracks.funds ? f.funds : null,
@@ -149,13 +157,16 @@ export default function Home() {
         </Animated.View>
       )}
 
+      {showInvest && !bars.length && snaps.isLoading ? (
+        <View style={styles.chartWrap}><Skeleton height="100%" radius={24} /></View>
+      ) : null}
       {showInvest && bars.length ? (
-        <View style={styles.chartWrap}>
+        <Animated.View entering={cold || snaps.isFetchedAfterMount ? FadeIn.duration(220) : undefined} style={styles.chartWrap}>
           <ChartCard<HomeBar, PieTab> barTitle={selKey ? monthLabel(selKey, true) : ''} bars={bars} selected={selKey} onSelect={setMonth} hidden={hidden}
             format={(v) => (hidden ? '••••' : `Rs ${compactNumber(v)}`)} renderTip={(b) => <MonthTip b={b} funds={d.tracks.funds} stocks={d.tracks.stocks} />}
             pieItems={pieItems} pieCenter={pieTab === 'funds' ? 'Mutual funds' : pieTab === 'stocks' ? 'Stocks' : 'Net worth'}
             pieTabs={d.tracks.funds && d.tracks.stocks ? { value: pieTab, onChange: setPieTab, options: [{ value: 'all', label: 'All' }, { value: 'funds', label: 'Funds' }, { value: 'stocks', label: 'Stocks' }] } : undefined} />
-        </View>
+        </Animated.View>
       ) : null}
       </View>
 
