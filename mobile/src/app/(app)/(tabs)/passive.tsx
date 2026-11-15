@@ -3,10 +3,11 @@ import { useMemo, useState } from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { type PassiveMonth, type PassiveSource } from '@/data/engines';
-import { usePassive } from '@/data/portfolio';
+import { useFundsAnalysis, usePassive } from '@/data/portfolio';
+import { passivePayers } from '@/features/passive/payers';
 import { SourceIcon, SHORT_LABEL, VIEW_LABEL, PassiveTip } from '@/features/passive/passiveUi';
 import { RangeButton } from '@/features/range/RangeButton';
-import { usePeriod } from '@/features/range/usePeriod';
+import { CHART_MONTHS, usePeriod } from '@/features/range/usePeriod';
 import { ChartCard } from '@/features/today/ChartCard';
 import { NetWorthCard } from '@/features/today/NetWorthCard';
 import { monthLabel } from '@/lib/dates';
@@ -30,14 +31,17 @@ const ORDER: PassiveSource[] = ['mutual_funds', 'savings', 'dividends', 'other']
 export default function PassiveTab() {
   const hidden = useHidden();
   const period = usePeriod();
-  const { analysis: a, isLoading, refetch } = usePassive(period.upTo);
+  const { analysis: a, events, isLoading, refetch } = usePassive(period.upTo);
+  const funds = useFundsAnalysis(period.upTo);
+  // Who paid in each month — funds (AMC logos), stocks and banks — for the bar's hold card (owner, 2026-11-15).
+  const payers = useMemo(() => passivePayers('all', events, funds.analysis?.allPositions), [events, funds.analysis]);
   const [selected, setSelected] = useState<string | null>(null);
   const [viewport, setViewport] = useState(0);
   const { height: winH } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const fill = Math.max(480, (viewport || winH) - insets.top - HEADER_H - insets.bottom - BOTTOM_SPACE);
 
-  const bars = useMemo<Bar[]>(() => (a?.months ?? []).slice(-12).map((m) => ({ ...m, key: m.month, value: m.net })), [a]);
+  const bars = useMemo<Bar[]>(() => (a?.months ?? []).slice(-CHART_MONTHS).map((m) => ({ ...m, key: m.month, value: m.net })), [a]);
   const sel = selected && bars.some((b) => b.key === selected) ? selected : bars[bars.length - 1]?.key;
   const open = (source: PassiveSource) => router.push({ pathname: '/passive-source', params: { source } });
 
@@ -56,7 +60,7 @@ export default function PassiveTab() {
         <NetWorthCard label="Passive income" value={a.totals.net} holders={holders} />
         <View style={styles.chartWrap}>
           <ChartCard<Bar> barTitle={sel ? monthLabel(sel, true) : 'By month'} bars={bars} selected={sel} onSelect={setSelected} hidden={hidden}
-            format={(v) => (hidden ? '••••' : `Rs ${compactNumber(v)}`)} renderTip={(b) => <PassiveTip m={b} pick="all" />}
+            format={(v) => (hidden ? '••••' : `Rs ${compactNumber(v)}`)} renderTip={(b) => <PassiveTip m={b} pick="all" payers={payers[b.key]} />}
             pieTitle="By source" pieCenter="Passive income" pieItems={pie} />
         </View>
       </View>

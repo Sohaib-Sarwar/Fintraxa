@@ -6,7 +6,8 @@ import Animated, { Easing, FadeInLeft, FadeInRight } from 'react-native-reanimat
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AddDone } from '@/features/money/AddDone';
 import { checkAmount, newTxnId, useAddTransaction, useUpdateTransaction } from '@/data/mutations';
-import { useCategories, useSavingsAccounts, useTransactions, useUid } from '@/data/queries';
+import { useCategories, useProfile, useSavingsAccounts, useTransactions, useUid } from '@/data/queries';
+import Decimal from 'decimal.js';
 import { savingsTax } from '@/data/engines';
 import type { Category } from '@/data/types';
 import { pressKey } from '@/lib/amount';
@@ -58,17 +59,28 @@ function Field({ label, value, leading, onPress, a11y, placeholder = false }: { 
  * is the gross; the bank account it was paid into sets the withholding (20% filer / 40% non-filer, or the one picked);
  * the net is what's saved as the amount, with the gross, tax, rate and account beside it.
  */
-function useSavingsProfit({ credit, catRate, accountId, rateOverride, amount, editAccountId }: {
-  credit: boolean; catRate: number | null; accountId: string | null; rateOverride: number | null; amount: string; editAccountId: string | null;
+function useSavingsProfit({ credit, catRate, accountId, taxTyped, amount, editAccountId }: {
+  credit: boolean; catRate: number | null; accountId: string | null; taxTyped: string | null; amount: string; editAccountId: string | null;
 }) {
   const accounts = useSavingsAccounts();
+  const profile = useProfile();
   const taxed = credit && catRate !== null;
   const usable = (accounts.data ?? []).filter((a) => !a.archived || a.id === editAccountId);
   const active = usable.filter((a) => !a.archived);
   const account = !taxed ? null : usable.find((a) => a.id === accountId) ?? (active.length === 1 ? active[0] : null);
-  const rate = !taxed ? null : rateOverride ?? account?.tax_rate ?? Number(catRate);
-  const split = taxed && rate !== null ? savingsTax(amount, rate) : null;
-  return { taxed, usable, account, rate, split };
+  // The rate follows the filer status in Me (owner, 2026-11-15): filer 20%, non-filer 40% — nothing to pick here.
+  const nonFiler = profile.data?.filer_status === 'non_filer';
+  const statusRate = nonFiler ? 0.4 : 0.2;
+  const base = taxed ? savingsTax(amount, statusRate) : null;
+  // The tax stays editable (a bank's slip can differ): typed rupees win, never the whole gross; its rate follows.
+  let split = base;
+  if (base && taxTyped !== null && taxTyped.trim() !== '') {
+    const gross = new Decimal(base.gross);
+    let tax: Decimal;
+    try { tax = Decimal.max(new Decimal(taxTyped), 0).toDecimalPlaces(2, Decimal.ROUND_HALF_UP); } catch { tax = new Decimal(base.tax); }
+    split = { gross: base.gross, tax: tax.toFixed(2), net: gross.minus(tax).toFixed(2), rate: Number(tax.dividedBy(gross).toDecimalPlaces(4)) };
+  }
+  return { taxed, usable, account, rate: split ? split.rate : null, statusRate, nonFiler, split };
 }
 
 export default function AddTransaction() {
@@ -93,7 +105,8 @@ export default function AddTransaction() {
   const [catOpen, setCatOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [accountId, setAccountId] = useState<string | null>(editing?.savings_account_id ?? null);
-  const [rateOverride, setRateOverride] = useState<number | null>(editing?.tax_rate !== undefined && editing?.tax_rate !== null ? Number(editing.tax_rate) : null);
+  // A savings-profit edit keeps the tax that was saved; a new one starts from the filer rate.
+  const [taxTyped, setTaxTyped] = useState<string | null>(editing?.tax_amount !== undefined && editing?.tax_amount !== null ? String(Number(editing.tax_amount)) : null);
   const [acctOpen, setAcctOpen] = useState(false);
   const blurTarget = useRef<ComponentRef<typeof View>>(null);
   const add = useAddTransaction(cats.data);
@@ -106,8 +119,8 @@ export default function AddTransaction() {
     return [...forKind].sort((a, b) => (uses.get(b.id) ?? 0) - (uses.get(a.id) ?? 0) || a.name.localeCompare(b.name));
   }, [forKind, txns.data, kind]);
   const selected = forKind.find((c) => c.id === categoryId) ?? null;
-  const { taxed, usable, account, rate, split } = useSavingsProfit({
-    credit: kind === 'credit', catRate: selected?.default_tax_rate ?? null, accountId, rateOverride, amount, editAccountId: editing?.savings_account_id ?? null,
+  const { taxed, usable, account, rate, statusRate, nonFiler, split } = useSavingsProfit({
+    credit: kind === 'credit', catRate: selected?.default_tax_rate ?? null, accountId, taxTyped, amount, editAccountId: editing?.savings_account_id ?? null,
   });
   const shown = query.trim() ? ranked.filter((c) => c.name.toLowerCase().includes(query.trim().toLowerCase())) : ranked;
 
@@ -132,7 +145,8 @@ export default function AddTransaction() {
     setBack(false);
     setStep('details');
   };
-  const goAmount = useCallback(() => { setBack(true); setStep('amount'); }, []);
+  // Changing the gross resets a typed tax to the filer rate's.
+  const goAmount = useCallback(() => { setBack(true); setTaxTyped(null); setStep('amount'); }, []);
 
   // Android back: closes the date picker, then steps back, then leaves.
   useEffect(() => {
@@ -149,6 +163,7 @@ export default function AddTransaction() {
   const save = () => {
     if (!categoryId) { haptic.error(); setError('Choose a category.'); return; }
     if (taxed && !account) { haptic.error(); setError(usable.length ? 'Choose the bank account the profit was paid into.' : 'Add the savings account the profit was paid into first.'); return; }
+    if (split && !(Number(split.net) > 0)) { haptic.error(); setError('The tax withheld must be less than the gross profit.'); return; }
     const row = {
       id: editing?.id ?? newTxnId(), user_id: uid!, amount: split ? split.net : String(Number(amount)), type: kind, category_id: categoryId, date, notes: note.trim() || null,
       gross_amount: split ? split.gross : null, tax_amount: split ? split.tax : null, tax_rate: split ? rate : null, savings_account_id: split ? account!.id : null,
@@ -160,7 +175,7 @@ export default function AddTransaction() {
   };
 
   const another = () => {
-    setAmount(''); setCategoryId(null); setNote(''); setDate(todayIso()); setError(null); setAccountId(null); setRateOverride(null); setBack(true); setStep('amount');
+    setAmount(''); setCategoryId(null); setNote(''); setDate(todayIso()); setError(null); setAccountId(null); setTaxTyped(null); setBack(true); setStep('amount');
   };
 
   const display = amount ? group(amount.endsWith('.') ? amount.slice(0, -1) : amount, amount.includes('.') ? Math.min(2, amount.split('.')[1].length) : 0) + (amount.endsWith('.') ? '.' : '') : '0';
@@ -240,22 +255,16 @@ export default function AddTransaction() {
                     <View style={[styles.sep, { backgroundColor: p.border }]} />
                     <View style={styles.field}>
                       <View style={{ flex: 1, gap: 2 }}>
-                        <Text variant="caption" tone="muted">Tax withheld by the bank</Text>
-                        <Text variant="bodyStrong" numberOfLines={1}>
-                          {split ? `−Rs ${group(split.tax, 2)}  ·  you receive Rs ${group(split.net, 2)}` : 'Enter the gross profit'}
+                        <Text variant="caption" tone="muted" numberOfLines={1}>
+                          Tax withheld · {taxTyped !== null ? `typed (${rate !== null ? (rate * 100).toFixed(1) : '0'}%)` : `${statusRate * 100}% ${nonFiler ? 'non-filer' : 'filer'}`}
                         </Text>
+                        <Text variant="bodyStrong" numberOfLines={1}>{split ? `You receive Rs ${group(split.net, 2)}` : 'Enter the gross profit'}</Text>
                       </View>
-                      <View style={{ flexDirection: 'row', gap: 6 }}>
-                        {[0.2, 0.4].map((r) => {
-                          const on = rate !== null && Math.abs(rate - r) < 1e-9;
-                          return (
-                            <Pressable key={r} onPress={() => { haptic.tick(); setRateOverride(r); }} accessibilityRole="radio" accessibilityState={{ checked: on }}
-                              accessibilityLabel={`${r * 100}% ${r === 0.2 ? 'filer' : 'non-filer'}`}
-                              style={[styles.rateChip, { backgroundColor: on ? p.accent : p.surface2 }]}>
-                              <Text style={{ color: on ? p.accentInk : p.ink, fontFamily: font.semibold, fontSize: 12.5 }}>{r * 100}%</Text>
-                            </Pressable>
-                          );
-                        })}
+                      <View style={[styles.taxBox, { backgroundColor: p.surface2 }]}>
+                        <Text variant="caption" tone="muted">Rs</Text>
+                        <TextInput value={taxTyped ?? split?.tax ?? ''} onChangeText={(v) => { const c = v.replace(/[^0-9.]/g, ''); setTaxTyped(c); setError(null); }}
+                          keyboardType="decimal-pad" selectTextOnFocus placeholder="0.00" placeholderTextColor={p.muted}
+                          style={[styles.taxInput, { color: p.ink }]} accessibilityLabel="Tax withheld, rupees" selectionColor={p.accent} cursorColor={p.accent} />
                       </View>
                     </View>
                     <View style={[styles.sep, { backgroundColor: p.border }]} />
@@ -333,7 +342,7 @@ export default function AddTransaction() {
             const on = account?.id === a.id;
             return (
               <Pressable key={a.id} accessibilityRole="radio" accessibilityState={{ checked: on }} accessibilityLabel={`${a.name}, ${a.bank_name}`}
-                onPress={() => { haptic.tick(); setAccountId(a.id); setRateOverride(null); setError(null); setAcctOpen(false); }}
+                onPress={() => { haptic.tick(); setAccountId(a.id); setError(null); setAcctOpen(false); }}
                 style={({ pressed }) => [styles.option, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(255,255,255,0.10)' }, { opacity: pressed ? 0.75 : 1 }]}>
                 <BankLogo symbol={a.bank_symbol} size={40} />
                 <View style={{ flex: 1 }}>
@@ -362,7 +371,8 @@ export default function AddTransaction() {
 }
 
 const styles = StyleSheet.create({
-  rateChip: { height: 30, paddingHorizontal: 11, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  taxBox: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 40, paddingHorizontal: 12, borderRadius: 12 },
+  taxInput: { minWidth: 72, textAlign: 'right', fontFamily: font.num, fontSize: 16, paddingVertical: 0 },
   root: { flex: 1 },
   top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 8, paddingVertical: space.sm },
   topMid: { alignItems: 'center', gap: 6 },

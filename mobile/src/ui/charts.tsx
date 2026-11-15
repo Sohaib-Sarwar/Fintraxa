@@ -6,13 +6,13 @@
  * The area chart keeps numbers on screen (high/low labels and a scrub readout): a chart without axis
  * numbers was the most-criticised fintech redesign of 2025 (docs/mobile/design-references.md).
  */
-import { barWindow } from './barWindow';
+import { barPage, barPages, pageOf } from './barWindow';
 import { useEffect, useMemo, useRef, useState, type ComponentRef, type ReactNode, type RefObject } from 'react';
 import { BlurTargetView, BlurView } from 'expo-blur';
 import { LinearGradient as ExpoLinearGradient } from 'expo-linear-gradient';
 import { Pressable, StyleSheet, View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native';
-import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
-import Animated, { Easing, useAnimatedProps, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
+import { GestureDetector, useCompetingGestures, usePanGesture } from 'react-native-gesture-handler';
+import Animated, { Easing, FadeInLeft, FadeInRight, useAnimatedProps, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import Svg, { Circle, Defs, Line, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 import { haptic } from '@/lib/haptics';
@@ -181,15 +181,34 @@ function Glass({ target, radius, style, children }: { target: RefObject<Componen
  * the accent), and a soft accent trend line through the bar tops; the selected bar's value sits above it.
  * Tap a bar to select it. Press and hold, then slide, to scrub across months: `renderTip` draws a detail card
  * above the held bar (like the web Home chart's tooltip). Negative values (refunds) draw as a stub.
+ * Six months at a time (owner, 2026-11-15): a longer range is paged — swipe right for the six before, left to come
+ * back; the newest month of the page shown becomes the selection, so the card's title follows. Dots show the page.
  */
-export { barWindow, MAX_BARS } from './barWindow';
+export { barPage, barPages, barWindow, MAX_BARS, pageOf } from './barWindow';
 
 export function BarChart<B extends Bar>({ bars: allBars, selected, onSelect, height = 200, format, renderTip }: {
   bars: B[]; selected?: string | null; onSelect?: (key: string) => void; height?: number; format: (v: number) => string;
   renderTip?: (bar: B) => ReactNode;
 }) {
-  const bars = useMemo(() => barWindow(allBars, selected), [allBars, selected]);
   const p = useTheme();
+  const pages = barPages(allBars.length);
+  // With a selection the page is the one holding it (a swipe moves the selection); otherwise it is kept here.
+  const [ownPage, setOwnPage] = useState(0);
+  const page = Math.min(pages - 1, onSelect && selected ? pageOf(allBars, selected) : ownPage);
+  const bars = useMemo(() => barPage(allBars, page), [allBars, page]);
+  const [dir, setDir] = useState<1 | -1>(1);
+  const now = useRef({ page, pages, allBars, onSelect });
+  useEffect(() => { now.current = { page, pages, allBars, onSelect }; });
+  const turn = (d: 1 | -1) => {
+    const { page: at, pages: n, allBars: all, onSelect: pick } = now.current;
+    const next = at + d;
+    if (next < 0 || next >= n) return;
+    haptic.tick();
+    setDir(d);
+    const win = barPage(all, next);
+    if (pick && win.length) pick(win[win.length - 1].key);
+    else setOwnPage(next);
+  };
   const [w, setW] = useState(0);
   const [held, setHeld] = useState<number | null>(null);
   // The bars are the blur target, so the hold card can be frosted glass over them (owner: Apple glass, not solid).
@@ -221,6 +240,17 @@ export function BarChart<B extends Bar>({ bars: allBars, selected, onSelect, hei
     },
     onFinalize: () => { 'worklet'; if (lastIdx.get() >= 0) { lastIdx.set(-1); scheduleOnRN(show, -1); } },
   });
+  // Swipe right → the six months before; left → back towards now. Whichever starts first wins against the scrub.
+  const swipe = usePanGesture({
+    activeOffsetX: [-18, 18],
+    failOffsetY: [-14, 14],
+    onDeactivate: (e) => {
+      'worklet';
+      if (e.translationX > 40 || e.velocityX > 600) scheduleOnRN(turn, 1);
+      else if (e.translationX < -40 || e.velocityX < -600) scheduleOnRN(turn, -1);
+    },
+  });
+  const gestures = useCompetingGestures(swipe, scrub);
 
   if (!bars.length) {
     return <View style={[styles.empty, { height }]}><Text variant="caption" tone="muted">No months to show yet.</Text></View>;
@@ -239,12 +269,15 @@ export function BarChart<B extends Bar>({ bars: allBars, selected, onSelect, hei
   const s = geo.find((g) => g.b.key === sel) ?? geo[geo.length - 1];
   const tipW = Math.min(220, w);
   return (
-    <GestureDetector gesture={scrub}>
+    <GestureDetector gesture={pages > 1 ? gestures : scrub}>
     <View onLayout={(e: LayoutChangeEvent) => { setW(e.nativeEvent.layout.width); width.set(e.nativeEvent.layout.width); }} style={{ height }}
-      accessibilityHint={renderTip ? 'Press and hold, then slide, to see each month in detail' : undefined}>
+      accessibilityHint={`${renderTip ? 'Press and hold, then slide, to see each month in detail. ' : ''}${pages > 1 ? 'Swipe right for earlier months.' : ''}`}
+      accessibilityActions={pages > 1 ? [{ name: 'increment', label: 'Later months' }, { name: 'decrement', label: 'Earlier months' }] : undefined}
+      onAccessibilityAction={(e) => turn(e.nativeEvent.actionName === 'decrement' ? 1 : -1)}>
       {w ? (
         <>
           <BlurTargetView ref={target} style={StyleSheet.absoluteFill}>
+          <Animated.View key={`page-${page}`} entering={(dir === 1 ? FadeInLeft : FadeInRight).duration(240)} style={StyleSheet.absoluteFill}>
           <Svg width={w} height={height - 22}>
             <Defs>
               {/* Bars fade top → bottom into the card (owner): full colour at the top, gone at the base. */}
@@ -271,6 +304,14 @@ export function BarChart<B extends Bar>({ bars: allBars, selected, onSelect, hei
               <Text key={g.b.key} variant="caption" tone={g.b.key === sel ? 'ink' : 'muted'} style={{ width: slot, textAlign: 'center', fontSize: 11, fontFamily: g.b.key === sel ? 'Inter_600SemiBold' : 'Inter_400Regular' }} numberOfLines={1}>{g.b.label}</Text>
             ))}
           </View>
+          </Animated.View>
+          {pages > 1 ? (
+            <View style={styles.pageDots} pointerEvents="none" accessibilityElementsHidden>
+              {Array.from({ length: Math.min(pages, 8) }, (_, i) => pages - 1 - i).map((pg) => (
+                <View key={pg} style={[styles.pageDot, { backgroundColor: pg === page ? p.ink : alpha(p.mode === 'dark' ? '#FFFFFF' : '#000000', 0.22) }]} />
+              ))}
+            </View>
+          ) : null}
           </BlurTargetView>
           {held === null || !renderTip ? (
             <Glass target={target} radius={10} style={[styles.tip, { left: Math.min(Math.max(s.cx - 50, 0), w - 100), top: Math.max(0, s.y - 30) }]}>
@@ -299,6 +340,8 @@ export function BarChart<B extends Bar>({ bars: allBars, selected, onSelect, hei
 }
 
 const styles = StyleSheet.create({
+  pageDots: { position: 'absolute', top: 2, left: 2, flexDirection: 'row', gap: 4 },
+  pageDot: { width: 5, height: 5, borderRadius: 2.5 },
   empty: { alignItems: 'center', justifyContent: 'center' },
   label: { position: 'absolute', width: 96, textAlign: 'center' },
   track: { height: 4, borderRadius: 2, overflow: 'hidden', marginTop: 6 },

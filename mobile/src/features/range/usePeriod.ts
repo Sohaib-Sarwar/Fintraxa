@@ -4,6 +4,9 @@ import { todayIso } from '@/lib/dates';
 import { effectiveEnd, rangePillLabel, rangeMonths, resolveRange, type RangeChoice } from '@/lib/range';
 import { useApp } from '@/lib/store';
 
+/** Months a chart can page back through (6 a page, swipe right for earlier — owner, 2026-11-15): three years. */
+export const CHART_MONTHS = 36;
+
 /** Open state of the period sheet (drawn by the tabs layout so it can blur the whole screen). */
 export const usePeriodSheet = create<{ open: boolean; show: () => void; hide: () => void }>()((set) => ({
   open: false,
@@ -23,7 +26,7 @@ export function usePeriod() {
     return {
       choice, range, label: rangePillLabel(range, today),
       upTo: { start: range.start, end: effectiveEnd(range, today) },
-      months: rangeMonths(range, today),
+      months: rangeMonths(range, today, CHART_MONTHS),
       set: (c: RangeChoice) => useApp.getState().set({ range: c }),
     };
   }, [choice, today]);

@@ -36,7 +36,7 @@ export type NccplYear = {
 export type NccplReport = { years: NccplYear[]; lots: unknown[]; unmatched: unknown[]; year: (ty: number) => NccplYear | undefined };
 export type DividendSummary = { count: number; gross: number; tax: number; zakat: number; deductions: number; net: number; rows: unknown[] };
 
-export const summarize = summarizeJs as Loose as (txns: Txn[], range: { start: string; end: string }, today?: string) => Summary;
+export const summarize = summarizeJs as Loose as (txns: Txn[], range: { start: string; end: string }, today?: string, o?: { passive?: PassiveAnalysis }) => Summary;
 export const analyzeFunds = analyzeFundsJs as Loose as (o: {
   entries: unknown[]; components: unknown[]; prices: unknown[]; funds: Record<string, unknown>; amcs: Record<string, unknown>; start: string; end: string; today: string;
 }) => FundsAnalysis;
