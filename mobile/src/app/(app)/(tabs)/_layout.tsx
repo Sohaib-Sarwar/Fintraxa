@@ -2,7 +2,7 @@ import { Tabs, useFocusEffect } from 'expo-router';
 import { BlurTargetView, BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useCallback, useLayoutEffect, useRef, useState, type ComponentRef, type RefObject } from 'react';
-import { BackHandler, Platform, Pressable, StyleSheet, ToastAndroid, View } from 'react-native';
+import { BackHandler, Easing as RNEasing, Platform, Pressable, StyleSheet, ToastAndroid, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AddMenu, FAB_CENTER_FROM_BOTTOM, FAB_SIZE } from '@/features/nav/AddMenu';
 import { useInvestView, type InvestView } from '@/features/nav/investView';
@@ -13,6 +13,7 @@ import { RangeSheet } from '@/features/range/RangeSheet';
 import { usePeriodSheet } from '@/features/range/usePeriod';
 import { useCardPicker } from '@/features/today/cardPickerStore';
 import { useUid } from '@/data/queries';
+import { autoLock } from '@/lib/auth';
 import { haptic } from '@/lib/haptics';
 import { useTracks } from '@/lib/store';
 import { useTabBarProps, type BarProps } from '@/features/nav/tabBarStore';
@@ -151,6 +152,24 @@ function TabBarInner({ state, navigateToTab, blurTarget }: Pick<BarProps, 'state
   );
 }
 
+/**
+ * Tab changes (owner, 2026-11-15: "smooth, modern, Apple-style page switching"): a cross-fade with a short 16 dp slide
+ * in the direction of travel and a hint of depth (98.5% → 100%), 260 ms on Apple's standard ease — the way iOS
+ * apps with custom tab bars switch sections. On the native thread (Animated + native driver).
+ */
+const TAB_TRANSITION = {
+  transitionSpec: { animation: 'timing' as const, config: { duration: 260, easing: RNEasing.bezier(0.25, 0.1, 0.25, 1) } },
+  sceneStyleInterpolator: ({ current }: { current: { progress: import('react-native').Animated.Value } }) => ({
+    sceneStyle: {
+      opacity: current.progress.interpolate({ inputRange: [-1, 0, 1], outputRange: [0, 1, 0] }),
+      transform: [
+        { translateX: current.progress.interpolate({ inputRange: [-1, 0, 1], outputRange: [-16, 0, 16] }) },
+        { scale: current.progress.interpolate({ inputRange: [-1, 0, 1], outputRange: [0.985, 1, 0.985] }) },
+      ],
+    },
+  }),
+};
+
 /** How long the first back press on Home stays armed: the length of Android's short toast. */
 const EXIT_WINDOW_MS = 2000;
 
@@ -169,7 +188,8 @@ function useDoubleBackExit() {
       if (useWorthSheet.getState().data) { useWorthSheet.getState().close(); return true; }
       const bar = useTabBarProps.getState().props;
       if (bar && bar.state.routes[bar.state.index]?.name !== 'index') return false; // the navigator goes back to Home
-      if (Date.now() - armedAt < EXIT_WINDOW_MS) { BackHandler.exitApp(); return true; }
+      // Leaving the app signs out (owner, 2026-11-15) — or locks, with fingerprint unlock on — then exits.
+      if (Date.now() - armedAt < EXIT_WINDOW_MS) { autoLock('closed').catch(() => {}).finally(() => BackHandler.exitApp()); return true; }
       armedAt = Date.now();
       ToastAndroid.show('Press back again to exit', ToastAndroid.SHORT);
       return true;
@@ -194,10 +214,9 @@ export default function TabsLayout() {
       <BlurTargetView ref={target} style={[styles.fill, { backgroundColor: p.bg }]}>
         <Tabs screenOptions={{
           headerShown: false,
-          // No navigator transition: each page's content plays the Funds ↔ Stocks motion itself on focus (Screen).
-          // Scenes paint the app background, so nothing flashes.
+          // Scenes paint the app background, so nothing flashes during the cross-fade.
           sceneStyle: { backgroundColor: p.bg },
-          animation: 'none',
+          ...TAB_TRANSITION,
         }} tabBar={(props) => <BarBridge {...props} />}>
           <Tabs.Screen name="index" />
           <Tabs.Screen name="money" options={{ href: t.spending ? undefined : null }} />

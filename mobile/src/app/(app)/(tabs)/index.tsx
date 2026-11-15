@@ -7,7 +7,7 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { useInvestView } from '@/features/nav/investView';
 import { UpdateBanner } from '@/features/me/UpdateBanner';
 import { useToday } from '@/features/today/useToday';
-import { markHomeReady } from '@/features/session/SignInCurtain';
+import { markHomeReady, useCurtain } from '@/features/session/SignInCurtain';
 import { useAvatarUrl, useDividends, useProfile, useSnapshots } from '@/data/queries';
 import { dividendsByMonth, monthEndBarsFor, type MonthBar } from '@/data/selectors';
 import { RangeButton } from '@/features/range/RangeButton';
@@ -89,11 +89,13 @@ export default function Home() {
   const [cold] = useState(d.loading);
   // Real content (or a real empty account) is on screen: lift the sign-in curtain / let the splash go — one frame
   // later, so the reveal never shows a half-drawn page.
+  // Also when a curtain goes up over an already-loaded Home (fingerprint unlock).
+  const curtainWaiting = useCurtain((s) => !!s.source && !s.ready);
   useEffect(() => {
     if (d.loading) return undefined;
     const f = requestAnimationFrame(markHomeReady);
     return () => cancelAnimationFrame(f);
-  }, [d.loading]);
+  }, [d.loading, curtainWaiting]);
   const insets = useSafeAreaInsets();
   const name = firstName(user, d.profileName);
   const header = <HomeHeader name={name} />;

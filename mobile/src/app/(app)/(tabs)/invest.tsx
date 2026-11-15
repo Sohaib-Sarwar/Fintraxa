@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { useInvestView, type InvestView } from '@/features/nav/investView';
 import { assetRows, valueSeries, type ValuePoint } from '@/data/engines';
 import { useFundsAnalysis, useStocksAnalysis } from '@/data/portfolio';
@@ -123,7 +123,7 @@ export default function InvestTab() {
       {loading ? (
         <><Skeleton height={200} radius={28} /><Gap h={space.xl} /><Skeleton height={260} radius={24} /></>
       ) : error ? <ErrorState onRetry={refetch} /> : (
-        <Animated.View key={view} entering={FadeInDown.duration(260)}>
+        <Animated.View key={view} entering={FadeIn.duration(220)}>
           {view === 'funds' ? <Funds fy={fy} fundsQ={funds} fundsFy={fundsFy} fill={fill} /> : <Stocks fy={fy} stocks={stocks} stocksFy={stocksFy} fill={fill} />}
         </Animated.View>
       )}
