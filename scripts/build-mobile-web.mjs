@@ -6,8 +6,8 @@
  *
  * 1. `npm ci` in mobile/ (Vercel installs only the root) and `expo export --platform web` into dist/m
  *    (app.config.ts `experiments.baseUrl: '/m'`, so every asset URL starts with /m/).
- * 2. Makes /m an installable app of its own: a manifest (scope + start_url /m/, the site's Fintraxa icons), the
- *    iOS/Android meta tags, and a tiny network-only service worker scoped to /m/ — so the web app's caching worker
+ * 2. Makes /m an installable app of its own: a manifest (scope + start_url /m, the site's Fintraxa icons), the
+ *    iOS/Android meta tags, and a tiny network-only service worker (/m-sw.js) scoped to /m — so the web app's caching worker
  *    (scope /) never serves /m, and every open loads the newest deploy (updates are automatic).
  * Phones are sent from / to /m by the inline script in index.html.
  */
@@ -26,12 +26,14 @@ if (!existsSync(join(mobile, 'node_modules', 'expo'))) run('npm ci --no-audit --
 run(`npx expo export --platform web --output-dir "${out}"`, mobile);
 
 const manifest = {
-  id: '/m/',
+  id: '/m',
   name: 'Fintraxa',
   short_name: 'Fintraxa',
   description: 'Personal Finance & Investment Management',
-  start_url: '/m/',
-  scope: '/m/',
+  // No trailing slash: the site redirects /m/ → /m (vercel.json trailingSlash: false), and a scope of '/m/' would
+  // leave the /m page itself outside the installed app.
+  start_url: '/m',
+  scope: '/m',
   display: 'standalone',
   orientation: 'portrait',
   background_color: '#000000',
@@ -45,7 +47,8 @@ const manifest = {
 writeFileSync(join(out, 'manifest.webmanifest'), JSON.stringify(manifest, null, 2));
 
 // Network-only worker: present so Chrome offers "Install app"; never caches, so each launch is the latest deploy.
-writeFileSync(join(out, 'sw.js'), [
+// At the site root (not /m/sw.js) so its scope may be '/m' — a worker can only cover paths under its own folder.
+writeFileSync(join(root, 'dist', 'm-sw.js'), [
   "self.addEventListener('install', () => self.skipWaiting());",
   "self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));",
   "self.addEventListener('fetch', () => {});",
@@ -63,10 +66,10 @@ const head = [
   '<meta name="apple-mobile-web-app-title" content="Fintraxa" />',
   '<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />',
   '<link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />',
-  "<script>if('serviceWorker' in navigator){addEventListener('load',function(){navigator.serviceWorker.register('/m/sw.js',{scope:'/m/'}).catch(function(){})})}</script>",
+  "<script>if('serviceWorker' in navigator){addEventListener('load',function(){navigator.serviceWorker.register('/m-sw.js',{scope:'/m'}).catch(function(){})})}</script>",
 ].join('\n    ');
 html = html.replace('</head>', `    ${head}\n  </head>`);
 // Edge-to-edge like the native app (no pinch-zoom, content under the notch handled by safe areas).
 html = html.replace(/<meta name="viewport"[^>]*>/, '<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />');
 writeFileSync(htmlPath, html);
-console.log('mobile web → dist/m (installable, scope /m/)');
+console.log('mobile web → dist/m (installable, scope /m)');
