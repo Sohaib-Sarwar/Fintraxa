@@ -4,7 +4,7 @@ import { BlurTargetView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from 'react-native';
+import { Linking, Platform, Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from 'react-native';
 import { useSavePrefs } from '@/data/mutations';
 import { useAvatarUrl, useProfile, useUid } from '@/data/queries';
 import { useAvatarUpload, useSaveProfile, validateProfile } from '@/features/me/avatar';
@@ -244,7 +244,7 @@ export default function Me() {
 
           <Section title="Security">
             <Row first icon={Fingerprint} title="Fingerprint unlock" toggle={app.biometricEnabled} onToggle={toggleBiometric} disabled={!bioOk} />
-            <Row icon={KeyRound} title="Fingerprint sign-in" toggle={bioLogin} onToggle={toggleBioLogin} disabled={!bioOk} />
+            {Platform.OS === 'web' ? null : <Row icon={KeyRound} title="Fingerprint sign-in" toggle={bioLogin} onToggle={toggleBioLogin} disabled={!bioOk} />}
             <Row icon={Timer} title="Auto-lock" value={lockLabel} onPress={() => setSheet('lock')} disabled={!app.biometricEnabled} />
             <Row icon={AppWindow} title="Hide in recent apps" toggle={app.hideInRecents} onToggle={(v) => app.set({ hideInRecents: v })} />
             {app.biometricEnabled ? <Row icon={Lock} title="Lock now" onPress={() => { haptic.light(); lockNow(); }} /> : null}

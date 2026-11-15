@@ -29,11 +29,14 @@ export async function bioLoginHint(): Promise<string | null> {
 }
 
 export async function canOfferBioLogin(): Promise<boolean> {
+  // Never on the web build: a browser is no place to keep a password (fingerprint unlock covers it there).
+  if (Platform.OS === 'web') return false;
   return biometricsAvailable();
 }
 
 /** Save the sign-in behind the fingerprint. In a build this shows the system prompt once. */
 export async function saveBioLogin(identifier: string, password: string): Promise<boolean> {
+  if (Platform.OS === 'web') return false;
   const value = JSON.stringify({ id: identifier.trim(), pw: password });
   try {
     if (biometricMode === 'bound') {

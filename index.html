@@ -3,6 +3,19 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <!-- Phones get the mobile app at /m (owner, 2026-11-15). Desktop, /auth e-mail links and ?desktop=1 stay here. -->
+    <script>
+      (function () {
+        try {
+          var q = new URLSearchParams(location.search);
+          if (q.get('desktop') === '1') localStorage.setItem('fx-view', 'desktop');
+          if (q.get('desktop') === '0') localStorage.removeItem('fx-view');
+          // The physical screen, not the layout width (which is 980 px until the viewport tag applies).
+          var phone = matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) <= 600;
+          if (phone && localStorage.getItem('fx-view') !== 'desktop' && !/^\/(auth|m)(\/|$)/.test(location.pathname)) location.replace('/m/');
+        } catch (e) { /* storage blocked: stay on the web app */ }
+      })();
+    </script>
     <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
     <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
     <meta name="color-scheme" content="dark light" />

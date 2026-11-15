@@ -52,7 +52,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       },
     ],
   ],
-  experiments: { typedRoutes: true, reactCompiler: true },
+  // The web build is served from /m of the main site: scripts/build-mobile-web.mjs sets FINTRAXA_WEB_BASE=/m. Only
+  // then is baseUrl set, so the native config (and its update fingerprint) stays the same as the installed APK's.
+  experiments: { typedRoutes: true, reactCompiler: true, ...(process.env.FINTRAXA_WEB_BASE ? { baseUrl: process.env.FINTRAXA_WEB_BASE } : {}) },
   extra: {
     // Public by design (RLS decides what each user sees) — same values the web app ships in its bundle.
     supabaseUrl: 'https://qrekpudclwesajfhrokv.supabase.co',
