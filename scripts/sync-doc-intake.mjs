@@ -30,7 +30,9 @@ for (const [src, dst] of PAIRS) {
   const want = BANNER + readFileSync(join(root, src), 'utf8');
   const out = join(fn, dst);
   if (check) {
-    if (!existsSync(out) || readFileSync(out, 'utf8') !== want) drift.push(dst);
+    // Compare with line endings normalised: on Windows (core.autocrlf) git checks files out with CRLF.
+    const lf = (t) => t.replace(/\r\n/g, '\n');
+    if (!existsSync(out) || lf(readFileSync(out, 'utf8')) !== lf(want)) drift.push(dst);
     continue;
   }
   mkdirSync(dirname(out), { recursive: true });
