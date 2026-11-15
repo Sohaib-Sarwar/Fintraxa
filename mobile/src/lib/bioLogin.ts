@@ -55,8 +55,11 @@ export async function clearBioLogin(): Promise<void> {
   await Promise.all([SecureStore.deleteItemAsync(LOGIN_ID).catch(() => {}), SecureStore.deleteItemAsync(HINT_ID).catch(() => {})]);
 }
 
-/** Fingerprint → saved sign-in → normal sign-in. A sign-in the server now rejects is forgotten. */
-export async function bioLogin(): Promise<BioLoginResult> {
+/**
+ * Fingerprint → saved sign-in → normal sign-in. A sign-in the server now rejects is forgotten.
+ * `onVerified` runs once the fingerprint is accepted, before signing in (the sign-in curtain goes up there).
+ */
+export async function bioLogin(onVerified?: () => void): Promise<BioLoginResult> {
   let raw: string | null = null;
   try {
     if (biometricMode === 'bound') {
@@ -75,6 +78,7 @@ export async function bioLogin(): Promise<BioLoginResult> {
   if (!raw) { await clearBioLogin(); return 'unavailable'; }
   const { id, pw } = JSON.parse(raw) as { id: string; pw: string };
   try {
+    onVerified?.();
     await signIn(id, pw);
     return 'ok';
   } catch (e) {

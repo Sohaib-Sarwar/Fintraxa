@@ -1,3 +1,4 @@
+import { useIsRestoring } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { useFundsAnalysis, useStocksAnalysis } from '@/data/portfolio';
 import { useFeedHealth, usePendingReview, useProfile, useSnapshots, useTransactions, useUid } from '@/data/queries';
@@ -49,7 +50,13 @@ export function useToday() {
   }, [uid, ready, figures]);
 
   const hasAnything = (funds.analysis?.allPositions.length ?? 0) > 0 || (stocks.analysis?.allPositions.length ?? 0) > 0 || (txns.data?.length ?? 0) > 0;
-  const loading = (funds.isLoading || stocks.isLoading || txns.isLoading) && !funds.analysis && !txns.data;
+  // Loading until every source has answered (owner, 2026-11-15: "Nothing tracked" flashed after a fingerprint sign-in).
+  // `isLoading` is only "pending AND fetching": while the saved cache is still being restored, or before a fetch
+  // starts, it is false with no data — which read as an empty account. Anything already present shows at once; the
+  // empty state needs funds, shares and transactions all answered (data or an error) and the restore finished.
+  const restoring = useIsRestoring();
+  const answered = (!!funds.analysis || !!funds.error) && (!!stocks.analysis || !!stocks.error) && (txns.data !== undefined || txns.isError);
+  const loading = !hasAnything && (restoring || !answered);
 
   return {
     uid, tracks, figures, points, needs, since, prevSeenAt: prevSeen?.at ?? null,

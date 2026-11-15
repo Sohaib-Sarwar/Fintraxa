@@ -1,12 +1,13 @@
 import Decimal from 'decimal.js';
 import { router } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useInvestView } from '@/features/nav/investView';
 import { UpdateBanner } from '@/features/me/UpdateBanner';
 import { useToday } from '@/features/today/useToday';
+import { markHomeReady } from '@/features/session/SignInCurtain';
 import { useAvatarUrl, useDividends, useProfile, useSnapshots } from '@/data/queries';
 import { dividendsByMonth, monthEndBarsFor, type MonthBar } from '@/data/selectors';
 import { RangeButton } from '@/features/range/RangeButton';
@@ -86,6 +87,13 @@ export default function Home() {
   // page is simply there, no animation; only a cold start (nothing cached) cross-fades from placeholders that have
   // the exact shape of the card and chart, so nothing jumps.
   const [cold] = useState(d.loading);
+  // Real content (or a real empty account) is on screen: lift the sign-in curtain / let the splash go — one frame
+  // later, so the reveal never shows a half-drawn page.
+  useEffect(() => {
+    if (d.loading) return undefined;
+    const f = requestAnimationFrame(markHomeReady);
+    return () => cancelAnimationFrame(f);
+  }, [d.loading]);
   const insets = useSafeAreaInsets();
   const name = firstName(user, d.profileName);
   const header = <HomeHeader name={name} />;

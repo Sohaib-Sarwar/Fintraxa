@@ -25,6 +25,7 @@ import { Check, ChevronUp, Eye, EyeOff, Mail, User, X } from '@/ui/icons';
 import { SheetFrame } from '@/ui/SheetFrame';
 import { Text } from '@/ui/Text';
 import { font, space } from '@/ui/tokens';
+import { useCurtain } from '@/features/session/SignInCurtain';
 import { useWallpaper } from './backdrops';
 import { WallpaperPicker } from './WallpaperPicker';
 import { FingerprintGlyph } from './FingerprintGlyph';
@@ -140,11 +141,12 @@ export function AuthScreen({ initial = 'in' }: { initial?: Mode }) {
     if (!bioHint) { openSheet('in'); return; }
     setBusy(true);
     try {
-      const r = await bioLogin();
+      const r = await bioLogin(() => useCurtain.getState().show(wall.source));
       if (r === 'ok') { haptic.success(); return; }
       if (r === 'unavailable') { setBioHint(null); setBioSheet(true); return; }
       openSheet('in');
     } catch (e) {
+      useCurtain.getState().clear();
       haptic.error();
       setBioHint(await bioLoginHint());
       openSheet('in');
@@ -187,10 +189,13 @@ export function AuthScreen({ initial = 'in' }: { initial?: Mode }) {
           setNotice({ title: 'Account created', text: 'Check your email to confirm it, then sign in.' });
         }
       } else {
+        // The landing's loader stays over the app until Home has its figures (SignInCurtain).
+        useCurtain.getState().show(wall.source);
         await signIn(email, password);
         haptic.success();
       }
     } catch (e) {
+      useCurtain.getState().clear();
       haptic.error();
       setError(authMessage(e));
     } finally {
