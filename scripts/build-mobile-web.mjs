@@ -69,6 +69,18 @@ const head = [
   "<script>if('serviceWorker' in navigator){addEventListener('load',function(){navigator.serviceWorker.register('/m-sw.js',{scope:'/m'}).catch(function(){})})}</script>",
 ].join('\n    ');
 html = html.replace('</head>', `    ${head}\n  </head>`);
+// Instant splash while the app's JavaScript loads (owner: no desktop loader): the Fintraxa mark and name exactly
+// where the sign-in landing draws them, breathing like its LogoLoader — React replaces it on first render.
+const splash = `<div id="fx-splash" style="position:fixed;inset:0;background:#030604;display:flex;flex-direction:column;align-items:center;padding-top:calc(env(safe-area-inset-top,0px) + 80px)">
+      <img src="/brand/mark-256.png" alt="" width="72" height="72" style="margin:15px;animation:fxb 1.8s ease-in-out infinite" />
+      <div style="margin-top:6px;color:#fff;opacity:.92;font:600 15px/20px system-ui,-apple-system,Roboto,sans-serif;letter-spacing:6px">FINTRAXA</div>
+      <style>@keyframes fxb{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.7;transform:scale(.95)}}</style>
+    </div>`;
+html = html.replace('<div id="root"></div>', `<div id="root">${splash}</div>`);
+// Phones that visited before /m existed still run the desktop site's worker (scope /), which could answer /m pages
+// with the desktop app. Remove it here; the desktop site re-registers its own worker when visited on a computer.
+const cleanup = "<script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){if(r.scope===location.origin+'/'){r.unregister()}})}).catch(function(){})}</script>";
+html = html.replace('</head>', `    ${cleanup}\n  </head>`);
 // Edge-to-edge like the native app (no pinch-zoom, content under the notch handled by safe areas).
 html = html.replace(/<meta name="viewport"[^>]*>/, '<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />');
 writeFileSync(htmlPath, html);

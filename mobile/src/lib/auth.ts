@@ -109,6 +109,17 @@ export async function signOut() {
   if (error) console.warn('[auth] server sign-out failed; local session removed');
 }
 
+/**
+ * Auto-lock (owner, 2026-11-15): with fingerprint unlock on, lock (fingerprint to come back); with it off there is
+ * nothing to unlock with, so sign out (the sign-in landing; the APK's fingerprint sign-in still makes that quick).
+ */
+export async function autoLock(reason: 'idle' | 'closed') {
+  if (!useAuth.getState().session || useAuth.getState().locked) return;
+  if (useApp.getState().biometricEnabled) { lockNow(); return; }
+  await signOut();
+  useAuth.getState().setNotice(reason === 'idle' ? 'Signed out after a minute without activity.' : 'Signed out because the app was closed.');
+}
+
 export function lockNow() {
   if (!useApp.getState().biometricEnabled) return;
   supabase.auth.stopAutoRefresh();

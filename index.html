@@ -12,7 +12,14 @@
           if (q.get('desktop') === '0') localStorage.removeItem('fx-view');
           // The physical screen, not the layout width (which is 980 px until the viewport tag applies).
           var phone = matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) <= 600;
-          if (phone && localStorage.getItem('fx-view') !== 'desktop' && !/^\/(auth|m)(\/|$)/.test(location.pathname)) location.replace('/m');
+          if (phone && localStorage.getItem('fx-view') !== 'desktop' && !/^\/(auth|m)(\/|$)/.test(location.pathname)) {
+            // Hide this page at once so its gold loader never flashes while /m opens.
+            document.documentElement.style.cssText = 'background:#000';
+            var hide = document.createElement('style');
+            hide.textContent = 'body{display:none!important}';
+            document.head.appendChild(hide);
+            location.replace('/m');
+          }
         } catch (e) { /* storage blocked: stay on the web app */ }
       })();
     </script>

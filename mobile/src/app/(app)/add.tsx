@@ -45,7 +45,7 @@ function Field({ label, value, leading, onPress, a11y, placeholder = false }: { 
       {leading}
       <View style={{ flex: 1 }}>
         <Text variant="caption" tone="muted">{label}</Text>
-        <Text variant="bodyStrong" numberOfLines={1} style={placeholder ? { color: p.muted, fontFamily: font.regular } : null}>{value}</Text>
+        <Text variant="bodyStrong" numberOfLines={2} style={placeholder ? { color: p.muted, fontFamily: font.regular } : null}>{value}</Text>
       </View>
       <ChevronDown size={18} color={p.muted} />
     </Pressable>

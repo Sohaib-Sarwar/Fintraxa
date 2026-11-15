@@ -12,20 +12,24 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
 import NetInfo from '@react-native-community/netinfo';
 import { QueryClient, focusManager, onlineManager } from '@tanstack/react-query';
+import { useEffect } from 'react';
 import { AppState, Platform } from 'react-native';
 import { decryptString, encryptString } from './crypto';
+import { webKv } from './webKv';
 import { cacheKey } from './vault';
 
+/** Where the cache lives: IndexedDB on the web build (localStorage is ~5 MB, shared with the desktop site), AsyncStorage on native. */
+const kv = Platform.OS === 'web' ? webKv : AsyncStorage;
 const BASE = 'fx.cache.';
 const CHUNK = 512 * 1024;
 
 export const chunkedEncryptedStorage = {
   async getItem(key: string): Promise<string | null> {
-    const head = await AsyncStorage.getItem(`${BASE}${key}`);
+    const head = await kv.getItem(`${BASE}${key}`);
     if (!head) return null;
     const n = Number(head);
     if (!Number.isInteger(n) || n < 1 || n > 200) return null;
-    const parts = await AsyncStorage.multiGet(Array.from({ length: n }, (_, i) => `${BASE}${key}.${i}`));
+    const parts = await kv.multiGet(Array.from({ length: n }, (_, i) => `${BASE}${key}.${i}`));
     const cipher = parts.map(([, v]) => v ?? '').join('');
     try {
       return await decryptString(cipher, await cacheKey());
@@ -38,14 +42,14 @@ export const chunkedEncryptedStorage = {
     const cipher = await encryptString(value, await cacheKey());
     const n = Math.max(1, Math.ceil(cipher.length / CHUNK));
     const pairs: [string, string][] = Array.from({ length: n }, (_, i) => [`${BASE}${key}.${i}`, cipher.slice(i * CHUNK, (i + 1) * CHUNK)]);
-    const old = Number(await AsyncStorage.getItem(`${BASE}${key}`)) || 0;
-    await AsyncStorage.multiSet([...pairs, [`${BASE}${key}`, String(n)]]);
-    if (old > n) await AsyncStorage.multiRemove(Array.from({ length: old - n }, (_, i) => `${BASE}${key}.${n + i}`));
+    const old = Number(await kv.getItem(`${BASE}${key}`)) || 0;
+    await kv.multiSet([...pairs, [`${BASE}${key}`, String(n)]]);
+    if (old > n) await kv.multiRemove(Array.from({ length: old - n }, (_, i) => `${BASE}${key}.${n + i}`));
   },
   async removeItem(key: string): Promise<void> {
-    const all = await AsyncStorage.getAllKeys();
+    const all = await kv.getAllKeys();
     const mine = all.filter((k) => k === `${BASE}${key}` || k.startsWith(`${BASE}${key}.`));
-    if (mine.length) await AsyncStorage.multiRemove(mine);
+    if (mine.length) await kv.multiRemove(mine);
   },
 };
 
@@ -72,6 +76,24 @@ export const persister = createAsyncStoragePersister({
 
 /** Live closes are refetched anyway and the big board is cheap to slim; everything else persists. */
 export const shouldPersist = (queryKey: readonly unknown[]) => queryKey[0] !== 'psx-closes';
+
+/** Bump to discard every phone's cached data after an incompatible change to cached shapes. */
+export const CACHE_VERSION = 'v2';
+const OWNER_KEY = 'fx.cache.owner';
+
+/**
+ * Keeps the persisted cache to one account: when a different user signs in on this phone, the previous user's
+ * cached data is wiped before anything of it can be shown. (Sign-out already wipes it.)
+ */
+export function useCacheOwner(uid: string | undefined) {
+  useEffect(() => {
+    if (!uid) return;
+    AsyncStorage.getItem(OWNER_KEY).then(async (owner) => {
+      if (owner && owner !== uid) await forgetCache();
+      if (owner !== uid) await AsyncStorage.setItem(OWNER_KEY, uid);
+    }).catch(() => {});
+  }, [uid]);
+}
 
 export async function forgetCache() {
   queryClient.clear();

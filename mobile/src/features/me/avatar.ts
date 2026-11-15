@@ -6,6 +6,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { File } from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
+import { Platform } from 'react-native';
 import { friendlyError } from '@/data/mutations';
 import { useProfile, useUid } from '@/data/queries';
 import { supabase } from '@/lib/supabase';
@@ -20,7 +21,8 @@ export function useAvatarUpload() {
       const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: 'images', allowsEditing: true, aspect: [1, 1], quality: 0.7 });
       if (r.canceled || !r.assets?.length) return false;
       const a = r.assets[0];
-      const bytes = await new File(a.uri).arrayBuffer();
+      // Web build: the picker returns a blob/data URI and expo-file-system has no web File — read it with fetch.
+      const bytes = Platform.OS === 'web' ? await (await fetch(a.uri)).arrayBuffer() : await new File(a.uri).arrayBuffer();
       if (bytes.byteLength > 5 * 1024 * 1024) throw new Error('That photo is larger than 5 MB.');
       const ext = a.mimeType === 'image/png' ? 'png' : 'jpg';
       const path = `${uid}/avatar-${Date.now()}.${ext}`;

@@ -16,7 +16,6 @@ function usePrefsSync(uid: string | undefined) {
     if (!uid || !prefs.data) return;
     const t = prefs.data.tracks ?? {};
     useApp.getState().setTracks(uid, { spending: t.spending ?? true, funds: t.funds ?? true, stocks: t.stocks ?? true });
-    if (typeof prefs.data.auto_lock_minutes === 'number') useApp.getState().set({ autoLockMinutes: prefs.data.auto_lock_minutes });
   }, [uid, prefs.data]);
 }
 

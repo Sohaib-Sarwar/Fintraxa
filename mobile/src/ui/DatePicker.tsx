@@ -47,7 +47,7 @@ function Dropdown({ label, open, onPress, a11y }: { label: string; open: boolean
   return (
     <Pressable onPress={() => { haptic.tick(); onPress(); }} accessibilityRole="button" accessibilityLabel={a11y} accessibilityState={{ expanded: open }}
       style={({ pressed }) => [styles.dropdown, { backgroundColor: open ? p.accentSoft : p.mode === 'dark' ? 'rgba(255,255,255,0.07)' : p.surface2, opacity: pressed ? 0.85 : 1 }]}>
-      <Text variant="bodyStrong" style={{ fontSize: 16 }} numberOfLines={1}>{label}</Text>
+      <Text variant="bodyStrong" style={{ fontSize: 16 }} numberOfLines={2}>{label}</Text>
       <View style={{ transform: [{ rotate: open ? '180deg' : '0deg' }] }}><ChevronDown size={16} color={p.ink2} /></View>
     </Pressable>
   );

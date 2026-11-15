@@ -105,7 +105,8 @@ export const Avatar = memo(function Avatar({ uri, name, size = 46 }: { uri?: str
   return (
     <View style={[styles.circle, { width: size, height: size, borderRadius: size / 2, backgroundColor: p.accentSoft }]}>
       {uri ? (
-        <Image source={{ uri }} style={{ width: size, height: size }} contentFit="cover" transition={150} cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
+        // Cached by the file path, not the signed URL (its token changes every hour), so the photo shows at once from disk.
+        <Image source={{ uri, cacheKey: uri.split('?')[0] }} style={{ width: size, height: size }} contentFit="cover" transition={0} cachePolicy="memory-disk" accessibilityIgnoresInvertColors />
       ) : (
         <Text variant="headline" style={{ color: p.mode === 'dark' ? p.accent : p.accentDeep, fontSize: Math.round(size * 0.42) }}>{(name || 'F').slice(0, 1).toUpperCase()}</Text>
       )}
