@@ -9,8 +9,6 @@ import { useInvestView, type InvestView } from '@/features/nav/investView';
 import { CardPicker } from '@/features/today/CardPicker';
 import { WorthSheet } from '@/features/today/WorthSheet';
 import { useWorthSheet } from '@/features/today/worthSheetStore';
-import { RangeSheet } from '@/features/range/RangeSheet';
-import { usePeriodSheet } from '@/features/range/usePeriod';
 import { useCardPicker } from '@/features/today/cardPickerStore';
 import { useUid } from '@/data/queries';
 import { autoLock } from '@/lib/auth';
@@ -205,7 +203,6 @@ export default function TabsLayout() {
   const invest = t.funds || t.stocks;
   const p = useTheme();
   const picking = useCardPicker((s) => !!s.card);
-  const periodOpen = usePeriodSheet((s) => s.open);
   const worthOpen = useWorthSheet((s) => !!s.data);
   // The navigator is the blur target (glass nav, card picker); the nav itself is drawn outside it.
   const target = useRef<ComponentRef<typeof View>>(null);
@@ -226,7 +223,6 @@ export default function TabsLayout() {
       </BlurTargetView>
       <TabBar blurTarget={target} />
       {picking ? <CardPicker blurTarget={target} /> : null}
-      {periodOpen ? <RangeSheet blurTarget={target} /> : null}
       {worthOpen ? <WorthSheet blurTarget={target} /> : null}
     </View>
   );

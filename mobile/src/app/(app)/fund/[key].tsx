@@ -69,8 +69,10 @@ export default function FundDetail() {
           { label: 'Current NAV', value: x.price ? group(x.price.value, 4) : '—',
             sub: x.price ? `${shortDate(x.price.date)}${x.price.stale ? ' · old' : ''}` : 'No price yet', subColor: x.price?.stale ? dark.warn : undefined },
           { label: 'Invested', value: rs(x.invested) },
-          { label: 'Realized', value: signed(realized), color: realized > 0 ? dark.pos : realized < 0 ? dark.neg : GLASS_INK,
-            sub: `${period.label}${x.realized.cgt ? ` · CGT ${hidden ? '••' : compactNumber(x.realized.cgt)}` : ''}` },
+          { label: 'Realized', value: signed(realized), color: realized > 0 ? dark.pos : realized < 0 ? dark.neg : GLASS_INK, sub: `${period.label} · after CGT` },
+          // What the statements deducted and gave back in the period (owner, 2026-11-15: "clearly see the CGT paid and refunded").
+          { label: 'CGT paid', value: (x.realized.cgtPaid ?? 0) ? `−${rs(x.realized.cgtPaid ?? 0)}` : rs(0), color: (x.realized.cgtPaid ?? 0) ? dark.neg : GLASS_INK, sub: 'on realized gains' },
+          { label: 'CGT refunded', value: (x.realized.cgtRefunded ?? 0) ? `+${rs(x.realized.cgtRefunded ?? 0)}` : rs(0), color: (x.realized.cgtRefunded ?? 0) ? dark.pos : GLASS_INK, sub: 'refunds and reversals' },
         ]} />
       </BlackGlass>
 

@@ -2,7 +2,6 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo } from 'react';
 import { View } from 'react-native';
 import { FundCard, StockCard } from '@/features/invest/HoldingCards';
-import { RangeButton } from '@/features/range/RangeButton';
 import { usePeriod } from '@/features/range/usePeriod';
 import { useFundsAnalysis, useStocksAnalysis } from '@/data/portfolio';
 import { EmptyState, Skeleton } from '@/ui/feedback';
@@ -42,12 +41,8 @@ export default function Holdings() {
     };
   }, [side, funds.analysis, stocks.analysis]);
 
-  const right = (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
-      <RangeButton />
-      <CircleButton icon={ScrollText} label="Transactions" onPress={() => router.push({ pathname: '/invest-transactions', params: { side } })} />
-    </View>
-  );
+  // The back button and this one are the same width, so "Holdings" sits in the middle (owner, 2026-11-15).
+  const right = <CircleButton icon={ScrollText} label="Transactions" onPress={() => router.push({ pathname: '/invest-transactions', params: { side } })} />;
 
   return (
     <Screen back title="Holdings" onRefresh={() => q.refetch()} right={right}>
