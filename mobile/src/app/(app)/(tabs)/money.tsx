@@ -8,7 +8,8 @@ import { RangeButton } from '@/features/range/RangeButton';
 import { usePeriod } from '@/features/range/usePeriod';
 import { useCardInk } from '@/features/today/NetWorthCard';
 import { ChartCard } from '@/features/today/ChartCard';
-import { summarize, type Summary } from '@/data/engines';
+import { analyzePassive, summarize, type Summary } from '@/data/engines';
+import { usePassive } from '@/data/portfolio';
 import { useTransactions } from '@/data/queries';
 import { addMonths, monthLabel, monthName, monthOf, monthRange, todayIso } from '@/lib/dates';
 import { compactNumber } from '@/lib/format';
@@ -70,6 +71,10 @@ export default function WalletTab() {
   const { height: winH } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const all = useMemo(() => txns.data ?? [], [txns.data]);
+  // Passive income is the web's (personal finance dashboard): mutual-fund realized profit + dividends + savings profit
+  // (+ other passive income) in the month — not only the passive transactions (owner, 2026-11-15: the card was wrong).
+  const allTime = useMemo(() => ({ start: '2000-01-01', end: todayIso() }), []);
+  const { events: passiveEvents } = usePassive(allTime);
 
   // Cards: from the first month with a transaction (at most three years back) to this month.
   const months = useMemo(() => {
@@ -82,9 +87,10 @@ export default function WalletTab() {
   // One summary per month the cards or the bars need.
   const sums = useMemo(() => {
     const map = new Map<string, Summary>();
-    for (const m of new Set([...months, ...period.months])) map.set(m, summarize(all, monthRange(m), today));
+    const passiveFor = (r: { start: string; end: string }) => (passiveEvents ? analyzePassive(passiveEvents, { ...r, today }) : undefined);
+    for (const m of new Set([...months, ...period.months])) map.set(m, summarize(all, monthRange(m), today, { passive: passiveFor(monthRange(m)) }));
     return map;
-  }, [all, months, period.months, today]);
+  }, [all, months, period.months, today, passiveEvents]);
   const sum = useCallback((m: string) => sums.get(m) ?? summarize(all, monthRange(m), today), [sums, all, today]);
 
   // Spending vs the previous month: same days for the current month, whole months otherwise.

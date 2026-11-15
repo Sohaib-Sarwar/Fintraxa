@@ -5,10 +5,11 @@ import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { type PassiveMonth, type PassiveSource } from '@/data/engines';
 import { useFundsAnalysis, usePassive } from '@/data/portfolio';
-import { PassiveTip, SourceIcon, TAX_LABEL, VIEW_LABEL, type Payer } from '@/features/passive/passiveUi';
+import { passivePayers } from '@/features/passive/payers';
+import { PassiveTip, SourceIcon, TAX_LABEL, VIEW_LABEL } from '@/features/passive/passiveUi';
 import { RangeButton } from '@/features/range/RangeButton';
 import { RangeSheet } from '@/features/range/RangeSheet';
-import { usePeriod } from '@/features/range/usePeriod';
+import { CHART_MONTHS, usePeriod } from '@/features/range/usePeriod';
 import { type DonutItem } from '@/features/today/AllocationDonut';
 import { ChartCard } from '@/features/today/ChartCard';
 import { NetWorthCard } from '@/features/today/NetWorthCard';
@@ -48,25 +49,11 @@ export default function PassiveSourcePage() {
   const insets = useSafeAreaInsets();
   const fill = Math.max(460, (viewport || winH) - insets.top - HEADER_H - insets.bottom - space.xl);
 
-  const bars = useMemo<Bar[]>(() => (a?.months ?? []).slice(-12).map((m) => ({ ...m, key: m.month, value: m.net })), [a]);
+  const bars = useMemo<Bar[]>(() => (a?.months ?? []).slice(-CHART_MONTHS).map((m) => ({ ...m, key: m.month, value: m.net })), [a]);
   const sel = selected && bars.some((b) => b.key === selected) ? selected : bars[bars.length - 1]?.key;
 
-  // Who paid in each month — stocks for dividends, banks for savings profit — biggest first (the bar's hold card).
-  const payers = useMemo(() => {
-    const out: Record<string, Payer[]> = {};
-    if (source !== 'dividends' && source !== 'savings') return out;
-    const by = new Map<string, Map<string, Payer>>();
-    for (const e of events ?? []) {
-      const k = source === 'dividends' ? e.symbol ?? e.title : `${e.title}|${e.symbol ?? ''}`;
-      const month = by.get(e.month) ?? new Map<string, Payer>();
-      const cur = month.get(k) ?? { key: k, label: source === 'dividends' ? e.symbol ?? e.title : e.title, symbol: e.symbol ?? null, kind: source === 'dividends' ? 'stock' : 'bank', net: 0 };
-      cur.net += Number(e.net) || 0;
-      month.set(k, cur);
-      by.set(e.month, month);
-    }
-    for (const [mo, m] of by) out[mo] = [...m.values()].filter((x) => x.net !== 0).sort((a, b) => b.net - a.net);
-    return out;
-  }, [source, events]);
+  // Who paid in each month — funds, stocks or banks — biggest first (the bar's hold card).
+  const payers = useMemo(() => passivePayers(source, events, funds.analysis?.allPositions), [source, events, funds.analysis]);
 
   // The web's donut for one source: by fund, by stock, or by account.
   const pie = useMemo<DonutItem[]>(() => {

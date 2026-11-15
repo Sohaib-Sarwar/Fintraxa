@@ -72,6 +72,8 @@ export type FundPosition = {
   realized: { gross: number; cgt: number; cgtPaid?: number; cgtRefunded?: number; charges: number; net: number; sales: number };
   allTime: { gross: number; cgt: number; net: number };
   entries: Record<string, unknown>[]; firstDate: string | null; lastDate?: string | null; flags: string[];
+  /** Redemptions in the range: date, gain (proceeds − FIFO cost), CGT deducted. */
+  sales?: { date: string; gain: number; cgt: number }[];
 };
 export type FundsAnalysis = {
   totals: {

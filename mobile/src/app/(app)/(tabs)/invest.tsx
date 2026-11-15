@@ -8,7 +8,7 @@ import { assetRows, valueSeries, type ValuePoint } from '@/data/engines';
 import { useFundsAnalysis, useStocksAnalysis } from '@/data/portfolio';
 import { useSnapshots, useUid } from '@/data/queries';
 import { RangeButton } from '@/features/range/RangeButton';
-import { usePeriod } from '@/features/range/usePeriod';
+import { CHART_MONTHS, usePeriod } from '@/features/range/usePeriod';
 import { type DonutItem } from '@/features/today/AllocationDonut';
 import { ChartCard } from '@/features/today/ChartCard';
 import { GainChange } from '@/features/invest/GainChange';
@@ -46,7 +46,7 @@ function useInvestBars(side: 'funds' | 'stocks', analysis: unknown) {
   const today = todayIso();
   return useMemo<InvestBar[]>(() => valueSeries(assetRows(snaps.data ?? [], side, analysis ?? undefined), {
     period: 'month', start: range.start, end: range.end, today, fillGaps: true,
-  }).slice(-12).map((pt) => ({ ...pt, key: pt.month })), [snaps.data, side, analysis, range.start, range.end, today]);
+  }).slice(-CHART_MONTHS).map((pt) => ({ ...pt, key: pt.month })), [snaps.data, side, analysis, range.start, range.end, today]);
 }
 
 /** Hold card = the web's hover: the value (now / at the month's close), Invested, Unrealized gain, Realized in it. */
