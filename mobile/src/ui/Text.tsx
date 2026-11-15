@@ -8,7 +8,7 @@ export type Tone = 'ink' | 'ink2' | 'muted' | 'pos' | 'neg' | 'warn' | 'accent' 
 export const toneColor = (p: Palette, t: Tone) => {
   switch (t) {
     case 'flat': return p.ink2;
-    case 'accent': return p.mode === 'dark' ? p.accent : '#8A6640';
+    case 'accent': return p.mode === 'dark' ? p.accent : p.accentDeep;
     default: return p[t];
   }
 };
@@ -21,7 +21,7 @@ export function Text({ variant = 'body', tone = 'ink', align, weight, style, max
   return (
     <RNText
       maxFontSizeMultiplier={maxFontSizeMultiplier}
-      style={[scale[variant], { color: toneColor(p, tone) }, align ? { textAlign: align } : null, weight ? { fontFamily: weight } : null, style]}
+      style={[scale[variant], { color: toneColor(p, tone) }, tone === 'accent' ? { fontFamily: 'Inter_600SemiBold' } : null, align ? { textAlign: align } : null, weight ? { fontFamily: weight } : null, style]}
       {...rest}
     />
   );

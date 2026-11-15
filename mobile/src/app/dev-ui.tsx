@@ -41,7 +41,7 @@ export default function DevUi() {
   const last = SAMPLE[SAMPLE.length - 1];
 
   return (
-    <Screen eyebrow="Good evening, Ali" right={<Pill text="Sample data" tone="accent" />}>
+    <Screen title="UI samples" right={<Pill text="Sample data" tone="accent" />}>
       <HeroFigure label={scrub ? scrub.date : 'Net worth'} value={scrub ? scrub.value : last.value} caption="As of PSX close 13 Nov · NAV 13 Nov">
         {!scrub ? <Delta amount={3420} percent={0.27} suffix="today" /> : null}
       </HeroFigure>

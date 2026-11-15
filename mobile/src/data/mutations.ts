@@ -51,7 +51,7 @@ export function useAddTransaction(categories: Category[] | undefined) {
       const c = categories?.find((x) => x.id === row.category_id);
       const optimistic: Txn = {
         ...row, created_at: new Date().toISOString(),
-        categories: c ? { name: c.name, icon: c.icon, kind: c.kind, type: c.type } : null,
+        categories: c ? { name: c.name, icon: c.icon, kind: c.kind, type: c.type, default_tax_rate: c.default_tax_rate ?? null } : null,
       };
       qc.setQueryData<Txn[]>([TXNS_KEY, uid], (old) => [optimistic, ...(old ?? [])].sort((a, b) => b.date.localeCompare(a.date) || b.created_at.localeCompare(a.created_at)));
       return { prev };

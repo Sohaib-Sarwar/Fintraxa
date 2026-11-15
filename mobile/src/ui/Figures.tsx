@@ -2,16 +2,15 @@
  * Figures: the hero (one per screen), supporting stats (≤ 3), and the change line. All respect the
  * privacy mask; the hero counts up only when its value actually changed and never under Reduce motion.
  */
-import { Eye, EyeOff } from '@/ui/icons';
 import { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Pressable, StyleSheet, View } from 'react-native';
-import { autoDecimals, delta, money, tone as toneOf } from '@/lib/format';
+import { AccessibilityInfo, Pressable, StyleSheet, View, type TextStyle } from 'react-native';
+import { autoDecimals, compactNumber, delta, group, isLong, MASK, money, tone as toneOf } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { useApp } from '@/lib/store';
 import { Pill } from './primitives';
 import { Text, type Variant } from './Text';
 import { useTheme } from './theme';
-import { space } from './tokens';
+import { font, space } from './tokens';
 
 export const useHidden = () => useApp((s) => s.hideAmounts);
 
@@ -41,8 +40,10 @@ function useCountUp(target: number | null) {
   return shown;
 }
 
-export function Money({ value, variant = 'num', tone, sign, decimals, animate = false, compact }: {
+export function Money({ value, variant = 'num', tone, sign, decimals, animate = false, compact, color }: {
   value: number | null | undefined; variant?: Variant; tone?: 'auto' | 'ink' | 'ink2' | 'muted'; sign?: boolean; decimals?: number; animate?: boolean; compact?: boolean;
+  /** Explicit colour (e.g. on the gradient hero card). */
+  color?: string;
 }) {
   const hidden = useHidden();
   const counted = useCountUp(animate ? value ?? null : null);
@@ -51,7 +52,7 @@ export function Money({ value, variant = 'num', tone, sign, decimals, animate = 
   // Decimals follow the target value, so a count-up doesn't flicker between 0 and 2 decimals.
   const text = value === null || value === undefined ? '—' : money(v, { hidden, sign, decimals: decimals ?? autoDecimals(value), compact });
   return (
-    <Text variant={variant} tone={t} style={{ fontVariant: ['tabular-nums'] }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}
+    <Text variant={variant} tone={t} style={[{ fontVariant: ['tabular-nums'] }, color ? { color } : null]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}
       accessibilityLabel={hidden ? 'Amount hidden' : text}>
       {text}
     </Text>
@@ -67,20 +68,16 @@ export function Delta({ amount, percent, suffix }: { amount: number | null | und
   return <Pill text={text} tone={t} />;
 }
 
-/** The one big number on a screen. Tap = details; the eye toggles the privacy mask (long-press too). */
+/** The one big number on a screen. Tap = details; long-press toggles the privacy mask (no eye icon: owner). */
 export function HeroFigure({ label, value, caption, onPress, children }: {
   label: string; value: number | null | undefined; caption?: string | null; onPress?: () => void; children?: React.ReactNode;
 }) {
-  const p = useTheme();
   const hidden = useHidden();
   const toggle = () => { haptic.tick(); useApp.getState().set({ hideAmounts: !hidden }); };
   return (
     <View style={styles.hero}>
       <View style={styles.heroLabelRow}>
         <Text variant="label" tone="ink2">{label}</Text>
-        <Pressable onPress={toggle} hitSlop={14} accessibilityRole="button" accessibilityLabel={hidden ? 'Show amounts' : 'Hide amounts'}>
-          {hidden ? <EyeOff size={16} color={p.muted} /> : <Eye size={16} color={p.muted} />}
-        </Pressable>
       </View>
       <Pressable onPress={onPress} onLongPress={toggle} accessibilityRole={onPress ? 'button' : 'text'} accessibilityHint={onPress ? 'Shows how this is calculated' : undefined}>
         <Money value={value} variant="hero" animate />
@@ -118,4 +115,64 @@ const styles = StyleSheet.create({
   heroBelow: { marginTop: space.sm, flexDirection: 'row', alignItems: 'center', gap: space.sm, flexWrap: 'wrap' },
   statRow: { flexDirection: 'row', borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, paddingVertical: space.lg },
   stat: { flex: 1, paddingHorizontal: space.md, gap: 4, minHeight: 48 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
+  big: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
+  gridTile: { width: '48.8%', flexGrow: 1, borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, padding: space.lg, gap: 4 },
 });
+
+export type GridStat = { label: string; value?: number | null; text?: string; tone?: 'auto' | 'ink'; sign?: boolean; sub?: string | null };
+
+/** Two-column grid of figure tiles (detail screens): label, figure, optional sub-line. */
+export function StatGrid({ stats }: { stats: GridStat[] }) {
+  const p = useTheme();
+  return (
+    <View style={styles.grid}>
+      {stats.map((s) => (
+        <View key={s.label} style={[styles.gridTile, { backgroundColor: p.surface, borderColor: p.border }]}>
+          <Text variant="caption" tone="ink2" numberOfLines={1}>{s.label}</Text>
+          {s.text !== undefined
+            ? <Text variant="numLarge" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{s.text}</Text>
+            : <Money value={s.value} variant="numLarge" tone={s.tone ?? 'ink'} sign={s.sign} />}
+          {s.sub ? <Text variant="caption" tone={s.tone === 'auto' ? toneOf(s.value) : 'muted'} numberOfLines={1}>{s.sub}</Text> : null}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/**
+ * Hero amount in the reference style: big grouped number with a small "PKR" after it (count-up on change,
+ * privacy mask respected). Decimals only below Rs 10,000 and only when there are paisa.
+ */
+export function BigAmount({ value, color, suffixColor, size = 'hero', numStyle }: { value: number | null | undefined; color?: string; suffixColor?: string; size?: 'hero' | 'display'; numStyle?: TextStyle }) {
+  const p = useTheme();
+  const hidden = useHidden();
+  const v = useCountUp(value ?? null);
+  // Long amounts (8+ digits) read as K/M/B so they never squeeze or clip; the exact figure is still spoken.
+  const short = isLong(value);
+  const body = (n: number) => (short ? compactNumber(n) : group(n, autoDecimals(value)));
+  const text = value === null || value === undefined ? '—' : hidden ? MASK : `${value < 0 ? '-' : ''}${body(Math.abs(v ?? 0))}`;
+  const spoken = value === null || value === undefined ? text : `${value < 0 ? '-' : ''}${group(Math.abs(value), autoDecimals(value))}`;
+  return (
+    <View style={styles.big} accessible accessibilityLabel={hidden ? 'Amount hidden' : `${spoken} rupees`}>
+      <Text variant={size} style={[{ fontVariant: ['tabular-nums'] }, numStyle, color ? { color } : null]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{text}</Text>
+      <Text variant="label" style={{ color: suffixColor ?? p.muted, marginBottom: size === 'hero' ? 8 : 6, fontFamily: 'Inter_600SemiBold' }}>PKR</Text>
+    </View>
+  );
+}
+
+/** "▲ 3,420  |  0.27%" — the change line (arrows, so gains never rely on colour alone). */
+export function ChangeLine({ amount, percent, suffix }: { amount: number | null | undefined; percent?: number | null; suffix?: string }) {
+  const p = useTheme();
+  const hidden = useHidden();
+  if (amount === null || amount === undefined) return null;
+  const t = toneOf(amount);
+  const color = t === 'pos' ? p.pos : t === 'neg' ? p.neg : p.ink2;
+  const abs = Math.abs(amount);
+  const text = t === 'flat' ? 'No change' : `${amount > 0 ? '▲' : '▼'} ${hidden ? '••••' : group(abs, abs >= 100 ? 0 : 2)}${percent !== null && percent !== undefined ? `  |  ${Math.abs(percent).toFixed(2)}%` : ''}`;
+  return (
+    <Text variant="label" style={{ color, fontFamily: font.num }} accessibilityLabel={`${t === 'pos' ? 'Up' : t === 'neg' ? 'Down' : 'Unchanged'} ${hidden ? '' : text.replace(/[▲▼]/g, '')} ${suffix ?? ''}`}>
+      {text}{suffix ? <Text variant="label" tone="muted">{`  ${suffix}`}</Text> : null}
+    </Text>
+  );
+}

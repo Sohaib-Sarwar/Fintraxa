@@ -13,7 +13,7 @@ import { haptic } from '@/lib/haptics';
 import { Button } from './primitives';
 import { Text } from './Text';
 import { useTheme } from './theme';
-import { radius, SCREEN_PAD, space } from './tokens';
+import { accentText, radius, SCREEN_PAD, space } from './tokens';
 
 export function EmptyState({ icon, title, body, action, onAction }: { icon?: ReactNode; title: string; body?: string; action?: string; onAction?: () => void }) {
   return (
@@ -89,7 +89,7 @@ export function ToastHost() {
         {current.action ? (
           <Pressable hitSlop={12} accessibilityRole="button" accessibilityLabel={current.action.label}
             onPress={() => { haptic.light(); current.action!.run(); hide(); }}>
-            <Text variant="bodyStrong" style={{ color: p.accent }}>{current.action.label}</Text>
+            <Text variant="bodyStrong" style={{ color: accentText(p) }}>{current.action.label}</Text>
           </Pressable>
         ) : null}
       </View>

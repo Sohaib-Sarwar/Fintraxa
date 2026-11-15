@@ -50,7 +50,7 @@ export function LockScreen() {
   return (
     <View style={[styles.root, { backgroundColor: p.bg, paddingTop: insets.top, paddingBottom: insets.bottom + space.xl }]}>
       <View style={styles.center}>
-        <Image source={require('../../../assets/mark.png')} style={styles.mark} contentFit="contain" accessibilityLabel="Fintraxa" />
+        <Image source={require('../../../assets/mark-mono.png')} tintColor={p.ink} style={styles.mark} contentFit="contain" accessibilityLabel="Fintraxa" />
         <Text variant="title" align="center">Fintraxa is locked</Text>
         <Text variant="body" tone="ink2" align="center">Unlock with your fingerprint to see your money.</Text>
       </View>

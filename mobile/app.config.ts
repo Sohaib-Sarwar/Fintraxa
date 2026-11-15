@@ -15,7 +15,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   version: '1.0.0',
   orientation: 'portrait',
   icon: './assets/icon.png',
-  userInterfaceStyle: 'automatic',
+  userInterfaceStyle: 'dark',
   backgroundColor: '#000000',
   ios: {
     supportsTablet: false,
@@ -52,7 +52,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       },
     ],
   ],
-  experiments: { typedRoutes: true, reactCompiler: true },
+  // The web build is served from /m of the main site: scripts/build-mobile-web.mjs sets FINTRAXA_WEB_BASE=/m. Only
+  // then is baseUrl set, so the native config (and its update fingerprint) stays the same as the installed APK's.
+  experiments: { typedRoutes: true, reactCompiler: true, ...(process.env.FINTRAXA_WEB_BASE ? { baseUrl: process.env.FINTRAXA_WEB_BASE } : {}) },
   extra: {
     // Public by design (RLS decides what each user sees) — same values the web app ships in its bundle.
     supabaseUrl: 'https://qrekpudclwesajfhrokv.supabase.co',
@@ -60,5 +62,17 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     marketApi: 'https://sohaib-sarwar.github.io/PSX-MUFAP-MicroService/api',
     webApp: 'https://fintraxa.vercel.app',
     router: { origin: false },
+    // EAS project (owner's Expo account), needed for cloud APK builds.
+    eas: { projectId: 'feff0bb7-b40c-4bde-b14b-4a3328eb46dd' },
+  },
+  owner: 'transfinancial',
+  // Over-the-air updates (owner, 2026-11-15: "make the updates automatically"): JS / asset changes ship with
+  // `eas update --channel preview` and reach installed APKs on their own. The runtime version is the native
+  // fingerprint, so an update that needs different native code is never delivered to an older APK.
+  runtimeVersion: { policy: 'fingerprint' },
+  updates: {
+    url: 'https://u.expo.dev/feff0bb7-b40c-4bde-b14b-4a3328eb46dd',
+    checkAutomatically: 'ON_LOAD',
+    fallbackToCacheTimeout: 0,
   },
 });

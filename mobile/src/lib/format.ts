@@ -55,16 +55,28 @@ export function money(n: Num, { hidden = false, decimals, sign = false, compact 
   return `${prefix}${CURRENCY} ${body}`;
 }
 
+/**
+ * Overflow rule for big figures (owner, 2026-11-14): at or above Rs 10,000,000 (8+ digits) the hero and its
+ * tiles switch to K/M/B ("12.3M"); the exact amount stays in the accessibility label and the detail sheet.
+ */
+export const COMPACT_FROM = 10_000_000;
+export const isLong = (n: number | null | undefined, from = COMPACT_FROM) => n !== null && n !== undefined && Math.abs(n) >= from;
+
 /** 1,250,000 → "1.25M"; 84,000 → "84K"; 950 → "950". */
 export function compactNumber(n: Num): string {
   const d = toDec(n);
   if (!d) return '0';
   const a = d.abs();
-  const unit = a.gte(1e9) ? ['B', 1e9] as const : a.gte(1e6) ? ['M', 1e6] as const : a.gte(1e3) ? ['K', 1e3] as const : null;
-  if (!unit) return group(d, a.lt(100) && !a.isInteger() ? 2 : 0);
-  const v = d.dividedBy(unit[1]);
-  const s = v.abs().gte(100) ? v.toFixed(0) : v.abs().gte(10) ? v.toFixed(1) : v.toFixed(2);
-  return `${s.replace(/\.?0+$/, '')}${unit[0]}`;
+  const UNITS = [['K', 1e3], ['M', 1e6], ['B', 1e9]] as const;
+  let i = a.gte(1e9) ? 2 : a.gte(1e6) ? 1 : a.gte(1e3) ? 0 : -1;
+  if (i < 0) return group(d, a.lt(100) && !a.isInteger() ? 2 : 0);
+  const fmt = (k: number) => { const v = d.dividedBy(UNITS[k][1]); return v.abs().gte(100) ? v.toFixed(0) : v.abs().gte(10) ? v.toFixed(1) : v.toFixed(2); };
+  let s = fmt(i);
+  // 999,600 rounds to "1000K": step up to the next unit ("1M").
+  if (Math.abs(Number(s)) >= 1000 && i < 2) s = fmt(++i);
+  // Trim only decimal zeros: "1.50" → "1.5", "2.00" → "2", but "120" stays "120" (was "12").
+  if (s.includes('.')) s = s.replace(/0+$/, '').replace(/\.$/, '');
+  return `${s}${UNITS[i][0]}`;
 }
 
 /** Percent with 2 decimals and an explicit sign: `+0.27%`, `-1.05%`, `0.00%`. */

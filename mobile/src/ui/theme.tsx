@@ -1,16 +1,15 @@
 import * as SystemUI from 'expo-system-ui';
-import { createContext, useContext, useEffect, type ReactNode } from 'react';
-import { useColorScheme } from 'react-native';
+import { createContext, useContext, useEffect, useMemo, type ReactNode } from 'react';
 import { useApp } from '@/lib/store';
-import { dark, light, type Palette } from './tokens';
+import { dark, withAccent, type Palette } from './tokens';
 
 const ThemeContext = createContext<Palette>(dark);
 
-/** Dark is the default (OLED true black); "system" follows the phone; the user can force either. */
+/** Dark only (owner, 2026-11-15: "only app theme is dark theme"), with the user's accent colour. */
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const scheme = useColorScheme();
-  const pref = useApp((s) => s.themePref);
-  const palette = pref === 'light' || (pref === 'system' && scheme === 'light') ? light : dark;
+  const accent = useApp((s) => s.accent);
+  const custom = useApp((s) => s.customAccent);
+  const palette = useMemo(() => withAccent(dark, accent, custom), [accent, custom]);
   useEffect(() => {
     SystemUI.setBackgroundColorAsync(palette.bg).catch(() => {});
   }, [palette.bg]);

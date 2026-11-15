@@ -16,6 +16,7 @@ import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 import { keyFromHex, keyToHex, newKey, type Key } from './crypto';
 import { isExpoGo } from './env';
+import { forgetPasskey, hasPasskey, passkeyAvailable, registerPasskey, verifyPasskey } from './webPasskey';
 
 const PLAIN_ID = 'fx.session.key';
 const BOUND_ID = 'fx.session.key.bio';
@@ -72,7 +73,8 @@ export function closeVault() {
 const PROMPT = { promptMessage: 'Unlock Fintraxa', cancelLabel: 'Use password', biometricsSecurityLevel: 'strong' as const };
 
 export async function biometricsAvailable(): Promise<boolean> {
-  if (Platform.OS === 'web') return false;
+  // Web build: the phone's fingerprint through WebAuthn (webPasskey.ts).
+  if (Platform.OS === 'web') return passkeyAvailable();
   try {
     const [hw, enrolled, level] = await Promise.all([
       LocalAuthentication.hasHardwareAsync(), LocalAuthentication.isEnrolledAsync(), LocalAuthentication.getEnrolledLevelAsync(),
@@ -85,6 +87,7 @@ export async function biometricsAvailable(): Promise<boolean> {
 
 /** System biometric prompt only (no key involved) — used to confirm sensitive actions. */
 export async function confirmWithBiometrics(message = 'Confirm it’s you'): Promise<boolean> {
+  if (Platform.OS === 'web') return (await verifyPasskey()) === 'ok';
   try {
     const r = await LocalAuthentication.authenticateAsync({ ...PROMPT, promptMessage: message, cancelLabel: 'Cancel' });
     return r.success;
@@ -112,6 +115,14 @@ export async function openVault({ biometric }: { biometric: boolean }): Promise<
     return 'ok';
   }
   if (!(await biometricsAvailable())) return 'invalidated';
+  if (Platform.OS === 'web') {
+    if (!hasPasskey()) return 'invalidated';
+    const r = await verifyPasskey();
+    if (r === 'missing') return 'invalidated';
+    if (r !== 'ok') return 'cancelled';
+    setOpen(await readOrCreatePlainKey());
+    return 'ok';
+  }
   if (biometricMode === 'gate') {
     const r = await LocalAuthentication.authenticateAsync(PROMPT);
     if (!r.success) return r.error === 'not_enrolled' || r.error === 'not_available' ? 'invalidated' : 'cancelled';
@@ -137,6 +148,7 @@ export async function openVault({ biometric }: { biometric: boolean }): Promise<
  */
 export async function enableBiometricKey(): Promise<boolean> {
   if (!current || !(await biometricsAvailable())) return false;
+  if (Platform.OS === 'web') return registerPasskey();
   if (biometricMode === 'gate') return confirmWithBiometrics('Turn on fingerprint unlock');
   try {
     await SecureStore.setItemAsync(BOUND_ID, await keyToHex(current), { requireAuthentication: true, authenticationPrompt: 'Turn on fingerprint unlock' });
@@ -149,6 +161,7 @@ export async function enableBiometricKey(): Promise<boolean> {
 
 /** Turn fingerprint unlock off: the key goes back to plain (still Keystore-encrypted) storage. */
 export async function disableBiometricKey(): Promise<void> {
+  if (Platform.OS === 'web') forgetPasskey();
   if (!current) return;
   await store.set(PLAIN_ID, await keyToHex(current));
   if (biometricMode === 'bound') await store.del(BOUND_ID).catch(() => {});

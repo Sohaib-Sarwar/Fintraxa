@@ -8,7 +8,7 @@ import { Button, Gap } from '@/ui/primitives';
 import { Screen } from '@/ui/Screen';
 import { Text } from '@/ui/Text';
 import { useTheme } from '@/ui/theme';
-import { space } from '@/ui/tokens';
+import { accentText, space } from '@/ui/tokens';
 
 /** The reset link opens the web app's existing "set a new password" screen; then sign in here. */
 export default function Forgot() {
@@ -35,7 +35,7 @@ export default function Forgot() {
   if (sent) {
     return (
       <Screen back>
-        <EmptyState icon={<MailCheck size={40} color={p.accent} />} title="Reset link sent"
+        <EmptyState icon={<MailCheck size={40} color={accentText(p)} />} title="Reset link sent"
           body="If an account uses that email, a link is on its way. Open it on any device to choose a new password, then sign in here."
           action="Back to sign in" onAction={() => router.replace('/sign-in')} />
       </Screen>

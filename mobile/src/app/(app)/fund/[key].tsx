@@ -1,98 +1,93 @@
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { HoldingChart } from '@/features/invest/HoldingChart';
 import { useFundsAnalysis } from '@/data/portfolio';
 import { ALL_TIME_START, shortDate, todayIso } from '@/lib/dates';
-import { money, pct, share, units } from '@/lib/format';
+import { compactNumber, group, isLong, share, units } from '@/lib/format';
+import { BlackGlass, GLASS_INK, GLASS_INK2, GlassStats } from '@/ui/BlackGlass';
 import { EmptyState, Skeleton } from '@/ui/feedback';
-import { Delta, HeroFigure, Money, StatRow, useHidden } from '@/ui/Figures';
+import { useHidden } from '@/ui/Figures';
+import { ChevronRight, ScrollText } from '@/ui/icons';
 import { AmcLogo } from '@/ui/Logos';
-import { Card, Divider, Gap, SectionHeader } from '@/ui/primitives';
+import { Gap } from '@/ui/primitives';
 import { Screen } from '@/ui/Screen';
 import { Text } from '@/ui/Text';
-import { space } from '@/ui/tokens';
+import { dark, font, space } from '@/ui/tokens';
 
-const ENTRY: Record<string, string> = {
-  purchase: 'Bought', redemption: 'Redeemed', switch_in: 'Switched in', switch_out: 'Switched out',
-  cgt_refund_reinvest: 'CGT refund reinvested', capital_refund_units: 'Capital refund (units)', dividend_reinvest: 'Dividend reinvested',
-};
-
+/**
+ * One mutual-fund holding (owner, 2026-11-14): black Apple glass, only what matters, little scrolling — the fund,
+ * its value and gain, four figures, and a link to all its transactions.
+ */
 export default function FundDetail() {
   const hidden = useHidden();
   const { key } = useLocalSearchParams<{ key: string }>();
   const range = useMemo(() => ({ start: ALL_TIME_START, end: todayIso() }), []);
-  const { analysis, day, isLoading } = useFundsAnalysis(range);
+  const { analysis, isLoading } = useFundsAnalysis(range);
   const x = analysis?.allPositions.find((pos) => pos.key === key);
 
-  if (isLoading && !analysis) return <Screen back><Skeleton height={46} width="70%" /><Gap h={space.xl} /><Skeleton height={160} radius={20} /></Screen>;
-  if (!x) return <Screen back><EmptyState title="Fund not found" body="It may have been removed from your ledger." /></Screen>;
+  if (isLoading && !analysis) return <Screen back title="Mutual fund"><Skeleton height={200} radius={22} /><Gap h={space.md} /><Skeleton height={160} radius={22} /></Screen>;
+  if (!x) return <Screen back title="Mutual fund"><EmptyState title="Fund not found" body="It may have been removed from your ledger." /></Screen>;
 
-  const d = day?.per.get(x.key);
-  const entries = [...x.entries].filter((e) => !e.reverses_entry_id).sort((a, b) => String(b.trade_date).localeCompare(String(a.trade_date)));
-  const info: [string, React.ReactNode][] = [
-    ['Price', x.price ? `${money(x.price.value, { decimals: 4 })} · ${shortDate(x.price.date)}${x.price.stale ? ' (old)' : ''}` : 'No price yet'],
-    ['Invested', <Money key="i" value={x.invested} />],
-    ['Realized, all time', <Money key="r" value={x.allTime.net} tone="auto" sign />],
-    ['CGT paid, all time', <Money key="c" value={x.allTime.cgt} />],
-    ['Est. CGT if sold now', <Money key="e" value={x.unrealized.tax} />],
-  ];
+  const rs = (v: number | null) => (hidden ? '••••' : v === null ? '—' : `Rs ${isLong(v, 1e7) ? compactNumber(v) : group(v, Math.abs(v) < 1e4 ? 2 : 0)}`);
+  const signed = (v: number) => (hidden ? '••••' : `${v > 0 ? '+' : v < 0 ? '−' : ''}${rs(Math.abs(v))}`);
+  const gain = x.unrealized.gross;
+  const g = share(gain, x.invested);
+  const gColor = gain > 0 ? dark.pos : gain < 0 ? dark.neg : GLASS_INK2;
+  const count = x.entries.filter((e) => !e.reverses_entry_id).length;
+
   return (
-    <Screen back>
-      <View style={styles.title}>
-        <AmcLogo code={x.amcCode} name={x.amcName} size={44} />
-        <View style={{ flex: 1 }}>
-          <Text variant="headline" numberOfLines={2}>{x.fundName ?? 'Fund'}</Text>
-          <Text variant="caption" tone="ink2">{x.amcName ?? ''}</Text>
-        </View>
-      </View>
-      <HeroFigure label="Current value" value={x.value} caption={x.price ? `NAV ${shortDate(x.price.date)}` : null}>
-        {d ? <Delta amount={d.change} percent={d.pct} suffix={`since ${shortDate(d.prevDate)}`} /> : null}
-      </HeroFigure>
-      <StatRow stats={[
-        { label: 'Unrealized', value: x.unrealized.gross, tone: 'auto', sign: true, sub: pct(share(x.unrealized.gross, x.invested)) },
-        { label: 'Avg cost / unit', value: x.avgCost, sub: 'FIFO' },
-        { label: 'Units', value: null, text: units(x.units) },
-      ]} />
-      <HoldingChart type="mf" assetKey={x.key} live={{ value: x.value, cost: x.invested }} />
-
-      <SectionHeader title="Details" />
-      <Card padded={false} style={{ paddingHorizontal: space.lg }}>
-        {info.map(([k, v], i) => (
-          <View key={k}>
-            {i > 0 ? <Divider /> : null}
-            <View style={styles.row}>
-              <Text variant="body" tone="ink2">{k}</Text>
-              {typeof v === 'string' ? <Text variant="num">{v}</Text> : v}
-            </View>
+    <Screen back title="Mutual fund">
+      <BlackGlass style={styles.hero}>
+        <View style={styles.head}>
+          <AmcLogo code={x.amcCode} name={x.amcName} size={48} />
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={styles.name} numberOfLines={3}>{x.fundName ?? 'Fund'}</Text>
+            <Text style={styles.small} numberOfLines={1}>
+              {x.amcName ?? 'Mutual fund'}
+            </Text>
           </View>
-        ))}
-      </Card>
+        </View>
+        <Text style={[styles.small, { marginTop: space.lg }]}>{x.isOpen ? 'Current value' : 'Fully redeemed'}</Text>
+        <Text style={styles.value} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{x.isOpen ? rs(x.value) : signed(x.allTime.net)}</Text>
+        {x.isOpen ? (
+          <Text style={[styles.gain, { color: gColor }]}>{signed(gain)}{g !== null && !hidden ? `  ·  ${gain < 0 ? '−' : '+'}${Math.abs(g).toFixed(1)}%` : ''}<Text style={styles.small}>  unrealized gain</Text></Text>
+        ) : null}
+      </BlackGlass>
 
-      <SectionHeader title="Activity" />
-      <Card padded={false} style={{ paddingHorizontal: space.lg }}>
-        {entries.slice(0, 40).map((e, i) => {
-          const u = Number(e.unit_delta ?? 0);
-          const amt = (e.gross_amount ?? e.net_amount) as string | null;
-          return (
-            <View key={String(e.id)}>
-              {i > 0 ? <Divider /> : null}
-              <View style={styles.row}>
-                <View style={{ flex: 1 }}>
-                  <Text variant="bodyStrong">{ENTRY[String(e.entry_type)] ?? String(e.entry_type).replace(/_/g, ' ')}</Text>
-                  <Text variant="caption" tone="ink2">{shortDate(String(e.trade_date))} · {u > 0 ? '+' : ''}{units(u)} units</Text>
-                </View>
-                {amt ? <Text variant="num">{money(amt, { hidden })}</Text> : null}
-              </View>
-            </View>
-          );
-        })}
-      </Card>
+      <BlackGlass style={styles.block}>
+        <GlassStats items={[
+          { label: 'Units', value: units(x.units) },
+          // Owner, 2026-11-15: the current NAV and its date, not the cost per unit.
+          { label: 'Current NAV', value: x.price ? group(x.price.value, 4) : '—',
+            sub: x.price ? `${shortDate(x.price.date)}${x.price.stale ? ' · old' : ''}` : 'No price yet', subColor: x.price?.stale ? dark.warn : undefined },
+          { label: 'Invested', value: rs(x.invested) },
+          { label: 'Realized, all time', value: signed(x.allTime.net), color: x.allTime.net > 0 ? dark.pos : x.allTime.net < 0 ? dark.neg : GLASS_INK,
+            sub: x.allTime.cgt ? `CGT paid ${hidden ? '••' : compactNumber(x.allTime.cgt)}` : undefined },
+        ]} />
+      </BlackGlass>
+
+      <BlackGlass style={[styles.block, styles.link]} onPress={() => router.push({ pathname: '/fund-entries/[key]', params: { key: x.key } })}
+        accessibilityLabel={`Transactions, ${count}`}>
+        <View style={styles.linkIcon}><ScrollText size={18} color={GLASS_INK} /></View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.linkTitle}>Transactions</Text>
+          <Text style={styles.small}>{count} entr{count === 1 ? 'y' : 'ies'} · purchases, redemptions and more</Text>
+        </View>
+        <ChevronRight size={18} color={GLASS_INK2} />
+      </BlackGlass>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  title: { flexDirection: 'row', alignItems: 'center', gap: space.md, marginBottom: space.md },
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 56, gap: space.md },
+  hero: { paddingVertical: space.lg },
+  head: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  name: { color: GLASS_INK, fontFamily: font.bold, fontSize: 17, lineHeight: 22 },
+  small: { color: GLASS_INK2, fontFamily: font.regular, fontSize: 12 },
+  value: { color: dark.pos, fontFamily: font.numHeavy, fontSize: 32, lineHeight: 39, letterSpacing: -0.8, marginTop: 2 },
+  gain: { fontFamily: font.num, fontSize: 14, marginTop: 2 },
+  block: { marginTop: space.md },
+  link: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingVertical: space.lg },
+  linkIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.08)' },
+  linkTitle: { color: GLASS_INK, fontFamily: font.semibold, fontSize: 15 },
 });

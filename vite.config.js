@@ -39,10 +39,10 @@ export default defineConfig({
         ]
       },
       workbox: {
-        navigateFallbackDenylist: [/^\/auth/, /supabase/],
+        navigateFallbackDenylist: [/^\/auth/, /supabase/, /^\/m(\/|$)/],
         // pdf.js (~1.6 MB) is only needed when a confirmation or dividend report is
         // uploaded; keep it out of the install-time precache and fetch it on demand.
-        globIgnores: ['**/pdfjs-*.js'],
+        globIgnores: ['**/pdfjs-*.js', 'm/**'],
         runtimeCaching: [
           // The market data service publishes static JSON to GitHub Pages and
           // refreshes on a schedule: PSX once per working day after the close,

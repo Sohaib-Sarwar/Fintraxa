@@ -41,8 +41,10 @@ export default function AppLayout() {
   const code = Number(Application.nativeBuildVersion ?? 0);
   if (!isExpoGo && release.data && code > 0 && code < release.data.min_supported_code) return <ForcedUpdate release={release.data} />;
 
+  // Opened pages switch without a navigator transition; their content plays the Funds ↔ Stocks motion on focus
+  // (Screen), so every page change looks the same (owner).
   return (
-    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: p.bg }, animation: 'slide_from_right' }}>
+    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: p.bg }, animation: 'none' }}>
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="add" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
       <Stack.Screen name="onboarding" options={{ animation: 'fade', gestureEnabled: false }} />

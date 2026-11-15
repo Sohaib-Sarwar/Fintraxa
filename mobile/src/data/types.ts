@@ -9,23 +9,26 @@ export type Category = {
 export type Txn = {
   id: string; user_id: string; amount: number | string; type: 'credit' | 'debit'; category_id: string | null;
   date: string; notes: string | null; created_at: string;
-  categories: { name: string; icon: string | null; kind: CategoryKind | null; type?: string } | null;
+  categories: { name: string; icon: string | null; kind: CategoryKind | null; type?: string; default_tax_rate?: number | null } | null;
+  gross_amount?: number | string | null; savings_account_id?: string | null;
   savings_accounts?: { name: string; bank_symbol: string | null; bank_name: string | null } | null;
 };
 
 export type Trade = {
   id: string; user_id: string; symbol: string; company_name?: string | null; type: 'buy' | 'sell';
   quantity: number | string; price: number | string; fee?: number | string | null; date: string;
-  settlement_date?: string | null; broker?: string | null; notes?: string | null; created_at?: string;
+  settlement_date?: string | null; broker?: string | null; source_ref?: string | null; notes?: string | null; created_at?: string;
 };
 
 export type Dividend = {
-  id: string; symbol: string; company_name: string | null; payment_date: string; shares: string;
-  gross_amount: string; tax_amount: string; zakat_amount: string; net_amount: string; source: string; created_at: string;
+  id: string; symbol: string; company_name: string | null; payment_date: string; shares: string; warrant_no?: string | null;
+  gross_amount: string; tax_amount: string; jh_tax_amount?: string; zakat_amount: string; net_amount: string; source: string; created_at: string;
 };
 
 export type Snapshot = {
   snap_date: string; funds_value: number; funds_cost: number; stocks_value: number; stocks_cost: number; savings: number; net_worth: number;
+  /** Unrealized gain at that close and profit realized that day, per side (web ValueChart hover). */
+  funds_unrealized?: number; stocks_unrealized?: number; funds_realized_day?: number; stocks_realized_day?: number;
 };
 
 export type Ledger = {
@@ -47,7 +50,7 @@ export type FundsFeed = { asOf: string | null; data: FundQuote[] };
 export type IndexRow = { index_name: string; current: number; change: number; change_pct: number };
 export type FeedHealthRow = { feed: string; latest_data: string | null; last_success: string | null; last_error: string | null; last_error_at: string | null };
 
-export type Profile = { username: string | null; full_name: string | null; filer_status: string | null };
+export type Profile = { username: string | null; full_name: string | null; filer_status: string | null; avatar_path?: string | null };
 export type Prefs = { tracks: { spending?: boolean; funds?: boolean; stocks?: boolean } | null; auto_lock_minutes: number | null };
 export type Release = { version_code: number; version_name: string; apk_url: string; notes: string; min_supported_code: number };
 
@@ -69,6 +72,7 @@ export type FundsAnalysis = {
     unrealized: { gross: number; tax: number; net: number };
   };
   positions: FundPosition[]; allPositions: FundPosition[];
+  months: { month: string; gross: number; cgt: number; net: number }[];
 };
 
 export type StockPosition = {

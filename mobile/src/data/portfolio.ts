@@ -4,9 +4,9 @@
  */
 import { useMemo } from 'react';
 import { todayIso } from '@/lib/dates';
-import { analyzeFunds, analyzeStocks, nccplReport, normSymbol, preferNewerPrices, summarizeDividends, taxYearOf } from './engines';
+import { analyzeFunds, analyzePassive, analyzeStocks, nccplReport, normSymbol, passiveEvents, preferNewerPrices, summarizeDividends, taxYearOf, type PassiveSource } from './engines';
 import { fundDayChanges, fundInputs, stockPriceMap } from './selectors';
-import { useBoard, useCloses, useDividends, useFundsFeed, useLedger, useTrades } from './queries';
+import { useBoard, useCloses, useDividends, useFundsFeed, useLedger, useTrades, useTransactions } from './queries';
 
 export type Range = { start: string; end: string };
 
@@ -68,4 +68,24 @@ export function useDividendSummary(range: Range) {
   const { start, end } = range;
   const summary = useMemo(() => (q.data ? summarizeDividends(q.data, { start, end, today: todayIso() }) : null), [q.data, start, end]);
   return { all: q.data ?? [], summary, isLoading: q.isLoading };
+}
+
+/** Passive income (web: usePassive): realized mutual-fund profit by month, dividends, and passive-category credits. */
+/** `source`: only that source's payments (the web's source picker), else all passive income. */
+export function usePassive(range: Range, source?: PassiveSource) {
+  const allTime = useMemo(() => ({ start: '2000-01-01', end: todayIso() }), []);
+  const funds = useFundsAnalysis(allTime);
+  const divs = useDividends();
+  const txns = useTransactions();
+  const { start, end } = range;
+  const events = useMemo(() => (funds.analysis && divs.data && txns.data
+    ? passiveEvents({ mfMonths: funds.analysis.months ?? [], dividends: divs.data, transactions: txns.data, today: todayIso() })
+    : null), [funds.analysis, divs.data, txns.data]);
+  const scoped = useMemo(() => (events && source ? events.filter((e) => e.source === source) : events), [events, source]);
+  const analysis = useMemo(() => (scoped ? analyzePassive(scoped, { start, end, today: todayIso() }) : null), [scoped, start, end]);
+  return {
+    analysis, events: scoped,
+    isLoading: !analysis && (funds.isLoading || divs.isLoading || txns.isLoading),
+    refetch: () => Promise.all([funds.refetch(), divs.refetch(), txns.refetch()]),
+  };
 }

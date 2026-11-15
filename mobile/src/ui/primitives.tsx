@@ -2,18 +2,26 @@
  * Small building blocks: Card, Row, Divider, Pill, IconButton, Button, Chip, SectionHeader.
  * Touch targets are ≥ 48 dp; every pressable has an accessibility role and label.
  */
+import { LinearGradient } from 'expo-linear-gradient';
 import type { LucideIcon } from '@/ui/icons';
 import type { ReactNode } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View, type PressableProps, type StyleProp, type ViewStyle } from 'react-native';
 import { haptic } from '@/lib/haptics';
+import { LiquidLayers, useGlass } from './glass';
 import { Text } from './Text';
 import { useTheme } from './theme';
-import { radius, space, TOUCH } from './tokens';
+import { alpha, radius, space, TOUCH } from './tokens';
 
+/** A card. With the Glass style (Me › Appearance) it becomes Liquid Glass at the chosen transparency. */
 export function Card({ children, style, padded = true }: { children: ReactNode; style?: StyleProp<ViewStyle>; padded?: boolean }) {
   const p = useTheme();
+  const g = useGlass();
+  const look = g.on
+    ? { overflow: 'hidden' as const }
+    : { backgroundColor: p.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: p.border };
   return (
-    <View style={[{ backgroundColor: p.surface, borderRadius: radius.card, borderWidth: StyleSheet.hairlineWidth, borderColor: p.border }, padded && { padding: space.xl }, style]}>
+    <View style={[{ borderRadius: radius.card }, look, padded && { padding: space.xl }, style]}>
+      {g.on ? <LiquidLayers g={g} radius={(StyleSheet.flatten(style)?.borderRadius as number | undefined) ?? radius.card} /> : null}
       {children}
     </View>
   );
@@ -62,6 +70,7 @@ export function Button({ label, kind = 'primary', icon: Icon, loading, disabled,
         styles.button,
         { height: size === 'lg' ? 56 : TOUCH, backgroundColor: bg, opacity: off ? 0.45 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] },
         kind === 'secondary' && { borderWidth: StyleSheet.hairlineWidth, borderColor: p.border },
+        kind === 'primary' && p.accentRing ? { borderWidth: 1, borderColor: p.accentRing } : null,
         style,
       ]}
       {...rest}
@@ -101,11 +110,11 @@ export function Chip({ label, selected, onPress, icon, accessibilityLabel }: { l
       onPress={() => { haptic.tick(); onPress?.(); }}
       style={({ pressed }) => [
         styles.chip,
-        { backgroundColor: selected ? p.ink : p.surface2, borderColor: selected ? p.ink : p.border, opacity: pressed ? 0.8 : 1 },
+        { backgroundColor: selected ? p.accent : p.surface2, borderColor: selected ? p.accent : p.border, opacity: pressed ? 0.8 : 1 },
       ]}
     >
       {icon}
-      <Text variant="label" style={{ color: selected ? p.bg : p.ink }} numberOfLines={1}>{label}</Text>
+      <Text variant="label" style={{ color: selected ? p.accentInk : p.ink, fontFamily: selected ? 'Inter_600SemiBold' : 'Inter_500Medium' }} numberOfLines={1}>{label}</Text>
     </Pressable>
   );
 }
@@ -114,7 +123,7 @@ export function Chip({ label, selected, onPress, icon, accessibilityLabel }: { l
 export function Pill({ text, tone = 'flat' }: { text: string; tone?: 'pos' | 'neg' | 'flat' | 'warn' | 'accent' }) {
   const p = useTheme();
   const map = {
-    pos: [p.posSoft, p.pos], neg: [p.negSoft, p.neg], warn: [p.warnSoft, p.warn], accent: [p.accentSoft, p.mode === 'dark' ? p.accent : '#8A6640'], flat: [p.surface2, p.ink2],
+    pos: [p.posSoft, p.pos], neg: [p.negSoft, p.neg], warn: [p.warnSoft, p.warn], accent: [p.accentSoft, p.mode === 'dark' ? p.accent : p.accentDeep], flat: [p.surface2, p.ink2],
   } as const;
   const [bg, fg] = map[tone];
   return (
@@ -130,4 +139,53 @@ const styles = StyleSheet.create({
   iconButton: { width: TOUCH, height: TOUCH, borderRadius: TOUCH / 2, alignItems: 'center', justifyContent: 'center' },
   chip: { minHeight: 40, paddingHorizontal: 14, borderRadius: radius.chip, borderWidth: StyleSheet.hairlineWidth, flexDirection: 'row', alignItems: 'center', gap: 6 },
   pill: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  circle: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', borderWidth: StyleSheet.hairlineWidth },
+  hero: { borderRadius: 28, padding: space.xl, overflow: 'hidden', borderWidth: 1 },
+  quick: { alignItems: 'center', gap: 8, flex: 1, minHeight: 84 },
+  quickCircle: { width: 60, height: 60, borderRadius: 30, alignItems: 'center', justifyContent: 'center', borderWidth: StyleSheet.hairlineWidth },
 });
+
+/** Round 44 dp icon button on a raised surface (header actions, back). */
+export function CircleButton({ icon: Icon, label, onPress, active = false }: { icon: LucideIcon; label: string; onPress: () => void; active?: boolean }) {
+  const p = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={() => { haptic.tick(); onPress(); }}
+      hitSlop={4}
+      style={({ pressed }) => [styles.circle, { backgroundColor: active ? p.accent : p.surface3, borderColor: p.borderStrong, transform: [{ scale: pressed ? 0.94 : 1 }] }]}
+    >
+      <Icon size={20} color={active ? p.accentInk : p.ink} strokeWidth={1.9} />
+    </Pressable>
+  );
+}
+
+/** The one gradient card per screen (hero figures). Text on it uses heroInk / heroInk2. */
+export function HeroCard({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
+  const p = useTheme();
+  return (
+    <View style={[styles.hero, { borderColor: p.heroBorder }, style]}>
+      <LinearGradient colors={[p.heroFrom, p.heroTo]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
+      <LinearGradient colors={[alpha(p.accentOnDark, 0.12), alpha(p.accentOnDark, 0)]} start={{ x: 1, y: 0 }} end={{ x: 0.3, y: 0.8 }} style={StyleSheet.absoluteFill} />
+      {children}
+    </View>
+  );
+}
+
+/** Round quick action with a label underneath (Home's action row). */
+export function QuickAction({ icon: Icon, label, onPress, primary = false }: { icon: LucideIcon; label: string; onPress: () => void; primary?: boolean }) {
+  const p = useTheme();
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={() => { haptic.light(); onPress(); }} style={styles.quick}>
+      {({ pressed }) => (
+        <>
+          <View style={[styles.quickCircle, { backgroundColor: primary ? p.accent : p.surface3, borderColor: primary ? p.accent : p.borderStrong, transform: [{ scale: pressed ? 0.93 : 1 }] }]}>
+            <Icon size={22} color={primary ? p.accentInk : p.ink} strokeWidth={1.9} />
+          </View>
+          <Text variant="label" tone="ink2" numberOfLines={1}>{label}</Text>
+        </>
+      )}
+    </Pressable>
+  );
+}

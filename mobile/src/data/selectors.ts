@@ -5,7 +5,7 @@
  */
 import Decimal from 'decimal.js';
 import { staleFeeds, summarize } from './engines';
-import type { Board, FeedHealthRow, FundPosition, FundsAnalysis, FundsFeed, Ledger, Snapshot, StocksAnalysis, Txn } from './types';
+import type { Board, Dividend, FeedHealthRow, FundPosition, FundsAnalysis, FundsFeed, Ledger, Snapshot, StocksAnalysis, Txn } from './types';
 
 const D = (v: unknown) => new Decimal(String(v ?? 0));
 const r2 = (d: Decimal) => Number(d.toFixed(2));
@@ -192,4 +192,57 @@ export function dayNet(rows: Txn[]): number {
     else if ((t.categories?.kind ?? 'spend') !== 'transfer') n = n.minus(t.amount);
   }
   return r2(n);
+}
+
+export type MonthBar = { key: string; label: string; value: number; funds: number; stocks: number };
+
+/**
+ * Home "Monthly overview" — the web Home's monthly holdings view: each month's closing value of funds +
+ * shares (the month's last daily snapshot); the current month uses today's live figures.
+ * Months before tracking began are left out.
+ */
+export function monthEndBars(snaps: Snapshot[], live: { month: string; funds: number; stocks: number }, n: number): MonthBar[] {
+  const months = Array.from({ length: n }, (_, i) => {
+    const [y, mo] = live.month.split('-').map(Number);
+    const d = new Date(y, mo - 1 - (n - 1 - i), 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
+  return monthEndBarsFor(snaps, live, months);
+}
+
+/**
+ * Month-end bars for an explicit list of months (a period's months, e.g. last fiscal year): each month's last
+ * snapshot; the live month (if listed) uses today's live values. Months with no snapshot are left out.
+ */
+export function monthEndBarsFor(snaps: Snapshot[], live: { month: string; funds: number; stocks: number }, months: string[]): MonthBar[] {
+  const lastOf = new Map<string, Snapshot>();
+  for (const s of snaps) {
+    const m = s.snap_date.slice(0, 7);
+    const cur = lastOf.get(m);
+    if (!cur || s.snap_date > cur.snap_date) lastOf.set(m, s);
+  }
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const out: MonthBar[] = [];
+  for (const key of months) {
+    const label = MON[Number(key.slice(5, 7)) - 1];
+    if (key === live.month) {
+      out.push({ key, label, funds: live.funds, stocks: live.stocks, value: r2(D(live.funds).plus(live.stocks)) });
+      continue;
+    }
+    const s = lastOf.get(key);
+    if (!s) continue;
+    out.push({ key, label, funds: r2(D(s.funds_value)), stocks: r2(D(s.stocks_value)), value: r2(D(s.funds_value).plus(s.stocks_value)) });
+  }
+  return out;
+}
+
+/** Net dividends received per calendar month (payment date), exact decimals: `{ '2026-10': 1234.5 }`. */
+export function dividendsByMonth(divs: Pick<Dividend, 'payment_date' | 'net_amount'>[]): Record<string, number> {
+  const sums = new Map<string, Decimal>();
+  for (const d of divs) {
+    if (!d.payment_date) continue;
+    const m = d.payment_date.slice(0, 7);
+    sums.set(m, (sums.get(m) ?? new Decimal(0)).plus(D(d.net_amount)));
+  }
+  return Object.fromEntries([...sums].map(([m, v]) => [m, r2(v)]));
 }
