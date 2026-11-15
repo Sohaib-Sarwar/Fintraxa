@@ -18,7 +18,7 @@ import { DatePicker } from '@/ui/DatePicker';
 import { ArrowLeft, ArrowRight, CalendarDays, Check, ChevronDown, LayoutGrid, NotebookPen, Pencil, PiggyBank, Plus, Search, X } from '@/ui/icons';
 import { Keypad } from '@/ui/Keypad';
 import { BankLogo, CategoryIcon } from '@/ui/Logos';
-import { Button, Chip, IconButton } from '@/ui/primitives';
+import { Button, IconButton } from '@/ui/primitives';
 import { GlassSheet } from '@/ui/GlassSheet';
 import { Text } from '@/ui/Text';
 import { useTheme } from '@/ui/theme';
@@ -130,18 +130,6 @@ export default function AddTransaction() {
   });
   const shown = query.trim() ? ranked.filter((c) => c.name.toLowerCase().includes(query.trim().toLowerCase())) : ranked;
 
-  // Recent distinct amounts of this type (the selected category's first, when there is one).
-  const quick = useMemo(() => {
-    const seen = new Set<string>();
-    const out: string[] = [];
-    const rows = (txns.data ?? []).filter((t) => t.type === kind);
-    for (const t of [...rows.filter((t) => categoryId && t.category_id === categoryId), ...rows]) {
-      const a = String(Number(t.amount));
-      if (!seen.has(a)) { seen.add(a); out.push(a); }
-      if (out.length >= 4) break;
-    }
-    return out;
-  }, [txns.data, categoryId, kind]);
 
   const close = useCallback(() => (router.canGoBack() ? router.back() : router.replace('/')), []);
   const goDetails = () => {
@@ -223,11 +211,6 @@ export default function AddTransaction() {
             </View>
 
             <View style={{ flex: 1 }} />
-            {quick.length ? (
-              <View style={styles.quick}>
-                {quick.map((q) => <Chip key={q} label={group(q, q.includes('.') ? 2 : 0)} selected={q === amount} onPress={() => { setAmount(q); setError(null); }} accessibilityLabel={`Use ${q} rupees`} />)}
-              </View>
-            ) : null}
             <View style={{ paddingHorizontal: SCREEN_PAD - 8 }}>
               <Keypad onKey={(k) => { setAmount((a) => pressKey(a, k)); setError(null); }} />
             </View>
