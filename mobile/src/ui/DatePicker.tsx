@@ -1,31 +1,38 @@
 /**
- * Date picker for income/expense, built from the owner's reference (`date selector ui.jpg`, 2026-11-14):
- * "Select Date" title, Month ▾ and Year ▾ dropdowns, a calendar badge with the chosen day's number, a
- * Sunday-first grid (Sundays in the accent, neighbouring months greyed, the chosen day in the accent with an
- * underline), and one Confirm button. The screen behind blurs.
+ * Single-date picker (owner, 2026-11-15, reference `date picker.jpg`): the iOS wheel — month, day and year columns
+ * that scroll and snap, the chosen row in a soft rounded band, rows tilting away and fading above and below it, a
+ * light tick as each row passes. On a smoky glass card over the blurred screen; "Today" jumps back, Confirm keeps it.
+ * Used wherever one date is chosen (wallet transactions, dividends). Future days are not allowed (clamped to `max`).
  *
- * Rendered inside the screen (not a Modal) so Android can blur it: expo-blur on Android blurs a
- * `BlurTargetView`, which the screen wraps its content in and passes here as `blurTarget`. Android 11 and
- * older get a plain dim instead of blur (`dimezisBlurViewSdk31Plus`). Future days are disabled.
+ * Rendered inside the screen (not a Modal) so Android can blur it: expo-blur blurs a `BlurTargetView` the screen
+ * wraps its content in and passes here as `blurTarget`; Android 11 and older get a plain dim instead.
  */
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import { glassPanel } from './GlassSheet';
-import { useEffect, useState, type ComponentRef, type RefObject } from 'react';
-import { BackHandler, Pressable, StyleSheet, View } from 'react-native';
-import Animated, { Easing, FadeIn, FadeOut, withTiming } from 'react-native-reanimated';
-import { isoLocal, todayIso } from '@/lib/dates';
+import { useEffect, useRef, useState, type ComponentRef, type RefObject } from 'react';
+import { BackHandler, Pressable, StyleSheet, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import Animated, {
+  Easing, Extrapolation, FadeIn, FadeOut, interpolate, useAnimatedRef, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, withTiming,
+  type SharedValue,
+} from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
+import { todayIso } from '@/lib/dates';
 import { haptic } from '@/lib/haptics';
-import { ChevronDown } from './icons';
+import { glassPanel } from './GlassSheet';
 import { Button } from './primitives';
 import { Text } from './Text';
 import { useTheme } from './theme';
 import { alpha, font, space } from './tokens';
 
 const EASE = Easing.bezier(0.2, 0, 0, 1);
-const WEEK = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-const pad = (n: number) => String(n).padStart(2, '0');
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const ROW = 44;
+const VISIBLE = 5; // rows on show; the middle one is the choice
+const PAD = ROW * ((VISIBLE - 1) / 2);
+const pad2 = (n: number) => String(n).padStart(2, '0');
+const daysIn = (y: number, m: number) => new Date(y, m, 0).getDate();
+const iso = (y: number, m: number, d: number) => `${y}-${pad2(m)}-${pad2(d)}`;
 
 function eased(v: number, duration: number) {
   'worklet';
@@ -40,137 +47,129 @@ function rise() {
   };
 }
 
-type Mode = 'days' | 'months' | 'years';
-
-function Dropdown({ label, open, onPress, a11y }: { label: string; open: boolean; onPress: () => void; a11y: string }) {
-  const p = useTheme();
+/** One row: tilts back and fades with its distance from the band, like a drum. */
+function WheelRow({ label, i, y, align, numeric, color }: { label: string; i: number; y: SharedValue<number>; align: 'left' | 'center' | 'right'; numeric: boolean; color: string }) {
+  const style = useAnimatedStyle(() => {
+    const d = (y.get() - i * ROW) / ROW;
+    const a = Math.abs(d);
+    return {
+      opacity: interpolate(a, [0, 1, 2, 2.6], [1, 0.62, 0.3, 0.12], Extrapolation.CLAMP),
+      transform: [{ perspective: 500 }, { rotateX: `${interpolate(d, [-2.6, 0, 2.6], [58, 0, -58], Extrapolation.CLAMP)}deg` }, { scale: interpolate(a, [0, 2.6], [1, 0.9], Extrapolation.CLAMP) }],
+    };
+  });
   return (
-    <Pressable onPress={() => { haptic.tick(); onPress(); }} accessibilityRole="button" accessibilityLabel={a11y} accessibilityState={{ expanded: open }}
-      style={({ pressed }) => [styles.dropdown, { backgroundColor: open ? p.accentSoft : p.mode === 'dark' ? 'rgba(255,255,255,0.07)' : p.surface2, opacity: pressed ? 0.85 : 1 }]}>
-      <Text variant="bodyStrong" style={{ fontSize: 16 }} numberOfLines={2}>{label}</Text>
-      <View style={{ transform: [{ rotate: open ? '180deg' : '0deg' }] }}><ChevronDown size={16} color={p.ink2} /></View>
-    </Pressable>
+    <Animated.View style={[styles.row, style]}>
+      <Text style={[styles.rowText, { textAlign: align, color, fontFamily: numeric ? font.num : font.medium }]} numberOfLines={1}>{label}</Text>
+    </Animated.View>
   );
 }
 
-export function DatePicker({ value, onClose, onPick, blurTarget, max = todayIso() }: {
-  value: string; onClose: () => void; onPick: (iso: string) => void; blurTarget: RefObject<ComponentRef<typeof View> | null>; max?: string;
+/** A scrolling, snapping column. `index` is the chosen row; `onChange` reports the row it settles on. */
+function Wheel({ items, index, onChange, align, numeric, flex, color, label }: {
+  items: string[]; index: number; onChange: (i: number) => void; align: 'left' | 'center' | 'right'; numeric?: boolean; flex: number; color: string; label: string;
+}) {
+  const ref = useAnimatedRef<Animated.ScrollView>();
+  const y = useSharedValue(index * ROW);
+  const passing = useSharedValue(index);
+  const shown = useRef(index);
+
+  // Follow outside changes (a day clamped when the month gets shorter, "Today", the future clamp).
+  useEffect(() => {
+    if (shown.current === index) return;
+    shown.current = index;
+    ref.current?.scrollTo({ y: index * ROW, animated: true });
+  }, [index, ref]);
+
+  const onScroll = useAnimatedScrollHandler((e) => {
+    y.set(e.contentOffset.y);
+    const r = Math.round(e.contentOffset.y / ROW);
+    if (r !== passing.get()) { passing.set(r); scheduleOnRN(haptic.tick); }
+  });
+  const settle = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const i = Math.max(0, Math.min(items.length - 1, Math.round(e.nativeEvent.contentOffset.y / ROW)));
+    shown.current = i;
+    if (i !== index) onChange(i);
+  };
+
+  return (
+    <View style={{ flex, height: ROW * VISIBLE }} accessible accessibilityRole="adjustable" accessibilityLabel={`${label}: ${items[index]}`}
+      accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
+      onAccessibilityAction={(e) => onChange(Math.max(0, Math.min(items.length - 1, index + (e.nativeEvent.actionName === 'increment' ? 1 : -1))))}>
+      <Animated.ScrollView ref={ref} onScroll={onScroll} scrollEventThrottle={16} showsVerticalScrollIndicator={false}
+        snapToInterval={ROW} decelerationRate="fast" contentContainerStyle={{ paddingVertical: PAD }}
+        contentOffset={{ x: 0, y: index * ROW }} onLayout={() => ref.current?.scrollTo({ y: index * ROW, animated: false })}
+        onMomentumScrollEnd={settle} onScrollEndDrag={(e) => { if (!e.nativeEvent.velocity?.y) settle(e); }} nestedScrollEnabled>
+        {items.map((it, i) => <WheelRow key={`${it}-${i}`} label={it} i={i} y={y} align={align} numeric={!!numeric} color={color} />)}
+      </Animated.ScrollView>
+    </View>
+  );
+}
+
+export function DatePicker({ value, onClose, onPick, blurTarget, max = todayIso(), title = 'Select date' }: {
+  value: string; onClose: () => void; onPick: (iso: string) => void; blurTarget: RefObject<ComponentRef<typeof View> | null>; max?: string; title?: string;
 }) {
   const p = useTheme();
-  const [draft, setDraft] = useState(value);
-  const [view, setView] = useState({ y: Number(value.slice(0, 4)), m: Number(value.slice(5, 7)) });
-  const [mode, setMode] = useState<Mode>('days');
+  const dark = p.mode === 'dark';
   const smoky = glassPanel(true, true);
-  const accentText = p.mode === 'dark' ? p.accent : p.accentDeep;
-  const faint = alpha(p.mode === 'dark' ? '#FFFFFF' : '#000000', 0.22);
   const maxY = Number(max.slice(0, 4));
-  const maxM = Number(max.slice(5, 7));
+  const years = Array.from({ length: 16 }, (_, i) => maxY - 15 + i);
+  const [ymd, setYmd] = useState(() => {
+    const v = value > max ? max : value;
+    return { y: Number(v.slice(0, 4)), m: Number(v.slice(5, 7)), d: Number(v.slice(8, 10)) };
+  });
 
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => { onClose(); return true; });
     return () => sub.remove();
   }, [onClose]);
 
-  // Whole weeks, Sunday first, including the neighbouring months' days (greyed, still tappable).
-  const first = new Date(view.y, view.m - 1, 1);
-  const weeks = Math.ceil((first.getDay() + new Date(view.y, view.m, 0).getDate()) / 7);
-  const cells = Array.from({ length: weeks * 7 }, (_, i) => new Date(view.y, view.m - 1, 1 - first.getDay() + i));
-  const years = Array.from({ length: 12 }, (_, i) => maxY - 11 + i);
-
-  const pickDay = (d: Date) => {
-    haptic.tick();
-    setDraft(isoLocal(d));
-    if (d.getMonth() + 1 !== view.m) setView({ y: d.getFullYear(), m: d.getMonth() + 1 });
+  /** Any change: keep the day inside the month, and the whole date not after `max`. */
+  const set = (next: { y: number; m: number; d: number }) => {
+    const d = Math.min(next.d, daysIn(next.y, next.m));
+    const v = iso(next.y, next.m, d);
+    if (v > max) setYmd({ y: Number(max.slice(0, 4)), m: Number(max.slice(5, 7)), d: Number(max.slice(8, 10)) });
+    else setYmd({ y: next.y, m: next.m, d });
   };
+
+  const draft = iso(ymd.y, ymd.m, ymd.d);
+  const weekday = WEEKDAYS[new Date(ymd.y, ymd.m - 1, ymd.d).getDay()];
+  const days = Array.from({ length: daysIn(ymd.y, ymd.m) }, (_, i) => String(i + 1));
+  const ink = dark ? '#F5F5F7' : p.ink;
+  const cardBg = dark ? '#0B0B0D' : p.surface; // hex: `alpha()` takes hex
 
   return (
     <Animated.View entering={FadeIn.duration(220).easing(EASE)} exiting={FadeOut.duration(180).easing(EASE)} style={StyleSheet.absoluteFill}>
-      <BlurView blurTarget={blurTarget} blurMethod="dimezisBlurViewSdk31Plus" intensity={p.mode === 'dark' ? 70 : 50}
-        tint={p.mode === 'dark' ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
-      <Pressable style={[StyleSheet.absoluteFill, { backgroundColor: alpha('#000000', p.mode === 'dark' ? 0.35 : 0.12) }]} onPress={onClose}
+      <BlurView blurTarget={blurTarget} blurMethod="dimezisBlurViewSdk31Plus" intensity={dark ? 70 : 50} tint={dark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+      <Pressable style={[StyleSheet.absoluteFill, { backgroundColor: alpha('#000000', dark ? 0.35 : 0.12) }]} onPress={onClose}
         accessibilityRole="button" accessibilityLabel="Close date picker" />
       <View style={styles.center} pointerEvents="box-none">
-        <Animated.View entering={rise} accessibilityViewIsModal style={[styles.card, p.mode === 'dark'
+        <Animated.View entering={rise} accessibilityViewIsModal style={[styles.card, dark
           ? { backgroundColor: smoky.backgroundColor, borderColor: smoky.borderColor, borderTopColor: smoky.borderTopColor, overflow: 'hidden', elevation: 0 }
           : { backgroundColor: p.surface, borderColor: p.border }]}>
-          {p.mode === 'dark' ? <LinearGradient colors={smoky.sheen} style={styles.sheen} pointerEvents="none" /> : null}
+          {dark ? <LinearGradient colors={smoky.sheen} style={styles.sheen} pointerEvents="none" /> : null}
           <View style={styles.head}>
-            <View style={{ flex: 1, gap: space.md }}>
-              <Text style={[styles.title, { color: p.ink }]} accessibilityRole="header">Select Date</Text>
-              <View style={styles.dropdowns}>
-                <Dropdown label={MONTHS[view.m - 1]} open={mode === 'months'} onPress={() => setMode(mode === 'months' ? 'days' : 'months')} a11y={`Month: ${MONTHS[view.m - 1]}. Change`} />
-                <Dropdown label={String(view.y)} open={mode === 'years'} onPress={() => setMode(mode === 'years' ? 'days' : 'years')} a11y={`Year: ${view.y}. Change`} />
-              </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.title, { color: ink }]} accessibilityRole="header">{title}</Text>
+              <Text style={[styles.sub, { color: alpha(ink, 0.6) }]}>{weekday}, {ymd.d} {MONTHS[ymd.m - 1]} {ymd.y}</Text>
             </View>
-            {/* Calendar badge with the chosen day, like the reference's "01" tile. */}
-            <View style={styles.badge} accessible accessibilityLabel={`Selected day ${Number(draft.slice(8))}`}>
-              <View style={styles.rings}>
-                <View style={[styles.ring, { backgroundColor: p.accentDeep }]} />
-                <View style={[styles.ring, { backgroundColor: p.accentDeep }]} />
-              </View>
-              <View style={[styles.badgeBody, { backgroundColor: p.accent }]}>
-                <View style={[styles.badgeTop, { backgroundColor: alpha('#000000', 0.08) }]} />
-                <Text style={[styles.badgeNum, { color: p.accentInk }]}>{draft.slice(8)}</Text>
-              </View>
-            </View>
+            <Pressable onPress={() => { haptic.tick(); set({ y: maxY, m: Number(max.slice(5, 7)), d: Number(max.slice(8, 10)) }); }} hitSlop={8}
+              accessibilityRole="button" accessibilityLabel="Today" style={({ pressed }) => [styles.today, { opacity: pressed ? 0.7 : 1 }]}>
+              <Text style={styles.todayText}>Today</Text>
+            </Pressable>
           </View>
 
-          <View style={styles.body}>
-            {mode === 'days' ? (
-              <Animated.View key="days" entering={FadeIn.duration(180).easing(EASE)}>
-                <View style={styles.weekRow}>
-                  {WEEK.map((d, i) => <Text key={d} style={[styles.weekDay, { color: i === 0 ? accentText : p.ink2 }]}>{d}</Text>)}
-                </View>
-                <View style={styles.grid}>
-                  {cells.map((d) => {
-                    const iso = isoLocal(d);
-                    const inMonth = d.getMonth() + 1 === view.m;
-                    const off = iso > max;
-                    const on = iso === draft;
-                    const color = on ? accentText : !inMonth || off ? faint : d.getDay() === 0 ? accentText : p.ink;
-                    return (
-                      <Pressable key={iso} disabled={off} onPress={() => pickDay(d)} style={styles.cell}
-                        accessibilityRole="button" accessibilityState={{ selected: on, disabled: off }} accessibilityLabel={d.toDateString()}>
-                        <Text style={[styles.day, { color, fontFamily: on ? font.bold : font.semibold }]}>{pad(d.getDate())}</Text>
-                        <View style={[styles.underline, { backgroundColor: on ? accentText : 'transparent' }]} />
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </Animated.View>
-            ) : mode === 'months' ? (
-              <Animated.View key="months" entering={FadeIn.duration(180).easing(EASE)} style={styles.pickGrid}>
-                {MONTHS.map((name, i) => {
-                  const disabled = view.y === maxY && i + 1 > maxM;
-                  const on = i + 1 === view.m;
-                  return (
-                    <Pressable key={name} disabled={disabled} onPress={() => { haptic.tick(); setView({ y: view.y, m: i + 1 }); setMode('days'); }}
-                      accessibilityRole="button" accessibilityState={{ selected: on, disabled }} accessibilityLabel={name}
-                      style={({ pressed }) => [styles.pickCell, { backgroundColor: on ? p.accent : pressed ? p.surface2 : 'transparent', opacity: disabled ? 0.3 : 1 }]}>
-                      <Text variant="bodyStrong" style={{ color: on ? p.accentInk : p.ink }}>{name.slice(0, 3)}</Text>
-                    </Pressable>
-                  );
-                })}
-              </Animated.View>
-            ) : (
-              <Animated.View key="years" entering={FadeIn.duration(180).easing(EASE)} style={styles.pickGrid}>
-                {years.map((y) => {
-                  const on = y === view.y;
-                  return (
-                    <Pressable key={y} onPress={() => { haptic.tick(); setView({ y, m: y === maxY ? Math.min(view.m, maxM) : view.m }); setMode('days'); }}
-                      accessibilityRole="button" accessibilityState={{ selected: on }} accessibilityLabel={String(y)}
-                      style={({ pressed }) => [styles.pickCell, { backgroundColor: on ? p.accent : pressed ? p.surface2 : 'transparent' }]}>
-                      <Text variant="bodyStrong" style={{ color: on ? p.accentInk : p.ink, fontFamily: font.num }}>{y}</Text>
-                    </Pressable>
-                  );
-                })}
-              </Animated.View>
-            )}
+          <View style={styles.wheels}>
+            {/* The chosen row's band, behind the columns. */}
+            <View style={[styles.band, { top: PAD, backgroundColor: dark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.06)' }]} pointerEvents="none" />
+            <Wheel label="Month" items={MONTHS} index={ymd.m - 1} onChange={(i) => set({ ...ymd, m: i + 1 })} align="left" flex={1.7} color={ink} />
+            <Wheel label="Day" items={days} index={ymd.d - 1} onChange={(i) => set({ ...ymd, d: i + 1 })} align="center" numeric flex={0.8} color={ink} />
+            <Wheel label="Year" items={years.map(String)} index={years.indexOf(ymd.y)} onChange={(i) => set({ ...ymd, y: years[i] })} align="right" numeric flex={1} color={ink} />
+            {/* Rows dissolve into the card at the top and bottom. */}
+            <LinearGradient colors={[cardBg, alpha(cardBg, 0)]} style={[styles.fade, { top: 0 }]} pointerEvents="none" />
+            <LinearGradient colors={[alpha(cardBg, 0), cardBg]} style={[styles.fade, { bottom: 0 }]} pointerEvents="none" />
           </View>
 
-          <View style={styles.footer}>
-            <Button label="Confirm" style={styles.confirm} onPress={() => onPick(draft)} />
-          </View>
+          <Button label="Confirm" style={styles.confirm} onPress={() => { haptic.success(); onPick(draft); }} />
         </Animated.View>
       </View>
     </Animated.View>
@@ -180,29 +179,19 @@ export function DatePicker({ value, onClose, onPick, blurTarget, max = todayIso(
 const styles = StyleSheet.create({
   center: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', paddingHorizontal: 16 },
   card: {
-    borderRadius: 32, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: space.xl, paddingTop: space.xxl, paddingBottom: space.xl,
+    borderRadius: 32, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: space.xl, paddingTop: space.xl, paddingBottom: space.xl,
     shadowColor: '#000', shadowOpacity: 0.28, shadowRadius: 30, shadowOffset: { width: 0, height: 14 }, elevation: 20,
   },
   sheen: { position: 'absolute', top: 0, left: 0, right: 0, height: 140 },
   head: { flexDirection: 'row', alignItems: 'flex-start', gap: space.md },
-  title: { fontFamily: font.bold, fontSize: 28, lineHeight: 34, letterSpacing: -0.6 },
-  dropdowns: { flexDirection: 'row', gap: space.sm },
-  dropdown: { flexDirection: 'row', alignItems: 'center', gap: 10, height: 46, paddingHorizontal: 14, borderRadius: 14 },
-  badge: { width: 74, alignItems: 'center', marginTop: 6 },
-  rings: { flexDirection: 'row', justifyContent: 'space-between', width: 46, height: 10, zIndex: 1, marginBottom: -5 },
-  ring: { width: 7, height: 12, borderRadius: 4 },
-  badgeBody: { width: 74, height: 70, borderRadius: 16, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  badgeTop: { position: 'absolute', top: 0, left: 0, right: 0, height: 35 },
-  badgeNum: { fontFamily: font.numBold, fontSize: 36, lineHeight: 42, letterSpacing: -1 },
-  body: { marginTop: space.xl, minHeight: 290 },
-  weekRow: { flexDirection: 'row', marginBottom: 6 },
-  weekDay: { width: `${100 / 7}%`, textAlign: 'center', fontFamily: font.semibold, fontSize: 12, letterSpacing: 0.3 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap' },
-  cell: { width: `${100 / 7}%`, height: 44, alignItems: 'center', justifyContent: 'center' },
-  day: { fontSize: 15, fontVariant: ['tabular-nums'] },
-  underline: { width: 18, height: 2.5, borderRadius: 2, marginTop: 3 },
-  pickGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingTop: space.sm },
-  pickCell: { width: '33.333%', height: 58, alignItems: 'center', justifyContent: 'center', borderRadius: 16 },
-  footer: { alignItems: 'center', marginTop: space.md },
-  confirm: { minWidth: 200 },
+  title: { fontFamily: font.bold, fontSize: 24, lineHeight: 30, letterSpacing: -0.5 },
+  sub: { fontFamily: font.regular, fontSize: 13, lineHeight: 18, marginTop: 2 },
+  today: { height: 32, paddingHorizontal: 14, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.12)', marginTop: 2 },
+  todayText: { color: '#F5F5F7', fontFamily: font.semibold, fontSize: 13, lineHeight: 17 },
+  wheels: { flexDirection: 'row', gap: 6, marginTop: space.lg, height: ROW * VISIBLE, overflow: 'hidden' },
+  band: { position: 'absolute', left: 0, right: 0, height: ROW, borderRadius: 12 },
+  row: { height: ROW, justifyContent: 'center', paddingHorizontal: 10 },
+  rowText: { fontSize: 21, lineHeight: 27 },
+  fade: { position: 'absolute', left: 0, right: 0, height: ROW * 1.2 },
+  confirm: { marginTop: space.lg },
 });

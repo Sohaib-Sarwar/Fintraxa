@@ -1,7 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, type ReactNode } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { type PassiveSource } from '@/data/engines';
 import { usePassive } from '@/data/portfolio';
 import { SourceIcon, TAX_LABEL, VIEW_LABEL } from '@/features/passive/passiveUi';
@@ -11,7 +11,8 @@ import { compactNumber, group } from '@/lib/format';
 import { EmptyState, Skeleton } from '@/ui/feedback';
 import { useHidden } from '@/ui/Figures';
 import { StockLogo } from '@/ui/Logos';
-import { Gap } from '@/ui/primitives';
+import { Plus } from '@/ui/icons';
+import { CircleButton, Gap } from '@/ui/primitives';
 import { Screen } from '@/ui/Screen';
 import { Text } from '@/ui/Text';
 import { dark, font, space } from '@/ui/tokens';
@@ -35,7 +36,8 @@ function Glass({ children, style }: { children: ReactNode; style?: object }) {
 /**
  * Every payment behind a passive source (owner, 2026-11-14: tap the Dividends / Savings / Funds card) for the
  * period, newest first, grouped by month, in dark glass: what paid (the stock, the account, the month's fund
- * profit), when, the amount received big, gross and tax small.
+ * profit), when, the amount received big, gross and tax small. Dividends (owner, 2026-11-15): + adds one, and each
+ * row opens its receipt.
  */
 export default function PassiveEntries() {
   const hidden = useHidden();
@@ -54,8 +56,12 @@ export default function PassiveEntries() {
 
   const title = source === 'dividends' ? 'Dividend payments' : source === 'savings' ? 'Savings profit' : source === 'mutual_funds' ? 'Fund profit' : 'Passive payments';
 
+  const right = source === 'dividends'
+    ? <CircleButton icon={Plus} label="Add a dividend" onPress={() => router.push('/dividend-add')} />
+    : undefined;
+
   return (
-    <Screen back title={title}>
+    <Screen back title={title} right={right}>
       {isLoading || !a ? (
         <><Skeleton height={110} radius={22} /><Gap h={space.md} /><Skeleton height={260} radius={22} /></>
       ) : (
@@ -74,8 +80,12 @@ export default function PassiveEntries() {
                   const net = num(e.net);
                   const gross = num(e.gross);
                   const tax = num(e.tax);
+                  // Dividend events are `div-<row id>` (passive.js); they open the dividend's receipt.
+                  const divId = source === 'dividends' && e.id.startsWith('div-') ? e.id.slice(4) : null;
                   return (
-                    <View key={e.id} style={[styles.row, i > 0 && styles.rowSep]}>
+                    <Pressable key={e.id} disabled={!divId} onPress={() => divId && router.push({ pathname: '/dividend/[id]', params: { id: divId } })}
+                      accessibilityRole={divId ? 'button' : undefined} accessibilityLabel={divId ? `${e.title}, ${shortDate(e.date)}, receipt` : undefined}
+                      style={({ pressed }) => [styles.row, i > 0 && styles.rowSep, { opacity: pressed ? 0.75 : 1 }]}>
                       {e.symbol ? <StockLogo symbol={e.symbol} size={36} /> : <SourceIcon source={source} size={36} />}
                       <View style={{ flex: 1, gap: 1 }}>
                         <Text style={styles.name} numberOfLines={1}>{e.title}</Text>
@@ -85,7 +95,7 @@ export default function PassiveEntries() {
                         <Text style={[styles.net, { color: net >= 0 ? dark.pos : dark.neg }]}>{rs(net)}</Text>
                         {tax ? <Text style={styles.small}>gross {hidden ? '••' : compactNumber(gross)} · tax {hidden ? '••' : compactNumber(tax)}</Text> : null}
                       </View>
-                    </View>
+                    </Pressable>
                   );
                 })}
               </Glass>

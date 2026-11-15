@@ -235,6 +235,10 @@ export function analyzeFunds({ entries, components = [], prices = [], funds = {}
     const sales = r.realizations.filter(inRange);
     const gross = sales.reduce((s, x) => s.plus(x.gain), ZERO).plus(sumAmounts(r.income, start, endEff));
     const cgt = sumAmounts(r.taxEvents, start, endEff);
+    // The same CGT split: what statements deducted vs what they refunded / reversed, in the range (cgt = paid − refunded).
+    const taxIn = r.taxEvents.filter((x) => x.date >= start && x.date <= endEff);
+    const cgtPaid = taxIn.filter((x) => x.amount.gt(0)).reduce((s, x) => s.plus(x.amount), ZERO);
+    const cgtRefunded = taxIn.filter((x) => x.amount.lt(0)).reduce((s, x) => s.minus(x.amount), ZERO);
     const charges = sales.reduce((s, x) => s.plus(x.deductions), ZERO);
     const tradedInRange = list.some((e) => e.trade_date >= start && e.trade_date <= endEff);
     const before = list.filter((e) => e.trade_date < start);
@@ -258,7 +262,7 @@ export function analyzeFunds({ entries, components = [], prices = [], funds = {}
       invested: r2(atEnd.cost),
       avgCost: atEnd.units.gt(0) && atEnd.costKnown ? Number(atEnd.cost.dividedBy(atEnd.units).toFixed(4)) : null,
       unrealized: { gross: r2(atEnd.unrealized.gross), tax: r2(atEnd.unrealized.tax), net: r2(atEnd.unrealized.net) },
-      realized: { gross: r2(gross), cgt: r2(cgt), charges: r2(charges), net: r2(gross.minus(cgt).minus(charges)), sales: sales.length },
+      realized: { gross: r2(gross), cgt: r2(cgt), cgtPaid: r2(cgtPaid), cgtRefunded: r2(cgtRefunded), charges: r2(charges), net: r2(gross.minus(cgt).minus(charges)), sales: sales.length },
       allTime: { gross: r2(allTimeGain), cgt: r2(allTimeCgt), net: r2(allTimeGain.minus(allTimeCgt)) },
       deposits: r2(sumAmounts(r.deposits, start, endEff)),
       withdrawals: r2(sumAmounts(r.withdrawals, start, endEff)),

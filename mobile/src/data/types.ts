@@ -23,6 +23,7 @@ export type Trade = {
 export type Dividend = {
   id: string; symbol: string; company_name: string | null; payment_date: string; shares: string; warrant_no?: string | null;
   gross_amount: string; tax_amount: string; jh_tax_amount?: string; zakat_amount: string; net_amount: string; source: string; created_at: string;
+  issue_date?: string | null; filer_status?: string | null; dividend_type?: 'interim' | 'final' | 'special' | null; dps?: string | null; notes?: string | null;
 };
 
 export type Snapshot = {
@@ -63,7 +64,7 @@ export type FundPosition = {
   inRange: boolean;
   value: number | null; invested: number; avgCost: number | null;
   unrealized: { gross: number; tax: number; net: number };
-  realized: { gross: number; cgt: number; charges: number; net: number; sales: number };
+  realized: { gross: number; cgt: number; cgtPaid?: number; cgtRefunded?: number; charges: number; net: number; sales: number };
   allTime: { gross: number; cgt: number; net: number };
   entries: Record<string, unknown>[]; firstDate: string | null; lastDate?: string | null; flags: string[];
 };
