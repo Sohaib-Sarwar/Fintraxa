@@ -8,7 +8,7 @@ import Svg, { Path } from 'react-native-svg';
 import { useStocksAnalysis } from '@/data/portfolio';
 import { friendlyError } from '@/data/mutations';
 import { useDividends, useProfile, useUid } from '@/data/queries';
-import { checkDividend, dividendAmounts, DIVIDEND_TYPES, sharesHeldOn, useAddDividend, WHT_FILER, WHT_NON_FILER, type DividendType } from '@/features/dividends/addDividend';
+import { checkDividend, dividendAmounts, sharesHeldOn, useAddDividend, WHT_FILER, WHT_NON_FILER } from '@/features/dividends/addDividend';
 import { ALL_TIME_START, longDate, shortDate, todayIso } from '@/lib/dates';
 import { group, units } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
@@ -36,7 +36,7 @@ function Line({ label, sub, children, onPress, a11y, first }: { label: string; s
   const body = (
     <View style={[styles.line, !first && styles.lineSep]}>
       <View style={{ flex: 1, gap: 1 }}>
-        <Text style={styles.label}>{label}</Text>
+        <Text style={styles.label} numberOfLines={1}>{label}</Text>
         {sub ? <Text style={styles.sub} numberOfLines={1}>{sub}</Text> : null}
       </View>
       {children}
@@ -64,11 +64,9 @@ export default function DividendAdd() {
   const dpsRef = useRef<ComponentRef<typeof TextInput>>(null);
 
   const [symbol, setSymbol] = useState<string | null>(null);
-  const [type, setType] = useState<DividendType>('interim');
   const [date, setDate] = useState(today);
   const [shares, setShares] = useState<string | null>(null); // null = the shares held that day, from the trades
   const [dps, setDps] = useState('');
-  const [rate, setRate] = useState<string | null>(null); // null = from the profile's filer status
   const [taxRs, setTaxRs] = useState<string | null>(null); // null = worked out from the rate; typed rupees win
   const [picking, setPicking] = useState(false);
   const [dateOpen, setDateOpen] = useState(false);
@@ -80,10 +78,13 @@ export default function DividendAdd() {
   const pos = positions.find((x) => x.symbol === symbol) ?? null;
   const held = symbol ? sharesHeldOn(stocks.trades, symbol, date) : 0;
   const sharesVal = shares ?? (held ? String(held) : '');
-  const rateVal = rate ?? String(profile.data?.filer_status === 'non_filer' ? WHT_NON_FILER : WHT_FILER);
+  // Withholding tax at the filer's 15% (30% if the profile says non-filer) — no rate to pick (owner, 2026-11-15);
+  // the tax itself stays editable for a statement that shows a different figure.
+  const nonFiler = profile.data?.filer_status === 'non_filer';
+  const rateVal = String(nonFiler ? WHT_NON_FILER : WHT_FILER);
   const amounts = dividendAmounts(sharesVal, dps, rateVal, taxRs);
   const dup = symbol ? (divs.data ?? []).find((x) => x.symbol === symbol && x.payment_date === date) : undefined;
-  const draft = { symbol: symbol ?? '', companyName: pos?.companyName ?? null, paymentDate: date, type, shares: sharesVal, dps, ratePct: rateVal, taxRs };
+  const draft = { symbol: symbol ?? '', companyName: pos?.companyName ?? null, paymentDate: date, shares: sharesVal, dps, ratePct: rateVal, taxRs };
   const ready = checkDividend(draft, today) === null;
 
   const close = () => (router.canGoBack() ? router.back() : router.replace('/'));
@@ -128,7 +129,7 @@ export default function DividendAdd() {
 
   if (done) {
     return <DividendDone symbol={draft.symbol} company={draft.companyName} net={done.net} gross={done.gross} tax={done.tax} rate={amounts.rate}
-      shares={sharesVal} dps={dps} date={date} type={type}
+      shares={sharesVal} dps={dps} date={date}
       onDone={close} onReceipt={() => router.replace({ pathname: '/dividend/[id]', params: { id: done.id } })} />;
   }
 
@@ -162,21 +163,11 @@ export default function DividendAdd() {
                   <ChevronRight size={17} color={GLASS_INK2} />
                 </View>
               </Line>
-              <View style={[styles.line, styles.lineSep]}>
-                <Text style={[styles.label, { flex: 1 }]}>Type</Text>
-                <View style={styles.seg} accessibilityRole="radiogroup">
-                  {DIVIDEND_TYPES.map((t) => (
-                    <Pressable key={t.value} onPress={() => { haptic.tick(); setType(t.value); }} accessibilityRole="radio" accessibilityState={{ selected: type === t.value }}
-                      style={[styles.segItem, type === t.value && styles.segOn]}>
-                      <Text style={[styles.segText, type === t.value && { color: '#000' }]}>{t.label}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-              </View>
               <Line label="Payment date" onPress={() => { haptic.tick(); setDateOpen(true); }} a11y={`Payment date: ${longDate(date)}. Change`}>
                 <View style={styles.right}>
                   <CalendarDays size={16} color={GLASS_INK2} />
-                  <Text style={styles.value}>{longDate(date)}</Text>
+                  <Text style={styles.value} numberOfLines={1}>{shortDate(date)}</Text>
+                  <ChevronRight size={17} color={GLASS_INK2} />
                 </View>
               </Line>
             </BlackGlass>
@@ -193,26 +184,7 @@ export default function DividendAdd() {
                     placeholderTextColor={GLASS_INK2} style={styles.input} accessibilityLabel="Dividend per share" />
                 </View>
               </Line>
-              {/* Withholding tax (owner, 2026-11-15: editable): pick 15% / 30% or type any rate — or type the tax itself. */}
-              <Line label="Tax rate" sub={taxRs !== null ? 'From the tax you typed' : Number(rateVal) === WHT_FILER ? 'Filer rate' : Number(rateVal) === WHT_NON_FILER ? 'Non-filer rate' : 'Your rate'}>
-                <View style={styles.right}>
-                  {[WHT_FILER, WHT_NON_FILER].map((r) => {
-                    const on = taxRs === null && Number(rateVal) === r;
-                    return (
-                      <Pressable key={r} onPress={() => { haptic.tick(); setRate(String(r)); setTaxRs(null); }} hitSlop={6} accessibilityRole="button" accessibilityLabel={`${r}%`}
-                        accessibilityState={{ selected: on }} style={[styles.rateChip, on && styles.segOn]}>
-                        <Text style={[styles.segText, on && { color: '#000' }]}>{r}%</Text>
-                      </Pressable>
-                    );
-                  })}
-                  <View style={styles.box}>
-                    <TextInput value={taxRs !== null ? amounts.rate : rateVal} onChangeText={(v) => { setRate(clean(v, 2)); setTaxRs(null); }} keyboardType="decimal-pad"
-                      style={styles.boxInput} accessibilityLabel="Tax rate, percent" selectTextOnFocus />
-                    <Text style={styles.unit}>%</Text>
-                  </View>
-                </View>
-              </Line>
-              <Line label="Tax withheld" sub={taxRs !== null ? 'Typed by you' : 'Worked out from the rate · tap to change'}>
+              <Line label="Tax withheld" sub={taxRs !== null ? 'Typed by you' : `${rateVal}% ${nonFiler ? 'non-filer' : 'filer'} rate · tap to change`}>
                 <View style={styles.box}>
                   <Text style={styles.unit}>Rs</Text>
                   <TextInput value={taxRs ?? amounts.tax} onChangeText={(v) => setTaxRs(clean(v, 2))} keyboardType="decimal-pad"
@@ -268,8 +240,8 @@ export default function DividendAdd() {
 }
 
 /** Saved: the accent disc and check draw in, then the receipt's essentials rise in; Done or the full receipt. */
-function DividendDone({ symbol, company, net, gross, tax, rate, shares, dps, date, type, onDone, onReceipt }: {
-  symbol: string; company: string | null; net: string; gross: string; tax: string; rate: string; shares: string; dps: string; date: string; type: DividendType;
+function DividendDone({ symbol, company, net, gross, tax, rate, shares, dps, date, onDone, onReceipt }: {
+  symbol: string; company: string | null; net: string; gross: string; tax: string; rate: string; shares: string; dps: string; date: string;
   onDone: () => void; onReceipt: () => void;
 }) {
   const insets = useSafeAreaInsets();
@@ -285,7 +257,6 @@ function DividendDone({ symbol, company, net, gross, tax, rate, shares, dps, dat
   const checkProps = useAnimatedProps(() => ({ strokeDashoffset: CHECK_LEN * (1 - draw.get()) }));
   const rows: [string, string][] = [
     ['Payment date', longDate(date)],
-    ['Type', DIVIDEND_TYPES.find((t) => t.value === type)?.label ?? 'Dividend'],
     ['Shares × per share', `${units(Number(shares))} × Rs ${dps}`],
     ['Gross', `Rs ${group(gross, 2)}`],
     [`Tax withheld (${rate}%)`, `−Rs ${group(tax, 2)}`],
@@ -336,11 +307,9 @@ const styles = StyleSheet.create({
   label: { color: GLASS_INK, fontFamily: font.medium, fontSize: 15 },
   sub: { color: GLASS_INK2, fontFamily: font.regular, fontSize: 12 },
   right: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 },
-  value: { color: GLASS_INK, fontFamily: font.semibold, fontSize: 15, flexShrink: 1 },
+  value: { color: GLASS_INK, fontFamily: font.semibold, fontSize: 15, flexShrink: 1, textAlign: 'right' },
   unit: { color: GLASS_INK2, fontFamily: font.medium, fontSize: 15 },
   input: { minWidth: 70, textAlign: 'right', color: GLASS_INK, fontFamily: font.num, fontSize: 17, paddingVertical: 6 },
-  seg: { flexDirection: 'row', padding: 3, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.08)' },
-  segItem: { paddingHorizontal: 11, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   segOn: { backgroundColor: '#F3F4F2' },
   segText: { color: GLASS_INK, fontFamily: font.semibold, fontSize: 12.5 },
   box: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 36, paddingHorizontal: 10, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.08)' },

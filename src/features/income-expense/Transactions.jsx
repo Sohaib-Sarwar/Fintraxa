@@ -7,7 +7,7 @@ import { useDateRange, inRange, rangeLabel } from '../../lib/dateRange';
 import { useFx, PageHeader, Seg, PillSelect, FitPage, FONT_NUM, usePaged, Pagination } from '../../components/fx';
 import CategoryBadge from './CategoryBadge';
 import TransactionEditor from './TransactionEditor';
-import StockLogo from '../../components/StockLogo';
+import BankLogo from '../../components/BankLogo';
 
 const fmtDate = (d) => (d ? new Date(`${d}T00:00:00`).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
 
@@ -94,7 +94,7 @@ const COLS = '100px minmax(0, 1.4fr) minmax(0, 2fr) 140px 24px';
 function Row({ x, mobile, onOpen }) {
   const t = useFx();
   const acct = x.savings_accounts; // savings profit credited to a bank account
-  const logo = (size) => (acct ? <StockLogo symbol={acct.bank_symbol} size={size >= 34 ? 'md' : 'sm'} /> : <CategoryBadge icon={x.categories?.icon} name={x.categories?.name} size={size} />);
+  const logo = (size) => (acct ? <BankLogo symbol={acct.bank_symbol} size={size >= 34 ? 'md' : 'sm'} /> : <CategoryBadge icon={x.categories?.icon} name={x.categories?.name} size={size} />);
   const title = acct ? acct.name : x.categories?.name ?? 'Uncategorized';
   const detail = acct ? [acct.bank_name, x.notes].filter(Boolean).join(', ') : x.notes;
   const income = x.type === 'credit';

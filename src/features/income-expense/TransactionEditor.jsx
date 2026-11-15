@@ -11,7 +11,7 @@ import { useFx, PillSelect, Seg, FONT_NUM } from '../../components/fx';
 import DateField from '../../components/fx/DateField';
 import { savingsTax } from '../../lib/finance/passive';
 import CategoryBadge from './CategoryBadge';
-import StockLogo from '../../components/StockLogo';
+import BankLogo from '../../components/BankLogo';
 import { useSavingsAccounts } from '../../lib/finance/useSavingsAccounts';
 import Receipt, { ReceiptToolbar, EditHeader } from '../../components/Receipt';
 import { downloadReceipt, receiptDate } from '../../lib/receipt';
@@ -115,7 +115,7 @@ export default function TransactionEditor({ txn, onClose }) {
           tone={income ? 'pos' : 'neutral'}
           amount={`${income ? '+' : '−'}${formatCurrency(shownAmount, 2)}`}
           date={receiptDate(f.date)}
-          subject={account ? { logo: <StockLogo symbol={account.bank_symbol} size="sm" />, title: account.name, sub: account.bank_name } : null}
+          subject={account ? { logo: <BankLogo symbol={account.bank_symbol} size="sm" />, title: account.name, sub: account.bank_name } : null}
           rows={[
             ...(account ? [] : [['Category', (
               <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75 }}>
@@ -130,7 +130,7 @@ export default function TransactionEditor({ txn, onClose }) {
         ) : (
           <>
             <EditHeader title={income ? 'Edit income' : 'Edit expense'} sub={account ? account.name : cat?.name} onClose={onClose}
-              logo={account ? <StockLogo symbol={account.bank_symbol} size="sm" /> : <CategoryBadge icon={cat?.icon} name={cat?.name} size={34} />} />
+              logo={account ? <BankLogo symbol={account.bank_symbol} size="sm" /> : <CategoryBadge icon={cat?.icon} name={cat?.name} size={34} />} />
 
         <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.25, mt: 2 }}>
           {input('amount', taxed ? 'Gross profit' : 'Amount')}
@@ -146,7 +146,7 @@ export default function TransactionEditor({ txn, onClose }) {
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, minWidth: 0 }}>
                   <Box component="span" sx={{ fontSize: '0.68rem', fontWeight: 600, color: t.muted }}>Bank account</Box>
                   <PillSelect value={accountId} onChange={(v) => { setAccountId(v); setRate(null); }} label="Savings account" width="100%"
-                    items={accounts.map((a) => ({ value: a.id, label: a.name, icon: <StockLogo symbol={a.bank_symbol} size="sm" /> }))} />
+                    items={accounts.map((a) => ({ value: a.id, label: a.name, icon: <BankLogo symbol={a.bank_symbol} size="sm" /> }))} />
                 </Box>
               )}
               <Seg size="sm" label="Tax rate" value={String(rate)} onChange={(v) => setRate(Number(v))}

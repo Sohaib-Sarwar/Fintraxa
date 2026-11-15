@@ -10,7 +10,7 @@ import { useAuth } from '@/lib/auth';
 import { addDays, todayIso } from '@/lib/dates';
 import { env } from '@/lib/env';
 import { supabase } from '@/lib/supabase';
-import type { Board, BoardStock, Category, FundsFeed, Ledger, Txn, Trade, Dividend, Snapshot, Profile, Prefs, Release, IndexRow, FeedHealthRow } from './types';
+import type { Board, BoardStock, Category, FundsFeed, Ledger, Txn, Trade, Dividend, Snapshot, Profile, Prefs, Release, IndexRow, FeedHealthRow, SavingsAccount } from './types';
 
 export const useUid = () => useAuth((s) => s.user?.id);
 
@@ -153,6 +153,23 @@ export function useCloses(symbols: string[]) {
 }
 
 const DIV_COLS = 'id, symbol, company_name, payment_date, issue_date, warrant_no, filer_status, dividend_type, dps::text, shares::text, gross_amount::text, tax_amount::text, jh_tax_amount::text, zakat_amount::text, net_amount::text, source, notes, created_at';
+/** The user's savings accounts, active first (archived ones still label old profit entries). */
+export function useSavingsAccounts() {
+  const uid = useUid();
+  return useQuery({
+    queryKey: ['savings-accounts', uid],
+    enabled: !!uid,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase.from('savings_accounts')
+        .select('id, bank_symbol, bank_name, name, profit_rate::text, tax_rate::text, archived')
+        .eq('user_id', uid!).order('archived').order('name');
+      if (error) throw error;
+      return (data ?? []).map((a) => ({ ...a, profit_rate: a.profit_rate === null ? null : Number(a.profit_rate), tax_rate: Number(a.tax_rate) })) as SavingsAccount[];
+    },
+  });
+}
+
 export function useDividends() {
   const uid = useUid();
   return useQuery({

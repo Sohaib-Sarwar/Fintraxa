@@ -7,7 +7,7 @@ import { PSX_BANKS, SAVINGS_TAX_RATES } from '../../lib/finance/banks';
 import { useSavingsAccounts, useSaveAccount, useArchiveAccount, useDeleteAccount, validateAccount } from '../../lib/finance/useSavingsAccounts';
 import { useProfile } from '../../lib/profile/useProfile';
 import { useFx, Seg, FONT_NUM } from '../../components/fx';
-import StockLogo from '../../components/StockLogo';
+import BankLogo from '../../components/BankLogo';
 
 const describe = (a) => [a.bank_name, a.profit_rate !== null ? `${a.profit_rate}% a year` : null, `tax ${Math.round(a.tax_rate * 100)}%`].filter(Boolean).join(', ');
 
@@ -73,7 +73,7 @@ export function SavingsAccountsManager({ startNew = false, onCreated, onDone }) 
         <Box sx={{ display: 'grid', gap: 1 }}>
           {accounts.map((a) => (
             <Box key={a.id} sx={{ display: 'flex', alignItems: 'center', gap: 1.25, p: 1.25, borderRadius: '14px', border: `1px solid ${t.border}`, opacity: a.archived ? 0.55 : 1 }}>
-              <StockLogo symbol={a.bank_symbol} size="md" />
+              <BankLogo symbol={a.bank_symbol} size="md" />
               <Box sx={{ flex: 1, minWidth: 0 }}>
                 <Typography noWrap sx={{ fontSize: '0.86rem', fontWeight: 650 }}>{a.name}{a.archived && <Box component="span" sx={{ ml: 0.75, fontSize: '0.64rem', fontWeight: 600, color: t.muted }}>Archived</Box>}</Typography>
                 <Typography noWrap sx={{ fontSize: '0.7rem', color: t.muted }}>{describe(a)}</Typography>
@@ -108,7 +108,7 @@ export function SavingsAccountsManager({ startNew = false, onCreated, onDone }) 
             <ButtonBase key={b.symbol} onClick={() => pickBank(b)} aria-pressed={on} aria-label={b.name}
               sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5, py: 0.9, px: 0.5, borderRadius: '14px', fontFamily: 'inherit', minWidth: 0,
                 border: `1px solid ${on ? t.ink : t.hairline}`, bgcolor: on ? t.surface2 : 'transparent', '&:hover': { bgcolor: t.surface2 } }}>
-              <StockLogo symbol={b.symbol} size="sm" />
+              <BankLogo symbol={b.symbol} size="sm" />
               <Typography sx={{ fontSize: '0.62rem', fontWeight: on ? 700 : 500, color: on ? t.ink : t.ink2, textAlign: 'center', lineHeight: 1.2, width: '100%', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{b.name}</Typography>
             </ButtonBase>
           );

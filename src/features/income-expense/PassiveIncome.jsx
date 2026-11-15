@@ -10,6 +10,7 @@ import { useDateRange, rangeLabel, ALL_TIME_START, todayIso } from '../../lib/da
 import { formatCurrency } from '../../lib/formatters';
 import { useFx, PageHeader, Panel, PanelHeader, SummaryCard, FlowChart, AllocationDonut, Seg, PillSelect, FitPage, signColor, passiveColors, FONT_NUM } from '../../components/fx';
 import StockLogo from '../../components/StockLogo';
+import BankLogo from '../../components/BankLogo';
 import AmcLogo from '../mutual-funds/AmcLogo';
 import { PassiveLogo, PassiveSourceIcon } from './passiveIcons';
 
@@ -156,7 +157,7 @@ export default function PassiveIncome() {
     mutual_funds: (mfRange?.positions ?? []).filter((p) => p.realized.net > 0)
       .map((p) => ({ key: p.key, label: p.fundName ?? 'Fund', value: p.realized.net, logo: <AmcLogo code={p.amcCode} name={p.amcName} size={26} /> })),
     dividends: group(inRange, (e) => e.symbol, (e) => e.symbol, (e) => <StockLogo symbol={e.symbol} size="sm" />),
-    savings: group(inRange, (e) => e.accountId ?? e.title, (e) => e.title, (e) => (e.symbol ? <StockLogo symbol={e.symbol} size="sm" /> : <PassiveSourceIcon source="savings" size={26} />)),
+    savings: group(inRange, (e) => e.accountId ?? e.title, (e) => e.title, (e) => (e.symbol ? <BankLogo symbol={e.symbol} size="sm" /> : <PassiveSourceIcon source="savings" size={26} />)),
     other: group(inRange, (e) => e.title, (e) => e.title, () => <PassiveSourceIcon source="other" size={26} />),
   }[pick].filter((x) => x.value > 0);
   const donutTitle = { all: 'Where it comes from', mutual_funds: 'By fund', dividends: 'By stock', savings: 'By account', other: 'By category' }[pick];

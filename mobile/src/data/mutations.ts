@@ -17,7 +17,11 @@ import type { Category, Txn } from './types';
 export const friendlyError = (e: unknown) => describeDbError(e) as string;
 export const checkAmount = (v: string, label = 'Amount') => validatePositiveNumber(v, label) as string | null;
 
-export type TxnInput = { id: string; user_id: string; amount: string; type: 'credit' | 'debit'; category_id: string; date: string; notes: string | null };
+export type TxnInput = {
+  id: string; user_id: string; amount: string; type: 'credit' | 'debit'; category_id: string; date: string; notes: string | null;
+  /** Savings profit (a category with a tax rate): the gross typed, the tax withheld, its rate, and the account it was paid into. */
+  gross_amount?: string | null; tax_amount?: string | null; tax_rate?: number | null; savings_account_id?: string | null;
+};
 
 function refreshFinance(qc: QueryClient) {
   for (const k of FINANCE_KEYS) qc.invalidateQueries({ queryKey: [k] });

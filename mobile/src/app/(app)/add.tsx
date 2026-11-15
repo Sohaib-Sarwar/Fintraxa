@@ -6,16 +6,17 @@ import Animated, { Easing, FadeInLeft, FadeInRight } from 'react-native-reanimat
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AddDone } from '@/features/money/AddDone';
 import { checkAmount, newTxnId, useAddTransaction, useUpdateTransaction } from '@/data/mutations';
-import { useCategories, useTransactions, useUid } from '@/data/queries';
+import { useCategories, useSavingsAccounts, useTransactions, useUid } from '@/data/queries';
+import { savingsTax } from '@/data/engines';
 import type { Category } from '@/data/types';
 import { pressKey } from '@/lib/amount';
 import { addDays, longDate, shortDate, todayIso } from '@/lib/dates';
 import { group } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { DatePicker } from '@/ui/DatePicker';
-import { ArrowLeft, ArrowRight, CalendarDays, Check, ChevronDown, LayoutGrid, NotebookPen, Pencil, Search, X } from '@/ui/icons';
+import { ArrowLeft, ArrowRight, CalendarDays, Check, ChevronDown, LayoutGrid, NotebookPen, Pencil, PiggyBank, Plus, Search, X } from '@/ui/icons';
 import { Keypad } from '@/ui/Keypad';
-import { CategoryIcon } from '@/ui/Logos';
+import { BankLogo, CategoryIcon } from '@/ui/Logos';
 import { Button, Chip, IconButton } from '@/ui/primitives';
 import { GlassSheet } from '@/ui/GlassSheet';
 import { Text } from '@/ui/Text';
@@ -52,6 +53,24 @@ function Field({ label, value, leading, onPress, a11y, placeholder = false }: { 
   );
 }
 
+/**
+ * Savings profit (owner, 2026-11-15 — the web's AddTransaction): an income category with a tax rate. The amount typed
+ * is the gross; the bank account it was paid into sets the withholding (20% filer / 40% non-filer, or the one picked);
+ * the net is what's saved as the amount, with the gross, tax, rate and account beside it.
+ */
+function useSavingsProfit({ credit, catRate, accountId, rateOverride, amount, editAccountId }: {
+  credit: boolean; catRate: number | null; accountId: string | null; rateOverride: number | null; amount: string; editAccountId: string | null;
+}) {
+  const accounts = useSavingsAccounts();
+  const taxed = credit && catRate !== null;
+  const usable = (accounts.data ?? []).filter((a) => !a.archived || a.id === editAccountId);
+  const active = usable.filter((a) => !a.archived);
+  const account = !taxed ? null : usable.find((a) => a.id === accountId) ?? (active.length === 1 ? active[0] : null);
+  const rate = !taxed ? null : rateOverride ?? account?.tax_rate ?? Number(catRate);
+  const split = taxed && rate !== null ? savingsTax(amount, rate) : null;
+  return { taxed, usable, account, rate, split };
+}
+
 export default function AddTransaction() {
   const p = useTheme();
   const insets = useSafeAreaInsets();
@@ -64,7 +83,8 @@ export default function AddTransaction() {
 
   const [step, setStep] = useState<Step>('amount');
   const [back, setBack] = useState(false);
-  const [amount, setAmount] = useState(editing ? String(Number(editing.amount)) : '');
+  // Savings profit is typed as the gross (the bank withholds tax), so an edit starts from the gross when there is one.
+  const [amount, setAmount] = useState(editing ? String(Number(editing.gross_amount ?? editing.amount)) : '');
   const [categoryId, setCategoryId] = useState<string | null>(editing?.category_id ?? null);
   const [date, setDate] = useState(editing?.date ?? todayIso());
   const [note, setNote] = useState(editing?.notes ?? '');
@@ -72,6 +92,9 @@ export default function AddTransaction() {
   const [dateOpen, setDateOpen] = useState(false);
   const [catOpen, setCatOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const [accountId, setAccountId] = useState<string | null>(editing?.savings_account_id ?? null);
+  const [rateOverride, setRateOverride] = useState<number | null>(editing?.tax_rate !== undefined && editing?.tax_rate !== null ? Number(editing.tax_rate) : null);
+  const [acctOpen, setAcctOpen] = useState(false);
   const blurTarget = useRef<ComponentRef<typeof View>>(null);
   const add = useAddTransaction(cats.data);
   const update = useUpdateTransaction();
@@ -83,6 +106,9 @@ export default function AddTransaction() {
     return [...forKind].sort((a, b) => (uses.get(b.id) ?? 0) - (uses.get(a.id) ?? 0) || a.name.localeCompare(b.name));
   }, [forKind, txns.data, kind]);
   const selected = forKind.find((c) => c.id === categoryId) ?? null;
+  const { taxed, usable, account, rate, split } = useSavingsProfit({
+    credit: kind === 'credit', catRate: selected?.default_tax_rate ?? null, accountId, rateOverride, amount, editAccountId: editing?.savings_account_id ?? null,
+  });
   const shown = query.trim() ? ranked.filter((c) => c.name.toLowerCase().includes(query.trim().toLowerCase())) : ranked;
 
   // Recent distinct amounts of this type (the selected category's first, when there is one).
@@ -112,16 +138,21 @@ export default function AddTransaction() {
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       if (dateOpen) return false; // the picker handles it
+      if (acctOpen) { setAcctOpen(false); return true; }
       if (step === 'details') { goAmount(); return true; }
       if (step === 'done') { close(); return true; }
       return false;
     });
     return () => sub.remove();
-  }, [step, dateOpen, goAmount, close]);
+  }, [step, dateOpen, acctOpen, goAmount, close]);
 
   const save = () => {
     if (!categoryId) { haptic.error(); setError('Choose a category.'); return; }
-    const row = { id: editing?.id ?? newTxnId(), user_id: uid!, amount: String(Number(amount)), type: kind, category_id: categoryId, date, notes: note.trim() || null };
+    if (taxed && !account) { haptic.error(); setError(usable.length ? 'Choose the bank account the profit was paid into.' : 'Add the savings account the profit was paid into first.'); return; }
+    const row = {
+      id: editing?.id ?? newTxnId(), user_id: uid!, amount: split ? split.net : String(Number(amount)), type: kind, category_id: categoryId, date, notes: note.trim() || null,
+      gross_amount: split ? split.gross : null, tax_amount: split ? split.tax : null, tax_rate: split ? rate : null, savings_account_id: split ? account!.id : null,
+    };
     if (editing) update.mutate(row);
     else add.mutate(row);
     haptic.success();
@@ -129,7 +160,7 @@ export default function AddTransaction() {
   };
 
   const another = () => {
-    setAmount(''); setCategoryId(null); setNote(''); setDate(todayIso()); setError(null); setBack(true); setStep('amount');
+    setAmount(''); setCategoryId(null); setNote(''); setDate(todayIso()); setError(null); setAccountId(null); setRateOverride(null); setBack(true); setStep('amount');
   };
 
   const display = amount ? group(amount.endsWith('.') ? amount.slice(0, -1) : amount, amount.includes('.') ? Math.min(2, amount.split('.')[1].length) : 0) + (amount.endsWith('.') ? '.' : '') : '0';
@@ -190,7 +221,7 @@ export default function AddTransaction() {
               <Pressable onPress={goAmount} accessibilityRole="button" accessibilityLabel={`Amount Rs ${display}. Change`}
                 style={({ pressed }) => [styles.summary, { backgroundColor: p.surface, borderColor: p.border, opacity: pressed ? 0.85 : 1 }]}>
                 <View style={{ flex: 1 }}>
-                  <Text variant="caption" tone="muted">{isExpense ? 'Expense amount' : 'Income amount'}</Text>
+                  <Text variant="caption" tone="muted">{taxed ? 'Gross profit' : isExpense ? 'Expense amount' : 'Income amount'}</Text>
                   <Text style={[styles.summaryAmount, { color: p.ink }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>Rs {display}</Text>
                 </View>
                 <View style={[styles.editBtn, { backgroundColor: p.surface2 }]}><Pencil size={16} color={p.ink2} /></View>
@@ -201,6 +232,35 @@ export default function AddTransaction() {
                   leading={selected ? <CategoryIcon icon={selected.icon} size={40} tone="accent" /> : <View style={[styles.fieldIcon, { backgroundColor: p.surface2 }]}><LayoutGrid size={18} color={p.ink2} /></View>}
                   value={selected?.name ?? 'Select a category'} placeholder={!selected} />
                 <View style={[styles.sep, { backgroundColor: p.border }]} />
+                {taxed ? (
+                  <>
+                    <Field label="Bank account" onPress={() => { haptic.tick(); setAcctOpen(true); }} a11y={`Bank account: ${account?.name ?? 'not chosen'}. Change`}
+                      leading={account ? <BankLogo symbol={account.bank_symbol} size={40} /> : <View style={[styles.fieldIcon, { backgroundColor: p.surface2 }]}><PiggyBank size={18} color={p.ink2} /></View>}
+                      value={account ? `${account.name}` : 'Choose the bank'} placeholder={!account} />
+                    <View style={[styles.sep, { backgroundColor: p.border }]} />
+                    <View style={styles.field}>
+                      <View style={{ flex: 1, gap: 2 }}>
+                        <Text variant="caption" tone="muted">Tax withheld by the bank</Text>
+                        <Text variant="bodyStrong" numberOfLines={1}>
+                          {split ? `−Rs ${group(split.tax, 2)}  ·  you receive Rs ${group(split.net, 2)}` : 'Enter the gross profit'}
+                        </Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', gap: 6 }}>
+                        {[0.2, 0.4].map((r) => {
+                          const on = rate !== null && Math.abs(rate - r) < 1e-9;
+                          return (
+                            <Pressable key={r} onPress={() => { haptic.tick(); setRateOverride(r); }} accessibilityRole="radio" accessibilityState={{ checked: on }}
+                              accessibilityLabel={`${r * 100}% ${r === 0.2 ? 'filer' : 'non-filer'}`}
+                              style={[styles.rateChip, { backgroundColor: on ? p.accent : p.surface2 }]}>
+                              <Text style={{ color: on ? p.accentInk : p.ink, fontFamily: font.semibold, fontSize: 12.5 }}>{r * 100}%</Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    </View>
+                    <View style={[styles.sep, { backgroundColor: p.border }]} />
+                  </>
+                ) : null}
                 <Field label="Date" onPress={() => { haptic.tick(); setDateOpen(true); }} a11y={`Date: ${longDate(date)}. Change`}
                   leading={<View style={[styles.fieldIcon, { backgroundColor: p.surface2 }]}><CalendarDays size={18} color={p.ink2} /></View>}
                   value={date === today ? `Today, ${shortDate(date)}` : date === addDays(today, -1) ? `Yesterday, ${shortDate(date)}` : longDate(date)} />
@@ -267,14 +327,42 @@ export default function AddTransaction() {
       </GlassSheet>
       ) : null}
 
+      {acctOpen ? (
+        <GlassSheet blurTarget={blurTarget} onClose={() => setAcctOpen(false)} title="Paid into" maxHeight={0.7}>
+          {usable.map((a, i) => {
+            const on = account?.id === a.id;
+            return (
+              <Pressable key={a.id} accessibilityRole="radio" accessibilityState={{ checked: on }} accessibilityLabel={`${a.name}, ${a.bank_name}`}
+                onPress={() => { haptic.tick(); setAccountId(a.id); setRateOverride(null); setError(null); setAcctOpen(false); }}
+                style={({ pressed }) => [styles.option, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(255,255,255,0.10)' }, { opacity: pressed ? 0.75 : 1 }]}>
+                <BankLogo symbol={a.bank_symbol} size={40} />
+                <View style={{ flex: 1 }}>
+                  <Text variant="body" style={{ fontFamily: on ? font.semibold : font.regular }} numberOfLines={1}>{a.name}</Text>
+                  <Text variant="caption" tone="muted" numberOfLines={1}>{a.bank_name} · tax {Math.round(a.tax_rate * 100)}%</Text>
+                </View>
+                <View style={[styles.radio, { borderColor: on ? p.accent : p.borderStrong, backgroundColor: on ? p.accent : 'transparent' }]}>
+                  {on ? <Check size={13} color={p.accentInk} strokeWidth={3} /> : null}
+                </View>
+              </Pressable>
+            );
+          })}
+          <Pressable onPress={() => { setAcctOpen(false); router.push({ pathname: '/savings-accounts', params: { add: '1' } }); }} accessibilityRole="button"
+            style={({ pressed }) => [styles.option, usable.length ? { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(255,255,255,0.10)' } : null, { opacity: pressed ? 0.75 : 1 }]}>
+            <View style={[styles.fieldIcon, { backgroundColor: p.surface2 }]}><Plus size={18} color={p.ink} /></View>
+            <Text variant="body" style={{ flex: 1 }}>Add a savings account</Text>
+          </Pressable>
+        </GlassSheet>
+      ) : null}
+
       {step === 'done' ? (
-        <AddDone kind={kind} amount={String(Number(amount))} category={selected} date={date} note={note} editing={!!editing} onDone={close} onAnother={another} />
+        <AddDone kind={kind} amount={split ? split.net : String(Number(amount))} category={selected} date={date} note={note} editing={!!editing} onDone={close} onAnother={another} />
       ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  rateChip: { height: 30, paddingHorizontal: 11, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   root: { flex: 1 },
   top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 8, paddingVertical: space.sm },
   topMid: { alignItems: 'center', gap: 6 },

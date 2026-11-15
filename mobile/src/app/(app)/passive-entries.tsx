@@ -10,8 +10,8 @@ import { monthLabel, shortDate } from '@/lib/dates';
 import { compactNumber, group } from '@/lib/format';
 import { EmptyState, Skeleton } from '@/ui/feedback';
 import { useHidden } from '@/ui/Figures';
-import { StockLogo } from '@/ui/Logos';
-import { Plus } from '@/ui/icons';
+import { BankLogo, StockLogo } from '@/ui/Logos';
+import { Plus, X } from '@/ui/icons';
 import { CircleButton, Gap } from '@/ui/primitives';
 import { Screen } from '@/ui/Screen';
 import { Text } from '@/ui/Text';
@@ -41,18 +41,25 @@ function Glass({ children, style }: { children: ReactNode; style?: object }) {
  */
 export default function PassiveEntries() {
   const hidden = useHidden();
-  const { source: param } = useLocalSearchParams<{ source?: string }>();
+  const { source: param, symbol: only } = useLocalSearchParams<{ source?: string; symbol?: string }>();
   const source: PassiveSource = SOURCES.includes(param as PassiveSource) ? (param as PassiveSource) : 'dividends';
   const period = usePeriod();
   const { analysis: a, events, isLoading } = usePassive(period.upTo, source);
   const rs = (v: number) => (hidden ? '••••' : `Rs ${Math.abs(v) >= 1e7 ? compactNumber(v) : group(v, Math.abs(v) < 1e4 ? 2 : 0)}`);
 
+  // Opened from a stock's page (owner, 2026-11-15): only that stock's dividends, in the same period.
+  const inPeriod = useMemo(() => (events ?? []).filter((e) => e.date >= period.upTo.start && e.date <= period.upTo.end && (!only || e.symbol === only)),
+    [events, period.upTo.start, period.upTo.end, only]);
+  const shown = useMemo(() => (only ? {
+    net: inPeriod.reduce((s, e) => s + num(e.net), 0), tax: inPeriod.reduce((s, e) => s + num(e.tax), 0), count: inPeriod.length,
+  } : null), [only, inPeriod]);
+
   const groups = useMemo(() => {
-    const rows = (events ?? []).filter((e) => e.date >= period.upTo.start && e.date <= period.upTo.end).sort((x, y) => y.date.localeCompare(x.date));
+    const rows = [...inPeriod].sort((x, y) => y.date.localeCompare(x.date));
     const map = new Map<string, typeof rows>();
     for (const e of rows) map.set(e.month, [...(map.get(e.month) ?? []), e]);
     return [...map.entries()];
-  }, [events, period.upTo.start, period.upTo.end]);
+  }, [inPeriod]);
 
   const title = source === 'dividends' ? 'Dividend payments' : source === 'savings' ? 'Savings profit' : source === 'mutual_funds' ? 'Fund profit' : 'Passive payments';
 
@@ -67,9 +74,17 @@ export default function PassiveEntries() {
       ) : (
         <>
           <Glass style={styles.summary}>
-            <Text style={styles.small}>{VIEW_LABEL[source]}</Text>
-            <Text style={styles.total} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{rs(a.totals.net)}</Text>
-            <Text style={styles.small}>{a.totals.count} payment{a.totals.count === 1 ? '' : 's'} · {TAX_LABEL[source]} {rs(a.totals.tax)}</Text>
+            {only ? (
+              <View style={styles.filterRow}>
+                <StockLogo symbol={only} size={20} />
+                <Text style={[styles.small, { flex: 1 }]} numberOfLines={1}>{only} · {period.label}</Text>
+                <Pressable onPress={() => router.setParams({ symbol: undefined })} hitSlop={10} accessibilityRole="button" accessibilityLabel={`Show every stock, not only ${only}`} style={styles.clear}>
+                  <X size={13} color={INK} strokeWidth={2.4} />
+                </Pressable>
+              </View>
+            ) : <Text style={styles.small}>{VIEW_LABEL[source]}</Text>}
+            <Text style={styles.total} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{rs(shown?.net ?? a.totals.net)}</Text>
+            <Text style={styles.small}>{shown?.count ?? a.totals.count} payment{(shown?.count ?? a.totals.count) === 1 ? '' : 's'} · {TAX_LABEL[source]} {rs(shown?.tax ?? a.totals.tax)}</Text>
           </Glass>
 
           {groups.length ? groups.map(([m, rows]) => (
@@ -86,7 +101,7 @@ export default function PassiveEntries() {
                     <Pressable key={e.id} disabled={!divId} onPress={() => divId && router.push({ pathname: '/dividend/[id]', params: { id: divId } })}
                       accessibilityRole={divId ? 'button' : undefined} accessibilityLabel={divId ? `${e.title}, ${shortDate(e.date)}, receipt` : undefined}
                       style={({ pressed }) => [styles.row, i > 0 && styles.rowSep, { opacity: pressed ? 0.75 : 1 }]}>
-                      {e.symbol ? <StockLogo symbol={e.symbol} size={36} /> : <SourceIcon source={source} size={36} />}
+                      {source === 'savings' && e.symbol ? <BankLogo symbol={e.symbol} size={36} /> : e.symbol ? <StockLogo symbol={e.symbol} size={36} /> : <SourceIcon source={source} size={36} />}
                       <View style={{ flex: 1, gap: 1 }}>
                         <Text style={styles.name} numberOfLines={1}>{e.title}</Text>
                         <Text style={styles.small} numberOfLines={1}>{shortDate(e.date)}{source === 'dividends' ? '' : ` · ${e.sub}`}</Text>
@@ -110,6 +125,8 @@ export default function PassiveEntries() {
 const styles = StyleSheet.create({
   glass: { borderRadius: 22, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)', borderTopColor: 'rgba(255,255,255,0.20)', paddingHorizontal: space.lg },
   summary: { paddingVertical: space.lg, gap: 2 },
+  filterRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  clear: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.12)' },
   total: { color: dark.pos, fontFamily: font.numHeavy, fontSize: 30, lineHeight: 36, letterSpacing: -0.6 },
   small: { color: INK2, fontFamily: font.regular, fontSize: 12 },
   month: { marginTop: space.xl, marginBottom: space.sm, marginLeft: 4 },

@@ -16,7 +16,7 @@ import { useSavingsAccounts } from '../../lib/finance/useSavingsAccounts';
 import { useFx, PageHeader, Seg, FONT_NUM } from '../../components/fx';
 import DateField from '../../components/fx/DateField';
 import TypeSwitch from './TypeSwitch';
-import StockLogo from '../../components/StockLogo';
+import BankLogo from '../../components/BankLogo';
 import CategoryBadge from './CategoryBadge';
 import SavingsAccountsDialog from './SavingsAccountsDialog';
 
@@ -152,7 +152,7 @@ export default function AddTransaction() {
       '@media (hover: hover)': { '&:hover': on ? {} : { bgcolor: t.surface2 } },
     }}>{text}</ButtonBase>
   );
-  const catLogo = (size) => (account ? <StockLogo symbol={account.bank_symbol} size={size >= 40 ? 'lg' : 'md'} /> : selected ? <CategoryBadge icon={selected.icon} name={selected.name} size={size} /> : null);
+  const catLogo = (size) => (account ? <BankLogo symbol={account.bank_symbol} size={size >= 40 ? 'lg' : 'md'} /> : selected ? <CategoryBadge icon={selected.icon} name={selected.name} size={size} /> : null);
 
   const left = (
     <Box sx={{ ...panel, display: 'flex', flexDirection: 'column' }}>
@@ -232,7 +232,7 @@ export default function AddTransaction() {
             return (
               <ButtonBase key={a.id} onClick={() => { setAccount(a.id); setRate(null); }} aria-pressed={on}
                 sx={{ display: 'flex', alignItems: 'center', gap: 0.8, pl: 0.6, pr: 1.3, py: 0.5, borderRadius: 999, fontFamily: 'inherit', border: `1px solid ${on ? t.ink : t.border}`, bgcolor: on ? t.surface2 : 'transparent' }}>
-                <StockLogo symbol={a.bank_symbol} size="sm" />
+                <BankLogo symbol={a.bank_symbol} size="sm" />
                 <Typography sx={{ fontSize: '0.74rem', fontWeight: on ? 700 : 600 }}>{a.name}</Typography>
               </ButtonBase>
             );
