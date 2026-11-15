@@ -43,6 +43,8 @@ type State = {
   onboarded: Record<string, boolean>;
   biometricAsked: Record<string, boolean>;
   lastSeen: Record<string, LastSeen>;
+  /** When the app was last used (touch / foreground) — so a closed app can lock on its next start. */
+  lastActiveAt: number;
   hydrated: boolean;
   set: (p: Partial<Omit<State, 'set' | 'hydrated'>>) => void;
   setTracks: (uid: string, t: Tracks) => void;
@@ -72,6 +74,7 @@ export const useApp = create<State>()(
       onboarded: {},
       biometricAsked: {},
       lastSeen: {},
+      lastActiveAt: 0,
       hydrated: false,
       set: (p) => set(p),
       setTracks: (uid, t) => set((s) => ({ tracks: { ...s.tracks, [uid]: t } })),

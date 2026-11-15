@@ -18,10 +18,10 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { LockScreen } from '@/features/session/LockScreen';
 import { useOtaUpdates } from '@/lib/otaUpdates';
-import { useSession } from '@/features/session/useSession';
+import { markActive, useSession } from '@/features/session/useSession';
 import { useAuth } from '@/lib/auth';
 import { isExpoGo } from '@/lib/env';
-import { persister, queryClient, shouldPersist } from '@/lib/queryClient';
+import { CACHE_VERSION, persister, queryClient, shouldPersist, useCacheOwner } from '@/lib/queryClient';
 import { useApp } from '@/lib/store';
 import { ToastHost } from '@/ui/feedback';
 import { ThemeProvider, useTheme } from '@/ui/theme';
@@ -55,13 +55,16 @@ function Navigator({ onSettled }: { onSettled: (v: boolean) => void }) {
   const uid = session?.user.id;
   const settled = useAuthRedirect(!!session);
   useEffect(() => { onSettled(settled); }, [settled, onSettled]);
-  // One persisted cache per user: a new buster when the user changes discards the previous user's cache.
+  // A fixed buster (owner, 2026-11-15: "load instantly from cache"). It used to be the user id, but the cache is
+  // restored before the session is read — uid undefined → buster 'signed-out' → mismatch → TanStack DELETED the
+  // stored cache on every launch. Per-user isolation is `useCacheOwner` (and sign-out wipes the cache).
+  useCacheOwner(uid);
   const persistOptions = useMemo(() => ({
     persister,
-    buster: uid ?? 'signed-out',
+    buster: CACHE_VERSION,
     maxAge: 7 * 24 * 60 * 60_000,
     dehydrateOptions: { shouldDehydrateQuery: (q: { state: { status: string }; queryKey: readonly unknown[] }) => q.state.status === 'success' && shouldPersist(q.queryKey) },
-  }), [uid]);
+  }), []);
   return (
     <PersistQueryClientProvider
       client={queryClient}
@@ -102,7 +105,8 @@ function Root({ fontsReady }: { fontsReady: boolean }) {
   return (
     <View style={{ flex: 1, backgroundColor: p.bg }}>
       <StatusBar style={p.mode === 'dark' ? 'light' : 'dark'} />
-      <View style={{ flex: 1 }} importantForAccessibility={locked ? 'no-hide-descendants' : 'auto'} accessibilityElementsHidden={locked}>
+      {/* Any touch counts as activity for auto-lock (useSession.ts). */}
+      <View style={{ flex: 1 }} onTouchStart={markActive} importantForAccessibility={locked ? 'no-hide-descendants' : 'auto'} accessibilityElementsHidden={locked}>
         <Navigator onSettled={setSettled} />
       </View>
       {locked ? <View style={StyleSheet.absoluteFill}><LockScreen /></View> : null}
