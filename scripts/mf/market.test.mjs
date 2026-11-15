@@ -36,9 +36,11 @@ before(async () => {
     values ($1, $2, $3, 'purchase', '2026-10-01', 100, 5400, 5400, 54, 'investor_pays', 'manual')`, [U, acc.id, fund.id]);
 });
 
-test('schedules exist: two daily requests and a regular ingest', async () => {
-  const jobs = (await all(`select jobname from cron.job order by jobname`)).map((j) => j.jobname).filter((j) => j.startsWith('market-'));
-  assert.deepEqual(jobs, ['market-snapshot-ingest', 'market-snapshot-request-morning', 'market-snapshot-request-night']);
+test('one nightly pipeline: holdings refresh, board request, two ingests (20261115120000)', async () => {
+  const jobs = (await all(`select jobname, schedule from cron.job where jobname like 'market-%' order by jobname`)).map((j) => [j.jobname, j.schedule]);
+  assert.deepEqual(jobs, [
+    ['market-refresh-holdings-night', '40 18 * * *'], ['market-snapshot-ingest', '20,40 21 * * *'], ['market-snapshot-request-night', '15 21 * * *'],
+  ]);
 });
 
 test('PSX closes are stored per held stock per PSX session day; MUFAP NAVs for held funds only', async () => {

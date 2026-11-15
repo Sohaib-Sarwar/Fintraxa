@@ -62,9 +62,7 @@ test('price capture keeps only stocks someone holds', async () => {
   assert.deepEqual(rows, [{ symbol: 'FFC', c: 450.5 }]);
 });
 
-test('the nightly schedule is set: midnight, after prices, morning', async () => {
+test('snapshots run once a night, after prices (20261115120000)', async () => {
   const jobs = (await all(`select jobname, schedule from cron.job where jobname like 'portfolio-snapshot-%' order by jobname`));
-  assert.deepEqual(jobs.map((j) => [j.jobname, j.schedule]), [
-    ['portfolio-snapshot-after-prices', '45 21 * * *'], ['portfolio-snapshot-midnight', '5 19 * * *'], ['portfolio-snapshot-morning', '45 3 * * *'],
-  ]);
+  assert.deepEqual(jobs.map((j) => [j.jobname, j.schedule]), [['portfolio-snapshot-after-prices', '45 21 * * *']]);
 });
