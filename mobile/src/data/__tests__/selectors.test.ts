@@ -2,7 +2,7 @@ import { byDay, dayNet, dividendsByMonth, monthEndBarsFor, fundDayChanges, holdi
 import type { FundPosition, FundsAnalysis, StocksAnalysis, Txn } from '../types';
 
 const pos = (o: Partial<FundPosition>): FundPosition => ({
-  key: 'a|f1|', accountId: 'a', fundId: 'f1', fundName: 'Fund One', amcCode: 'ubl', amcName: 'UBL', isOpen: true, units: 1000,
+  key: 'a|f1|', accountId: 'a', fundId: 'f1', fundName: 'Fund One', amcCode: 'ubl', amcName: 'UBL', isOpen: true, inRange: true, units: 1000,
   price: { value: 10.25, date: '2026-11-13', source: 'mufap', stale: false }, value: 10250, invested: 10000, avgCost: 10,
   unrealized: { gross: 250, tax: 37.5, net: 212.5 }, realized: { gross: 0, cgt: 0, charges: 0, net: 0, sales: 0 }, allTime: { gross: 0, cgt: 0, net: 0 },
   entries: [], firstDate: '2026-01-01', flags: [], ...o,

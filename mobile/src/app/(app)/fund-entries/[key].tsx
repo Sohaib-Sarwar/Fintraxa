@@ -2,7 +2,9 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useFundsAnalysis } from '@/data/portfolio';
-import { ALL_TIME_START, monthLabel, shortDate, todayIso } from '@/lib/dates';
+import { RangeButton } from '@/features/range/RangeButton';
+import { usePeriod } from '@/features/range/usePeriod';
+import { monthLabel, shortDate } from '@/lib/dates';
 import { money, units } from '@/lib/format';
 import { EmptyState, Skeleton } from '@/ui/feedback';
 import { useHidden } from '@/ui/Figures';
@@ -21,17 +23,19 @@ const ENTRY: Record<string, string> = {
 
 /**
  * Every transaction of one fund (owner, 2026-11-14: linked from the fund page), newest first, grouped by month:
- * type, date, units at the NAV, and the amount. Reversed entries are left out.
+ * type, date, units at the NAV, and the amount. Reversed entries are left out. Only the global period's entries.
  */
 export default function FundEntries() {
   const hidden = useHidden();
   const { key } = useLocalSearchParams<{ key: string }>();
-  const range = useMemo(() => ({ start: ALL_TIME_START, end: todayIso() }), []);
+  const period = usePeriod();
+  const range = period.upTo;
   const { analysis, isLoading } = useFundsAnalysis(range);
   const x = analysis?.allPositions.find((pos) => pos.key === key);
+  const right = <RangeButton />;
 
   const groups = useMemo(() => {
-    const rows = [...(x?.entries ?? [])].filter((e) => !e.reverses_entry_id)
+    const rows = [...(x?.entries ?? [])].filter((e) => !e.reverses_entry_id && String(e.trade_date) >= range.start && String(e.trade_date) <= range.end)
       .sort((a, b) => String(b.trade_date).localeCompare(String(a.trade_date)));
     const map = new Map<string, typeof rows>();
     for (const e of rows) {
@@ -39,18 +43,18 @@ export default function FundEntries() {
       map.set(m, [...(map.get(m) ?? []), e]);
     }
     return [...map.entries()];
-  }, [x]);
+  }, [x, range.start, range.end]);
 
-  if (isLoading && !analysis) return <Screen back title="Transactions"><Skeleton height={80} radius={20} /><Gap h={space.lg} /><Skeleton height={300} radius={20} /></Screen>;
-  if (!x) return <Screen back title="Transactions"><EmptyState title="Fund not found" body="It may have been removed from your ledger." /></Screen>;
+  if (isLoading && !analysis) return <Screen back title="Transactions" right={right}><Skeleton height={80} radius={20} /><Gap h={space.lg} /><Skeleton height={300} radius={20} /></Screen>;
+  if (!x) return <Screen back title="Transactions" right={right}><EmptyState title="Fund not found" body="It may have been removed from your ledger." /></Screen>;
 
   return (
-    <Screen back title="Transactions">
+    <Screen back title="Transactions" right={right}>
       <BlackGlass style={styles.fund}>
         <AmcLogo code={x.amcCode} name={x.amcName} size={40} />
         <View style={{ flex: 1 }}>
           <Text style={styles.fundName} numberOfLines={2}>{x.fundName ?? 'Fund'}</Text>
-          <Text style={styles.small}>{groups.reduce((n, [, r]) => n + r.length, 0)} transactions</Text>
+          <Text style={styles.small}>{groups.reduce((n, [, r]) => n + r.length, 0)} transactions in {period.label}</Text>
         </View>
       </BlackGlass>
 
@@ -82,7 +86,7 @@ export default function FundEntries() {
             })}
           </BlackGlass>
         </View>
-      )) : <EmptyState title="No transactions" body="This fund has no entries in your ledger." />}
+      )) : <EmptyState title="No transactions" body={`No entries in ${period.label}.`} />}
     </Screen>
   );
 }

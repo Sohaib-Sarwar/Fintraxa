@@ -59,11 +59,13 @@ export type Release = { version_code: number; version_name: string; apk_url: str
 export type FundPosition = {
   key: string; accountId: string; fundId: string; fundName: string | null; amcCode: string | null; amcName: string | null;
   isOpen: boolean; units: number; price: { value: number; date: string; source: string; stale: boolean } | null;
+  /** Held when the range starts, or traded inside it (the engine's rule for what a period shows). */
+  inRange: boolean;
   value: number | null; invested: number; avgCost: number | null;
   unrealized: { gross: number; tax: number; net: number };
   realized: { gross: number; cgt: number; charges: number; net: number; sales: number };
   allTime: { gross: number; cgt: number; net: number };
-  entries: Record<string, unknown>[]; firstDate: string | null; flags: string[];
+  entries: Record<string, unknown>[]; firstDate: string | null; lastDate?: string | null; flags: string[];
 };
 export type FundsAnalysis = {
   totals: {
@@ -77,9 +79,11 @@ export type FundsAnalysis = {
 
 export type StockPosition = {
   symbol: string; companyName: string; isOpen: boolean; shares: number; avgCost: number | null; invested: number;
+  /** Held when the range starts, or traded (or a sale settled) inside it. */
+  inRange: boolean;
   price: number | null; priceSource: string | null; priceDate: string | null; dayChange: number | null; dayChangePct: number | null;
   value: number | null; unrealized: number | null; unrealizedPct: number | null; realized: number;
-  trades: Trade[]; firstDate: string; flags: string[];
+  trades: Trade[]; firstDate: string; lastDate?: string | null; flags: string[];
 };
 export type StocksAnalysis = {
   totals: {
