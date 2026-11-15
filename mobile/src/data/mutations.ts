@@ -60,6 +60,8 @@ export function useAddTransaction(categories: Category[] | undefined) {
       if (ctx?.prev) qc.setQueryData([TXNS_KEY, uid], ctx.prev);
       toast(friendlyError(e), { tone: 'error' });
     },
+    // The top banner after every job (owner, 2026-11-15), like the web's GlassToast.
+    onSuccess: (_d, row) => toast(row.type === 'credit' ? 'Income added' : 'Expense added'),
     onSettled: () => refreshFinance(qc),
   });
 }
@@ -81,6 +83,7 @@ export function useUpdateTransaction() {
       if (ctx?.prev) qc.setQueryData([TXNS_KEY, uid], ctx.prev);
       toast(friendlyError(e), { tone: 'error' });
     },
+    onSuccess: () => toast('Transaction updated'),
     onSettled: () => refreshFinance(qc),
   });
 }

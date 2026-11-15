@@ -11,17 +11,17 @@ import { useTheme } from './theme';
 import { NAV_CLEARANCE, SCREEN_PAD, space } from './tokens';
 
 /**
- * Every page arrives like Funds ↔ Stocks (owner): Reanimated's FadeInDown — content fades in while settling 25 dp
- * down into place over 260 ms. It replays each time the page comes into focus (tab switch, opening a page, coming
+ * Every page arrives like Funds ↔ Stocks (owner): content fades in while settling 10 dp down into place over
+ * 240 ms (was 25 dp — too much travel read as jumpy; owner, 2026-11-15: "not smooth, feels cheap"). It replays each time the page comes into focus (tab switch, opening a page, coming
  * back), on the UI thread, without remounting the page.
  */
 function useEnter() {
   const k = useSharedValue(0);
   useFocusEffect(useCallback(() => {
     k.set(0);
-    k.set(withTiming(1, { duration: 260, easing: Easing.out(Easing.cubic) }));
+    k.set(withTiming(1, { duration: 240, easing: Easing.out(Easing.cubic) }));
   }, [k]));
-  return useAnimatedStyle(() => ({ opacity: k.get(), transform: [{ translateY: -25 * (1 - k.get()) }] }));
+  return useAnimatedStyle(() => ({ opacity: k.get(), transform: [{ translateY: -10 * (1 - k.get()) }] }));
 }
 
 type Props = {

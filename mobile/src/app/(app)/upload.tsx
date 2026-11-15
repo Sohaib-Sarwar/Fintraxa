@@ -300,10 +300,12 @@ export default function Upload() {
         const r = await saveTrades(uid, picks);
         ['stock-transactions', 'psx-closes', 'snapshots'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
         setSaved(r);
+        toast(r.added ? `${plural(r.added, 'trade')} saved` : 'Everything here was already saved', { tone: r.added ? 'success' : 'info' });
       } else if (result.kind === 'dividends') {
         const r = await saveDividends(uid, result.rows.filter((d) => !excluded.has(dividendKey(d))));
         ['stock-dividends', 'snapshots'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
         setSaved(r);
+        toast(r.added ? `${plural(r.added, 'dividend')} saved` : 'Everything here was already saved', { tone: r.added ? 'success' : 'info' });
       }
       haptic.success();
       setPhase('done');
