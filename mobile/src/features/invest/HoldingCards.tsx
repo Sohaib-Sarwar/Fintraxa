@@ -1,12 +1,14 @@
 /**
  * Holding cards (owner, 2026-11-14), dark Apple glass in both themes. Funds: logo + full name, current value big
  * and green, gain (Rs and %), invested. Stocks (compact): symbol, shares · avg buying price, worth, gain.
+ * Sold / redeemed in the period (owner, 2026-11-15, the web's "previous holdings"): realized profit in its place.
  * Tap → the fund / share page.
  */
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 import type { FundPosition, StockPosition } from '@/data/types';
+import { shortDate } from '@/lib/dates';
 import { compactNumber, group, isLong, share, units } from '@/lib/format';
 import { useHidden } from '@/ui/Figures';
 import { AmcLogo, StockLogo } from '@/ui/Logos';
@@ -27,6 +29,28 @@ export function FundCard({ x }: { x: FundPosition }) {
   const gain = x.unrealized.gross;
   const g = share(gain, x.invested);
   const gColor = gain > 0 ? dark.pos : gain < 0 ? dark.neg : INK2;
+  const sold = !x.isOpen;
+  const real = x.realized.net;
+  const rColor = real > 0 ? dark.pos : real < 0 ? dark.neg : INK;
+  const signedRs = (v: number) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${rs(Math.abs(v))}`;
+  if (sold) {
+    return (
+      <BlackGlass style={styles.fund} onPress={() => router.push({ pathname: '/fund/[key]', params: { key: x.key } })}
+        accessibilityLabel={`${x.fundName ?? 'Fund'}, redeemed, realized ${hidden ? 'hidden' : signedRs(real)}`}>
+        <View style={styles.fundHead}>
+          <AmcLogo code={x.amcCode} name={x.amcName} size={42} />
+          <View style={{ flex: 1, gap: 3 }}>
+            <Text style={styles.fundName} numberOfLines={3}>{x.fundName ?? 'Fund'}</Text>
+            <Text style={styles.label} numberOfLines={1}>Redeemed{x.lastDate ? ` · ${shortDate(x.lastDate)}` : ''}</Text>
+          </View>
+        </View>
+        <View style={styles.fundFoot}>
+          <Text style={[styles.worthBig, { color: rColor }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{hidden ? 'Rs ••••' : signedRs(real)}</Text>
+          <Text style={styles.label} numberOfLines={1}>realized</Text>
+        </View>
+      </BlackGlass>
+    );
+  }
   return (
     <BlackGlass style={styles.fund} onPress={() => router.push({ pathname: '/fund/[key]', params: { key: x.key } })}
       accessibilityLabel={`${x.fundName ?? 'Fund'}, worth ${hidden ? 'hidden' : rs(x.value ?? 0)}, gain ${hidden ? 'hidden' : rs(gain)}`}>
@@ -57,9 +81,13 @@ export function StockCard({ x }: { x: StockPosition }) {
   const gain = x.unrealized ?? 0;
   const g = share(gain, x.invested);
   const gColor = gain > 0 ? dark.pos : gain < 0 ? dark.neg : INK2;
+  const sold = !x.isOpen;
+  const real = x.realized;
+  const rColor = real > 0 ? dark.pos : real < 0 ? dark.neg : INK;
+  const signedRs = (v: number) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${rs(Math.abs(v))}`;
   return (
     <Pressable onPress={() => router.push({ pathname: '/stock/[symbol]', params: { symbol: x.symbol } })} accessibilityRole="button"
-      accessibilityLabel={`${x.symbol}, ${units(x.shares)} shares, worth ${hidden ? 'hidden' : rs(x.value ?? 0)}, gain ${hidden ? 'hidden' : rs(gain)}`}
+      accessibilityLabel={sold ? `${x.symbol}, sold out, realized ${hidden ? 'hidden' : signedRs(real)}` : `${x.symbol}, ${units(x.shares)} shares, worth ${hidden ? 'hidden' : rs(x.value ?? 0)}, gain ${hidden ? 'hidden' : rs(gain)}`}
       style={({ pressed }) => [styles.card, styles.compact, { opacity: pressed ? 0.88 : 1 }]}>
       <LinearGradient colors={['#0A0A0B', '#000000']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
       <LinearGradient colors={['rgba(255,255,255,0.07)', 'rgba(255,255,255,0.015)', 'rgba(255,255,255,0)']} locations={[0, 0.45, 1]} end={{ x: 0.6, y: 0.8 }} style={StyleSheet.absoluteFill} pointerEvents="none" />
@@ -67,15 +95,22 @@ export function StockCard({ x }: { x: StockPosition }) {
       <View style={{ flex: 1, gap: 2 }}>
         <Text style={styles.symbol} numberOfLines={1}>{x.symbol}</Text>
         <Text style={styles.label} numberOfLines={1}>
-          {units(x.shares)} shares{x.avgCost !== null ? ` · avg ${hidden ? '••' : `Rs ${group(x.avgCost, 2)}`}` : ''}
+          {sold ? `Sold out${x.lastDate ? ` · ${shortDate(x.lastDate)}` : ''}` : `${units(x.shares)} shares${x.avgCost !== null ? ` · avg ${hidden ? '••' : `Rs ${group(x.avgCost, 2)}`}` : ''}`}
         </Text>
       </View>
+      {sold ? (
+        <View style={{ alignItems: 'flex-end', gap: 2 }}>
+          <Text style={[styles.worth, { color: rColor }]} numberOfLines={1}>{hidden ? 'Rs ••••' : signedRs(real)}</Text>
+          <Text style={styles.label} numberOfLines={1}>realized</Text>
+        </View>
+      ) : (
       <View style={{ alignItems: 'flex-end', gap: 2 }}>
         <Text style={styles.worth} numberOfLines={1}>{hidden ? 'Rs ••••' : x.value === null ? '—' : rs(x.value)}</Text>
         <Text style={[styles.label, { color: gColor, fontFamily: font.numMedium }]} numberOfLines={1}>
           {hidden ? '••••' : `${gain > 0 ? '+' : gain < 0 ? '−' : ''}${rs(Math.abs(gain))}${g !== null ? ` · ${gain < 0 ? '−' : '+'}${Math.abs(g).toFixed(1)}%` : ''}`}
         </Text>
       </View>
+      )}
     </Pressable>
   );
 }

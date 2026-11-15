@@ -2,37 +2,68 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo } from 'react';
 import { View } from 'react-native';
 import { FundCard, StockCard } from '@/features/invest/HoldingCards';
+import { RangeButton } from '@/features/range/RangeButton';
+import { usePeriod } from '@/features/range/usePeriod';
 import { useFundsAnalysis, useStocksAnalysis } from '@/data/portfolio';
-import { ALL_TIME_START, todayIso } from '@/lib/dates';
 import { EmptyState, Skeleton } from '@/ui/feedback';
 import { ScrollText } from '@/ui/icons';
-import { CircleButton, Gap } from '@/ui/primitives';
+import { CircleButton, Gap, SectionHeader } from '@/ui/primitives';
 import { Screen } from '@/ui/Screen';
 import { space } from '@/ui/tokens';
 
 /**
- * Holdings (owner, 2026-11-14): opened from "Invested" on the Mutual funds / Stocks card. What you hold now,
- * biggest first, as formal dark cards — no period, no filters.
+ * Holdings (owner, 2026-11-14): opened from "Invested" on the Mutual funds / Stocks card, as formal dark cards.
+ * Follows the global period like the web (owner, 2026-11-15; web MF Dashboard `held` / `previous`): every holding
+ * active in the period — held when it starts or traded in it — split into what is still held at its end (biggest
+ * first) and what was sold or redeemed in it (latest first). Each opens its page, which follows the same period.
  */
 export default function Holdings() {
   const { side: sideParam } = useLocalSearchParams<{ side?: string }>();
   const side = sideParam === 'stocks' ? 'stocks' : 'funds';
-  const range = useMemo(() => ({ start: ALL_TIME_START, end: todayIso() }), []);
-  const funds = useFundsAnalysis(range);
-  const stocks = useStocksAnalysis(range);
+  const period = usePeriod();
+  const funds = useFundsAnalysis(period.upTo);
+  const stocks = useStocksAnalysis(period.upTo);
   const q = side === 'funds' ? funds : stocks;
 
-  const cards = useMemo(() => (side === 'funds'
-    ? (funds.analysis?.positions ?? []).filter((x) => x.isOpen).sort((a, b) => (b.value ?? 0) - (a.value ?? 0)).map((x) => <FundCard key={x.key} x={x} />)
-    : (stocks.analysis?.positions ?? []).filter((x) => x.isOpen).sort((a, b) => (b.value ?? 0) - (a.value ?? 0)).map((x) => <StockCard key={x.symbol} x={x} />)),
-  [side, funds.analysis, stocks.analysis]);
+  const { held, previous } = useMemo(() => {
+    const byValue = (a: { value: number | null }, b: { value: number | null }) => (b.value ?? 0) - (a.value ?? 0);
+    const byLast = (a: { lastDate?: string | null }, b: { lastDate?: string | null }) => (b.lastDate ?? '').localeCompare(a.lastDate ?? '');
+    if (side === 'funds') {
+      const list = funds.analysis?.positions ?? [];
+      return {
+        held: list.filter((x) => x.isOpen).sort(byValue).map((x) => <FundCard key={x.key} x={x} />),
+        previous: list.filter((x) => !x.isOpen).sort(byLast).map((x) => <FundCard key={x.key} x={x} />),
+      };
+    }
+    const list = stocks.analysis?.positions ?? [];
+    return {
+      held: list.filter((x) => x.isOpen).sort(byValue).map((x) => <StockCard key={x.symbol} x={x} />),
+      previous: list.filter((x) => !x.isOpen).sort(byLast).map((x) => <StockCard key={x.symbol} x={x} />),
+    };
+  }, [side, funds.analysis, stocks.analysis]);
+
+  const right = (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+      <RangeButton />
+      <CircleButton icon={ScrollText} label="Transactions" onPress={() => router.push({ pathname: '/invest-transactions', params: { side } })} />
+    </View>
+  );
 
   return (
-    <Screen back title="Holdings" onRefresh={() => q.refetch()}
-      right={<CircleButton icon={ScrollText} label="Transactions" onPress={() => router.push({ pathname: '/invest-transactions', params: { side } })} />}>
+    <Screen back title="Holdings" onRefresh={() => q.refetch()} right={right}>
       {q.isLoading && !q.analysis ? (
         <><Skeleton height={170} radius={22} /><Gap h={space.sm} /><Skeleton height={170} radius={22} /></>
-      ) : cards.length ? <View style={{ gap: space.md }}>{cards}</View> : <EmptyState title="Nothing held" body={side === 'funds' ? 'You hold no mutual funds right now.' : 'You hold no shares right now.'} />}
+      ) : held.length || previous.length ? (
+        <>
+          {held.length ? <View style={{ gap: space.md }}>{held}</View> : null}
+          {previous.length ? (
+            <>
+              <SectionHeader title={side === 'funds' ? `Redeemed in ${period.label}` : `Sold in ${period.label}`} />
+              <View style={{ gap: space.md }}>{previous}</View>
+            </>
+          ) : null}
+        </>
+      ) : <EmptyState title="Nothing held" body={`No ${side === 'funds' ? 'mutual funds' : 'shares'} held or traded in ${period.label}.`} />}
     </Screen>
   );
 }

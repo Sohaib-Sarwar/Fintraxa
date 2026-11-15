@@ -3,7 +3,9 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useStocksAnalysis } from '@/data/portfolio';
-import { ALL_TIME_START, monthLabel, shortDate, todayIso } from '@/lib/dates';
+import { RangeButton } from '@/features/range/RangeButton';
+import { usePeriod } from '@/features/range/usePeriod';
+import { monthLabel, shortDate } from '@/lib/dates';
 import { group, money, units } from '@/lib/format';
 import { BlackGlass, GLASS_INK, GLASS_INK2, GLASS_LINE } from '@/ui/BlackGlass';
 import { EmptyState, Skeleton } from '@/ui/feedback';
@@ -17,32 +19,35 @@ import { font, space } from '@/ui/tokens';
 
 /**
  * Every trade in one stock (owner, 2026-11-14: linked from the stock page), newest first, grouped by month, in
- * black glass: buy / sell, shares @ price, date · broker · fees, and the amount.
+ * black glass: buy / sell, shares @ price, date · broker · fees, and the amount. Only the global period's trades.
  */
 export default function StockTrades() {
   const hidden = useHidden();
   const { symbol } = useLocalSearchParams<{ symbol: string }>();
-  const range = useMemo(() => ({ start: ALL_TIME_START, end: todayIso() }), []);
+  const period = usePeriod();
+  const range = period.upTo;
   const { analysis, isLoading } = useStocksAnalysis(range);
   const x = analysis?.allPositions.find((pos) => pos.symbol === symbol);
+  const right = <RangeButton />;
 
   const groups = useMemo(() => {
-    const rows = [...(x?.trades ?? [])].sort((a, b) => b.date.localeCompare(a.date));
+    const rows = (x?.trades ?? []).filter((t) => t.date >= range.start && t.date <= range.end).sort((a, b) => b.date.localeCompare(a.date));
     const map = new Map<string, typeof rows>();
     for (const t of rows) map.set(t.date.slice(0, 7), [...(map.get(t.date.slice(0, 7)) ?? []), t]);
     return [...map.entries()];
-  }, [x]);
+  }, [x, range.start, range.end]);
+  const count = groups.reduce((n, [, r]) => n + r.length, 0);
 
-  if (isLoading && !analysis) return <Screen back title="Transactions"><Skeleton height={70} radius={22} /><Gap h={space.md} /><Skeleton height={300} radius={22} /></Screen>;
-  if (!x) return <Screen back title="Transactions"><EmptyState title="Stock not found" body="No trades in this symbol." /></Screen>;
+  if (isLoading && !analysis) return <Screen back title="Transactions" right={right}><Skeleton height={70} radius={22} /><Gap h={space.md} /><Skeleton height={300} radius={22} /></Screen>;
+  if (!x) return <Screen back title="Transactions" right={right}><EmptyState title="Stock not found" body="No trades in this symbol." /></Screen>;
 
   return (
-    <Screen back title="Transactions">
+    <Screen back title="Transactions" right={right}>
       <BlackGlass style={styles.head}>
         <StockLogo symbol={x.symbol} size={40} />
         <View style={{ flex: 1 }}>
           <Text style={styles.name}>{x.symbol}</Text>
-          <Text style={styles.small}>{x.trades.length} trade{x.trades.length === 1 ? '' : 's'}</Text>
+          <Text style={styles.small}>{count} trade{count === 1 ? '' : 's'} in {period.label}</Text>
         </View>
       </BlackGlass>
       {groups.length ? groups.map(([m, rows]) => (
@@ -68,7 +73,7 @@ export default function StockTrades() {
             })}
           </BlackGlass>
         </View>
-      )) : <EmptyState title="No trades" body="No buys or sells recorded." />}
+      )) : <EmptyState title="No trades" body={`No buys or sells in ${period.label}.`} />}
     </Screen>
   );
 }
