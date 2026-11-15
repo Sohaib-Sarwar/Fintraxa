@@ -95,11 +95,15 @@ export default function PassiveEntries() {
                   const net = num(e.net);
                   const gross = num(e.gross);
                   const tax = num(e.tax);
-                  // Dividend events are `div-<row id>` (passive.js); they open the dividend's receipt.
-                  const divId = source === 'dividends' && e.id.startsWith('div-') ? e.id.slice(4) : null;
+                  // Rows open their receipt (owner, 2026-11-15): dividends are `div-<row id>`, savings profit and other
+                  // passive income `tx-<transaction id>` (passive.js); monthly fund profit has no single receipt.
+                  const divId = e.id.startsWith('div-') ? e.id.slice(4) : null;
+                  const txId = e.id.startsWith('tx-') ? e.id.slice(3) : null;
+                  const open = divId ? () => router.push({ pathname: '/dividend/[id]', params: { id: divId } })
+                    : txId ? () => router.push({ pathname: '/transaction/[id]', params: { id: txId } }) : null;
                   return (
-                    <Pressable key={e.id} disabled={!divId} onPress={() => divId && router.push({ pathname: '/dividend/[id]', params: { id: divId } })}
-                      accessibilityRole={divId ? 'button' : undefined} accessibilityLabel={divId ? `${e.title}, ${shortDate(e.date)}, receipt` : undefined}
+                    <Pressable key={e.id} disabled={!open} onPress={() => open?.()}
+                      accessibilityRole={open ? 'button' : undefined} accessibilityLabel={open ? `${e.title}, ${shortDate(e.date)}, receipt` : undefined}
                       style={({ pressed }) => [styles.row, i > 0 && styles.rowSep, { opacity: pressed ? 0.75 : 1 }]}>
                       {source === 'savings' && e.symbol ? <BankLogo symbol={e.symbol} size={36} /> : e.symbol ? <StockLogo symbol={e.symbol} size={36} /> : <SourceIcon source={source} size={36} />}
                       <View style={{ flex: 1, gap: 1 }}>
