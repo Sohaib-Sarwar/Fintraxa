@@ -15,7 +15,7 @@ import type { Txn } from '@/data/types';
 import { addDays, addMonths, monthOf, shortDate, todayIso } from '@/lib/dates';
 import { autoDecimals, compactNumber, group, money } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
-import { effectiveEnd, rangeLabel, resolveRange, type RangeChoice } from '@/lib/range';
+import { effectiveEnd, rangeLabel, rangePillLabel, resolveRange, type RangeChoice } from '@/lib/range';
 import { useApp } from '@/lib/store';
 import { CardArt } from '@/features/today/cardDesigns';
 import { EmptyState } from '@/ui/feedback';
@@ -189,7 +189,7 @@ export default function Transactions() {
         <ChevronLeft size={19} color={p.ink} />
       </Pressable>
       <Text style={[styles.title, { color: p.ink }]} numberOfLines={1} accessibilityRole="header">{title}</Text>
-      <RangeButton label={label} onPress={() => setRangeOpen(true)} />
+      <RangeButton label={rangePillLabel(range, today)} onPress={() => setRangeOpen(true)} />
     </View>
   );
 

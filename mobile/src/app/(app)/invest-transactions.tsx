@@ -14,7 +14,7 @@ import { CardArt } from '@/features/today/cardDesigns';
 import { addDays, ALL_TIME_START, todayIso } from '@/lib/dates';
 import { compactNumber, group, money, units } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
-import { rangeLabel, resolveRange, type RangeChoice } from '@/lib/range';
+import { rangeLabel, rangePillLabel, resolveRange, type RangeChoice } from '@/lib/range';
 import { useApp } from '@/lib/store';
 import { GLASS_INK, GLASS_INK2 } from '@/ui/BlackGlass';
 import { EmptyState } from '@/ui/feedback';
@@ -129,7 +129,7 @@ export default function InvestTransactions() {
               <ChevronLeft size={19} color={p.ink} />
             </Pressable>
             <Text style={[styles.title, { color: p.ink }]} numberOfLines={1}>{title}</Text>
-            <RangeButton label={rangeLabel(range, today)} onPress={() => setRangeOpen(true)} />
+            <RangeButton label={rangePillLabel(range, today)} onPress={() => setRangeOpen(true)} />
           </View>
           <ScrollView contentContainerStyle={{ paddingHorizontal: SCREEN_PAD, paddingBottom: insets.bottom + space.xxl }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <View style={styles.panel}>

@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { create } from 'zustand';
 import { todayIso } from '@/lib/dates';
-import { effectiveEnd, rangeLabel, rangeMonths, resolveRange, type RangeChoice } from '@/lib/range';
+import { effectiveEnd, rangePillLabel, rangeMonths, resolveRange, type RangeChoice } from '@/lib/range';
 import { useApp } from '@/lib/store';
 
 /** Open state of the period sheet (drawn by the tabs layout so it can blur the whole screen). */
@@ -21,7 +21,7 @@ export function usePeriod() {
   return useMemo(() => {
     const range = resolveRange(choice, today);
     return {
-      choice, range, label: rangeLabel(range, today),
+      choice, range, label: rangePillLabel(range, today),
       upTo: { start: range.start, end: effectiveEnd(range, today) },
       months: rangeMonths(range, today),
       set: (c: RangeChoice) => useApp.getState().set({ range: c }),

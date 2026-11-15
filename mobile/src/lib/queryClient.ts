@@ -56,7 +56,9 @@ export const chunkedEncryptedStorage = {
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 60_000,
+      // 5 minutes (owner, 2026-11-15: "not using cache, reloads"): cached figures show at once and refresh quietly
+      // after that; every write invalidates what it changes, and pull-to-refresh forces a fetch.
+      staleTime: 5 * 60_000,
       gcTime: 7 * 24 * 60 * 60_000, // must be ≥ maxAge of the persister, or restored data is dropped
       retry: (n, err) => n < 2 && !/JWT|permission|401|403/i.test(String((err as Error)?.message ?? '')),
       refetchOnWindowFocus: true, // = app returned to the foreground (focusManager below); only stale queries refetch
@@ -82,22 +84,23 @@ export const CACHE_VERSION = 'v2';
 const OWNER_KEY = 'fx.cache.owner';
 
 /**
- * Keeps the persisted cache to one account: when a different user signs in on this phone, the previous user's
- * cached data is wiped before anything of it can be shown. (Sign-out already wipes it.)
+ * Keeps the persisted cache to one account: called before a session is published (auth.ts `publish`), so when a
+ * different user signs in on this phone the previous user's cached data is wiped before anything of it can paint.
  */
+export async function claimCache(uid: string) {
+  const owner = await AsyncStorage.getItem(OWNER_KEY);
+  if (owner && owner !== uid) await forgetCache();
+  if (owner !== uid) await AsyncStorage.setItem(OWNER_KEY, uid);
+}
+
+/** Belt and braces for sessions published before this check existed. */
 export function useCacheOwner(uid: string | undefined) {
-  useEffect(() => {
-    if (!uid) return;
-    AsyncStorage.getItem(OWNER_KEY).then(async (owner) => {
-      if (owner && owner !== uid) await forgetCache();
-      if (owner !== uid) await AsyncStorage.setItem(OWNER_KEY, uid);
-    }).catch(() => {});
-  }, [uid]);
+  useEffect(() => { if (uid) claimCache(uid).catch(() => {}); }, [uid]);
 }
 
 export async function forgetCache() {
-  queryClient.clear();
   await chunkedEncryptedStorage.removeItem(CACHE_KEY);
+  queryClient.clear();
 }
 
 // React Native has no browser online/focus events: wire NetInfo (offline pause/resume of writes) and

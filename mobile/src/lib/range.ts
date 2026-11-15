@@ -56,6 +56,23 @@ export function rangeLabel(r: Range, today = todayIso()): string {
   return r.start.slice(0, 4) === r.end.slice(0, 4) ? `${shortDate(r.start, false)} – ${shortDate(r.end)}` : `${shortDate(r.start)} – ${shortDate(r.end)}`;
 }
 
+/**
+ * The period button's text (owner, 2026-11-15: the top-right range was "still buggy" — long custom dates wrapped or
+ * were cut): presets as their short name; custom ranges without the current year ("2 Mar – 9 May"), another single
+ * year once at the end ("2 Mar – 9 May ’25"), across years by month ("Dec ’25 – Jan ’26"), one day as "9 May".
+ */
+export function rangePillLabel(r: Range, today = todayIso()): string {
+  const p = presets(today).find((x) => x.id === r.id);
+  if (p) return p.short;
+  const [sy, sm] = ym(r.start);
+  const [ey, em] = ym(r.end);
+  const yy = (y: number) => `’${String(y).slice(2)}`;
+  const thisYear = Number(today.slice(0, 4));
+  if (r.start === r.end) return `${shortDate(r.start, false)}${sy === thisYear ? '' : ` ${yy(sy)}`}`;
+  if (sy !== ey) return `${MON[sm - 1]} ${yy(sy)} – ${MON[em - 1]} ${yy(ey)}`;
+  return `${shortDate(r.start, false)} – ${shortDate(r.end, false)}${sy === thisYear ? '' : ` ${yy(sy)}`}`;
+}
+
 /** The part of the range that has happened: never later than today. */
 export const effectiveEnd = (r: Range, today = todayIso()) => (r.end < today ? r.end : today);
 

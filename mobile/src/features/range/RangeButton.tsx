@@ -27,8 +27,9 @@ export function RangeButton({ label: ownLabel, onPress }: { label?: string; onPr
         opacity: pressed ? 0.8 : 1,
       }]}>
       <LinearGradient colors={dark ? ['rgba(255,255,255,0.12)', 'rgba(255,255,255,0.04)'] : ['rgba(255,255,255,0.98)', 'rgba(232,235,228,0.95)']} style={StyleSheet.absoluteFill} />
-      {/* Never cut short (owner, 2026-11-15: dates were ending in "…"): the pill sizes to its label. */}
-      <Text style={[styles.text, { color: p.ink }]}>{label}</Text>
+      {/* One line, never "…" and never wrapped (owner, 2026-11-15): the pill sizes to its label (labels are compact,
+          `rangePillLabel`), and a very large system font shrinks the text a little instead of breaking the pill. */}
+      <Text style={[styles.text, { color: p.ink }]} numberOfLines={1} ellipsizeMode="clip" adjustsFontSizeToFit minimumFontScale={0.8} maxFontSizeMultiplier={1.15}>{label}</Text>
       <ChevronDown size={14} color={p.ink2} strokeWidth={2.2} />
     </Pressable>
   );
@@ -38,5 +39,5 @@ const styles = StyleSheet.create({
   pill: {
     flexDirection: 'row', alignItems: 'center', gap: 6, height: 36, paddingHorizontal: 14, borderRadius: 18, borderWidth: 1, overflow: 'hidden', flexShrink: 0,
   },
-  text: { fontFamily: font.num, fontSize: 13.5, lineHeight: 18, letterSpacing: -0.1 },
+  text: { fontFamily: font.num, fontSize: 13.5, lineHeight: 18, letterSpacing: -0.1, flexShrink: 0 },
 });

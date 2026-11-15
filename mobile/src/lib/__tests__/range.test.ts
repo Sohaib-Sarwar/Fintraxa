@@ -1,4 +1,4 @@
-import { effectiveEnd, presets, rangeLabel, rangeMonths, resolveRange } from '../range';
+import { effectiveEnd, presets, rangeLabel, rangeMonths, rangePillLabel, resolveRange } from '../range';
 
 const TODAY = '2026-11-14';
 
@@ -47,4 +47,12 @@ describe('rangeMonths (chart bars for a period)', () => {
   test('effective end is never after today', () => {
     expect(effectiveEnd(resolveRange({ id: 'fy' }, TODAY), TODAY)).toBe(TODAY);
   });
+});
+
+test('period button labels are short and one line: no current year, one other year, months across years', () => {
+  expect(rangePillLabel(resolveRange({ id: 'fy' }, TODAY), TODAY)).toBe('FY 2026-27');
+  expect(rangePillLabel({ id: 'custom', start: '2026-03-02', end: '2026-05-09' }, TODAY)).toBe('2 Mar – 9 May');
+  expect(rangePillLabel({ id: 'custom', start: '2025-03-02', end: '2025-05-09' }, TODAY)).toBe('2 Mar – 9 May ’25');
+  expect(rangePillLabel({ id: 'custom', start: '2025-12-30', end: '2026-01-02' }, TODAY)).toBe('Dec ’25 – Jan ’26');
+  expect(rangePillLabel({ id: 'custom', start: '2026-05-09', end: '2026-05-09' }, TODAY)).toBe('9 May');
 });
