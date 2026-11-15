@@ -12,7 +12,7 @@ import type { AccentPreset } from '@/ui/tokens';
 
 export type CardDesignId = 'obsidian' | 'monstera' | 'milkyway-mountains' | 'milkyway-clouds' | 'moon-sea' | 'moonlit-waves' | 'earth-space' | 'milkyway-ridge'
   | 'violet-pines' | 'fern' | 'night-fern' | 'canopy-stars' | 'deep-leaves' | 'forest-milkyway' | 'night-palms'
-  | 'visa-black' | 'amex-botanical' | 'night-bloom' | 'star-dust' | 'deep-field' | 'saturn' | 'solar-system' | 'jupiter' | 'fern-forest' | 'night-leaves' | 'bamboo' | 'foliage';
+  | 'night-bloom' | 'star-dust' | 'deep-field' | 'saturn' | 'solar-system' | 'jupiter' | 'fern-forest' | 'night-leaves' | 'bamboo' | 'foliage';
 
 /**
  * `accent`: the accent preset that matches the card's colours (sampled from the photo); the app suggests it.
@@ -23,8 +23,6 @@ export const CARD_DESIGNS: CardDesign[] = [
   { id: 'obsidian', name: 'Obsidian', source: require('../../../assets/cards/obsidian.webp'), scrim: false, accent: 'champagne' },
   // The owner's own card images (Cards/ folder), used as supplied for this personal, non-commercial app (2026-11-15).
   // They carry their own marks, so the Fintraxa mark is hidden on them (`mark: false`).
-  { id: 'visa-black', name: 'Visa Black', source: require('../../../assets/cards/visa-black.webp'), scrim: false, accent: 'silver', mark: false },
-  { id: 'amex-botanical', name: 'Amex Botanical', source: require('../../../assets/cards/amex-botanical.webp'), scrim: false, accent: 'champagne', mark: false },
   { id: 'night-bloom', name: 'Night Bloom', source: require('../../../assets/cards/night-bloom.webp'), scrim: true, accent: 'lavender' },
   { id: 'monstera', name: 'Monstera', source: require('../../../assets/cards/monstera.webp'), scrim: true, accent: 'lime' },
   { id: 'night-fern', name: 'Night fern', source: require('../../../assets/cards/night-fern.webp'), scrim: true, accent: 'jade' },

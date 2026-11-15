@@ -268,8 +268,10 @@ export function BarChart<B extends Bar>({ bars: allBars, selected, onSelect, hei
   const line = smooth(geo.map((g) => ({ x: g.cx, y: g.y + 4 })));
   const s = geo.find((g) => g.b.key === sel) ?? geo[geo.length - 1];
   const tipW = Math.min(220, w);
+  // Always the same composed gesture: swapping the detector's gesture once the data arrived (1 page → more) left
+  // the swipe unattached on Home (owner, 2026-11-15). On a single page a swipe simply does nothing.
   return (
-    <GestureDetector gesture={pages > 1 ? gestures : scrub}>
+    <GestureDetector gesture={gestures}>
     <View onLayout={(e: LayoutChangeEvent) => { setW(e.nativeEvent.layout.width); width.set(e.nativeEvent.layout.width); }} style={{ height }}
       accessibilityHint={`${renderTip ? 'Press and hold, then slide, to see each month in detail. ' : ''}${pages > 1 ? 'Swipe right for earlier months.' : ''}`}
       accessibilityActions={pages > 1 ? [{ name: 'increment', label: 'Later months' }, { name: 'decrement', label: 'Earlier months' }] : undefined}

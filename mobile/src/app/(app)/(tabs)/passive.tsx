@@ -3,8 +3,7 @@ import { useMemo, useState } from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { type PassiveMonth, type PassiveSource } from '@/data/engines';
-import { useFundsAnalysis, usePassive } from '@/data/portfolio';
-import { passivePayers } from '@/features/passive/payers';
+import { usePassive } from '@/data/portfolio';
 import { SourceIcon, SHORT_LABEL, VIEW_LABEL, PassiveTip } from '@/features/passive/passiveUi';
 import { RangeButton } from '@/features/range/RangeButton';
 import { CHART_MONTHS, usePeriod } from '@/features/range/usePeriod';
@@ -31,10 +30,9 @@ const ORDER: PassiveSource[] = ['mutual_funds', 'savings', 'dividends', 'other']
 export default function PassiveTab() {
   const hidden = useHidden();
   const period = usePeriod();
-  const { analysis: a, events, isLoading, refetch } = usePassive(period.upTo);
-  const funds = useFundsAnalysis(period.upTo);
-  // Who paid in each month — funds (AMC logos), stocks and banks — for the bar's hold card (owner, 2026-11-15).
-  const payers = useMemo(() => passivePayers('all', events, funds.analysis?.allPositions), [events, funds.analysis]);
+  // The hold card here is the month's total and its sources (Funds, Savings, Dividends) — owner, 2026-11-15: keep
+  // it like before; who paid is on each source's own page.
+  const { analysis: a, isLoading, refetch } = usePassive(period.upTo);
   const [selected, setSelected] = useState<string | null>(null);
   const [viewport, setViewport] = useState(0);
   const { height: winH } = useWindowDimensions();
@@ -60,7 +58,7 @@ export default function PassiveTab() {
         <NetWorthCard label="Passive income" value={a.totals.net} holders={holders} />
         <View style={styles.chartWrap}>
           <ChartCard<Bar> barTitle={sel ? monthLabel(sel, true) : 'By month'} bars={bars} selected={sel} onSelect={setSelected} hidden={hidden}
-            format={(v) => (hidden ? '••••' : `Rs ${compactNumber(v)}`)} renderTip={(b) => <PassiveTip m={b} pick="all" payers={payers[b.key]} />}
+            format={(v) => (hidden ? '••••' : `Rs ${compactNumber(v)}`)} renderTip={(b) => <PassiveTip m={b} pick="all" />}
             pieTitle="By source" pieCenter="Passive income" pieItems={pie} />
         </View>
       </View>
