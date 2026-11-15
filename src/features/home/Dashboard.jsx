@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import Decimal from 'decimal.js';
 import { Box, Skeleton, Typography, Button, useMediaQuery, useTheme } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
@@ -36,9 +37,10 @@ function greeting(user) {
 }
 
 /**
- * Home: net worth = mutual funds + PSX stocks at their current value (what is held;
- * cash savings are not part of it), dividends collected in the range beside them,
- * holdings value over time on the chart, and where the money is.
+ * Home: net worth = mutual funds + PSX stocks at their value at the end of the selected range, plus the PSX dividends
+ * received in that range (owner, 2026-11-15 — the phone's figure; cash savings are not part of it). Worked out here
+ * from the live engines with exact decimals, so it follows the range at once. Holdings value over time on the chart,
+ * and where the money is.
  * Desktop fits one screen; phones scroll normally.
  */
 export default function HomeDashboard() {
@@ -76,11 +78,14 @@ export default function HomeDashboard() {
     if (!mf || !psx || !flows) return null;
     const today = todayIso();
     const asOf = range.end && range.end < today ? range.end : today;
-    // Net worth = what is held: mutual funds + PSX stocks at current value (cash savings are not part of it).
-    const worth = netWorth({ funds: mf.totals.value ?? 0, stocks: psx.totals.value ?? 0 });
     // Dividends collected inside the selected range, up to its end (net, as paid).
     const divs = dividends.filter((d) => d.payment_date >= range.start && d.payment_date <= asOf);
-    const dividendsCollected = Math.round(divs.reduce((s, d) => s + (Number(d.net_amount) || 0), 0) * 100) / 100;
+    const dividendsCollected = Number(divs.reduce((s, d) => s.plus(d.net_amount || 0), new Decimal(0)).toFixed(2));
+    // Net worth = mutual funds + PSX stocks (value at the range end) + dividends received in the range.
+    const held = netWorth({ funds: mf.totals.value ?? 0, stocks: psx.totals.value ?? 0 });
+    const total = Number(new Decimal(held.funds).plus(held.stocks).plus(dividendsCollected).toFixed(2));
+    const share = (v) => (total > 0 && v > 0 ? v / total : 0);
+    const worth = { ...held, value: total, dividends: dividendsCollected, share: { funds: share(held.funds), stocks: share(held.stocks), dividends: share(dividendsCollected) } };
     const funds = mf.positions.filter((p) => p.isOpen && (p.value ?? 0) > 0).map((p) => ({
       key: `f-${p.key}`, label: p.fundName ?? 'Fund', sub: AMC_SHORT[p.amcCode] ?? p.amcName ?? 'Fund', value: p.value,
       logo: <AmcLogo code={p.amcCode} name={p.amcName} size={28} />, onClick: () => setFund(p),
@@ -150,8 +155,8 @@ export default function HomeDashboard() {
           { label: 'PSX stocks', amount: w.stocks, note: pctOf(w.share.stocks), onClick: () => navigate('/stocks') },
           {
             label: 'Dividends collected', amount: data.dividendsCollected, color: data.dividendsCollected > 0 ? t.pos : undefined,
-            note: data.dividendCount ? `${data.dividendCount} payment${data.dividendCount === 1 ? '' : 's'} in ${label}` : `none in ${label}`,
-            tooltip: `PSX dividends received in ${label} up to ${fmtDay(data.asOf)}, after tax.`,
+            note: data.dividendCount ? `${pctOf(w.share.dividends)} · ${data.dividendCount} payment${data.dividendCount === 1 ? '' : 's'}` : `none in ${label}`,
+            tooltip: `PSX dividends received in ${label} up to ${fmtDay(data.asOf)}, after tax — part of net worth.`,
             onClick: () => navigate('/stocks/dividends'),
           },
         ]}
