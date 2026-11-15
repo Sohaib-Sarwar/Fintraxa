@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 import { useWallpaper } from '@/features/auth/backdrops';
 import { WallpaperPicker } from '@/features/auth/WallpaperPicker';
+import { useCurtain } from './SignInCurtain';
 import { FingerprintGlyph } from '@/features/auth/FingerprintGlyph';
 import { LogoLoader } from '@/features/auth/LogoLoader';
 import { signOut, startAuth, useAuth } from '@/lib/auth';
@@ -39,7 +40,8 @@ export function LockScreen() {
   const tryUnlock = async () => {
     if (busy) return;
     setBusy(true);
-    const r = await unlock().catch(() => 'cancelled' as const);
+    // Fingerprint accepted → the landing's loader stays until the page behind is ready, then the unlock reveal.
+    const r = await unlock(() => useCurtain.getState().show(wall.source)).catch(() => 'cancelled' as const);
     setBusy(false);
     if (r === 'ok') haptic.success();
     else if (r === 'cancelled') { haptic.warning(); setFails((n) => n + 1); }
@@ -55,7 +57,7 @@ export function LockScreen() {
   const usePassword = async () => {
     await openVault({ biometric: false }).catch(() => {});
     await startAuth().catch(() => {});
-    await signOut({ keepData: true }).catch(() => {});
+    await signOut().catch(() => {});
     // Straight to the password box (owner, 2026-11-15: "Use password should open the login input"), no notice card.
     useAuth.setState({ locked: false, ready: true, wantPassword: true, notice: null });
   };

@@ -7,9 +7,22 @@
  *   under their finger); if that cannot happen, expo-updates loads it on the next cold start anyway.
  * - Off in Expo Go and dev builds (`Updates.isEnabled` is false there). Never throws: no network = try later.
  */
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Updates from 'expo-updates';
 import { useEffect } from 'react';
 import { AppState } from 'react-native';
+
+/** Set just before the app restarts itself to apply an update, so that restart doesn't count as closing the app. */
+const RELOAD_KEY = 'fx.ota.reloadAt';
+export async function restartedForUpdate(): Promise<boolean> {
+  try {
+    const at = Number(await AsyncStorage.getItem(RELOAD_KEY));
+    if (at) await AsyncStorage.removeItem(RELOAD_KEY);
+    return !!at && Date.now() - at < 2 * 60_000;
+  } catch {
+    return false;
+  }
+}
 
 /** Not more than once a minute when the app flips between foreground and background. */
 const MIN_GAP_MS = 60_000;
@@ -43,7 +56,8 @@ export function useOtaUpdates() {
       if (state === 'active') check();
       else if (state === 'background' && pending) {
         pending = false;
-        Updates.reloadAsync().catch(() => { /* applied on the next cold start instead */ });
+        AsyncStorage.setItem(RELOAD_KEY, String(Date.now())).catch(() => {})
+          .then(() => Updates.reloadAsync()).catch(() => { /* applied on the next cold start instead */ });
       }
     });
     return () => sub.remove();

@@ -6,7 +6,8 @@
  */
 import { useEffect, useRef } from 'react';
 import { AppState } from 'react-native';
-import { autoLock, startAuth, useAuth } from '@/lib/auth';
+import { autoLock, signOut, startAuth, useAuth } from '@/lib/auth';
+import { restartedForUpdate } from '@/lib/otaUpdates';
 import { useApp } from '@/lib/store';
 import { supabase, wipeStoredSession } from '@/lib/supabase';
 import { openVault, resetVault, type OpenResult } from '@/lib/vault';
@@ -27,9 +28,11 @@ export async function handleInvalidated() {
   await startAuth();
 }
 
-export async function unlock(): Promise<OpenResult> {
+/** `onVerified` runs once the fingerprint is accepted, before the lock screen goes (the sign-in curtain goes up). */
+export async function unlock(onVerified?: () => void): Promise<OpenResult> {
   const r = await openVault({ biometric: true });
   if (r === 'ok') {
+    onVerified?.();
     useAuth.setState({ locked: false });
     await startAuth();
     supabase.auth.startAutoRefresh();
@@ -48,13 +51,16 @@ export function useSession(): Boot {
   useEffect(() => {
     if (!hydrated || started.current) return;
     started.current = true;
-    const { biometricEnabled, lastActiveAt, autoLockMinutes } = useApp.getState();
+    const { biometricEnabled } = useApp.getState();
     if (biometricEnabled) {
-      useAuth.setState({ locked: true });
+      useAuth.setState({ locked: true }); // a cold start always asks for the fingerprint
     } else {
-      openVault({ biometric: false }).then(startAuth).then(() => {
-        // Closed for longer than the auto-lock time (or at all, with "Immediately"): start signed out.
-        if (lastActiveAt && Date.now() - lastActiveAt >= autoLockMinutes * 60_000) autoLock('closed');
+      // A cold start means the app was closed — back-button exit, swiped from recents, or ended by Android — and
+      // closing signs out (owner, 2026-11-15). The restart that applies an update is not a close.
+      // Signed out BEFORE the stored session is published, so Home never starts loading behind the splash.
+      Promise.all([openVault({ biometric: false }), restartedForUpdate()]).then(async ([, updating]) => {
+        if (!updating) await signOut().catch(() => {});
+        await startAuth();
       }).catch(() => useAuth.setState({ ready: true }));
     }
   }, [hydrated]);

@@ -1,28 +1,13 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useState, type ReactNode } from 'react';
+import { router } from 'expo-router';
+import { useState, type ReactNode } from 'react';
 import { KeyboardAvoidingView, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
-import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft } from './icons';
 import { CircleButton } from './primitives';
 import { Text } from './Text';
 import { useTheme } from './theme';
 import { NAV_CLEARANCE, SCREEN_PAD, space } from './tokens';
-
-/**
- * Every page arrives like Funds ↔ Stocks (owner): content fades in while settling 10 dp down into place over
- * 240 ms (was 25 dp — too much travel read as jumpy; owner, 2026-11-15: "not smooth, feels cheap"). It replays each time the page comes into focus (tab switch, opening a page, coming
- * back), on the UI thread, without remounting the page.
- */
-function useEnter() {
-  const k = useSharedValue(0);
-  useFocusEffect(useCallback(() => {
-    k.set(0);
-    k.set(withTiming(1, { duration: 240, easing: Easing.out(Easing.cubic) }));
-  }, [k]));
-  return useAnimatedStyle(() => ({ opacity: k.get(), transform: [{ translateY: -10 * (1 - k.get()) }] }));
-}
 
 type Props = {
   /** Large title at the left of the header row (tab screens). */
@@ -49,7 +34,6 @@ type Props = {
  */
 export function Screen({ title, back, right, header, children, onRefresh, scroll = true, tabBar = false, bottomSpace, onViewport }: Props) {
   const p = useTheme();
-  const enter = useEnter();
   const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
   const refresh = onRefresh ? async () => {
@@ -77,7 +61,7 @@ export function Screen({ title, back, right, header, children, onRefresh, scroll
   // Dark theme is flat pitch black (owner); the light theme keeps its faint glow.
   const glow = p.mode === 'dark' ? null : <LinearGradient pointerEvents="none" colors={[p.glow, 'transparent']} start={{ x: 0.85, y: 0 }} end={{ x: 0.3, y: 0.55 }} style={styles.glow} />;
   if (!scroll) {
-    return <View style={[styles.flex, { backgroundColor: p.bg }]}>{glow}{top}<Animated.View style={[styles.flex, { paddingHorizontal: SCREEN_PAD }, enter]}>{children}</Animated.View></View>;
+    return <View style={[styles.flex, { backgroundColor: p.bg }]}>{glow}{top}<View style={[styles.flex, { paddingHorizontal: SCREEN_PAD }]}>{children}</View></View>;
   }
   // Inputs stay above the keyboard (edge-to-edge Android doesn't resize the window any more).
   return (
@@ -92,7 +76,7 @@ export function Screen({ title, back, right, header, children, onRefresh, scroll
       refreshControl={refresh ? <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={p.accent} colors={[p.accentInk]} progressBackgroundColor={p.accent} progressViewOffset={insets.top} /> : undefined}
     >
       {top}
-      <Animated.View style={[{ paddingHorizontal: SCREEN_PAD }, enter]}>{children}</Animated.View>
+      <View style={{ paddingHorizontal: SCREEN_PAD }}>{children}</View>
     </ScrollView>
     </KeyboardAvoidingView>
   );

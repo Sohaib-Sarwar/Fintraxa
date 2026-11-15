@@ -40,10 +40,10 @@ export default function AppLayout() {
   const code = Number(Application.nativeBuildVersion ?? 0);
   if (!isExpoGo && release.data && code > 0 && code < release.data.min_supported_code) return <ForcedUpdate release={release.data} />;
 
-  // Opened pages switch without a navigator transition; their content plays the Funds ↔ Stocks motion on focus
-  // (Screen), so every page change looks the same (owner).
+  // Opened pages slide in from the right like iOS (the previous page moves a little left and dims), and back slides
+  // them out (owner, 2026-11-15: "smooth Apple-style page switching"). Add rises from the bottom.
   return (
-    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: p.bg }, animation: 'none' }}>
+    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: p.bg }, animation: 'ios_from_right' }}>
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="add" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
       <Stack.Screen name="onboarding" options={{ animation: 'fade', gestureEnabled: false }} />

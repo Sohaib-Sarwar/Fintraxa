@@ -327,7 +327,7 @@ export default function Me() {
           <View style={styles.outHead}>
             <View style={styles.outIcon}><LogOut size={22} color={GLASS_INK} strokeWidth={1.9} /></View>
             <Text style={styles.outTitle}>Sign out?</Text>
-            <Text style={styles.small}>This phone forgets your data.</Text>
+            <Text style={styles.small}>Your data stays on this phone for next time.</Text>
           </View>
           <View style={styles.sheetActions}>
             <Pressable onPress={() => setSheet(null)} accessibilityRole="button" style={({ pressed }) => [styles.glassBtn, { opacity: pressed ? 0.75 : 1 }]}>

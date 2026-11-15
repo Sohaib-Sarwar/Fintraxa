@@ -105,12 +105,12 @@ export async function sendReset(email: string) {
 }
 
 /**
- * Sign out: revoke on the server when possible, then wipe the session. A sign-out the user chose also wipes the
- * cache and this user's local marks; an automatic one (auto-lock, lock screen → password) keeps the encrypted
- * cache (owner, 2026-11-15: "mobile is not using cache, slow") so signing back in paints at once. It is wiped the
- * moment a different account signs in (`publish` → `claimCache`).
+ * Sign out: revoke on the server when possible, then wipe the session — a normal sign-out, not "forget this device"
+ * (owner, 2026-11-15): the encrypted cache and this user's local marks stay, so signing back in paints at once. They
+ * are wiped the moment a different account signs in (`publish` → `claimCache`), or from Android's Settings › Apps ›
+ * Fintraxa › Storage › Clear storage. `keepData: false` is the explicit wipe.
  */
-export async function signOut({ keepData = false }: { keepData?: boolean } = {}) {
+export async function signOut({ keepData = true }: { keepData?: boolean } = {}) {
   const uid = useAuth.getState().user?.id;
   const { error } = await supabase.auth.signOut().catch((e) => ({ error: e }));
   await wipeStoredSession();
@@ -133,8 +133,9 @@ export async function signOut({ keepData = false }: { keepData?: boolean } = {})
 export async function autoLock(reason: 'idle' | 'closed') {
   if (!useAuth.getState().session || useAuth.getState().locked) return;
   if (useApp.getState().biometricEnabled) { lockNow(); return; }
-  await signOut({ keepData: true });
-  useAuth.getState().setNotice(reason === 'idle' ? 'Signed out after a minute without activity.' : 'Signed out because the app was closed.');
+  await signOut();
+  // Closing the app is meant to sign out (owner): no card about it. Idle time out still says why.
+  if (reason === 'idle') useAuth.getState().setNotice('Signed out after a minute without activity.');
 }
 
 export function lockNow() {
