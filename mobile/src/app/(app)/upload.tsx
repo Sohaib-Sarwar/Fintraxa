@@ -7,7 +7,7 @@ import { DOC_LABEL, Identity, TYPE_LABEL, type DocKind } from '@/features/upload
 import { useRecentUploads } from '@/features/upload/recent';
 import { ScanDoc, StepList, type Step } from '@/features/upload/Steps';
 import {
-  approveStaged, fetchStaged, findImport, importFund, OPEN_STAGED, pickPdf, readFile, recognise, saveDividends, saveTrades, uploadFile, UploadError,
+  approveAllOpen, approveStaged, fetchStaged, findImport, importFund, OPEN_STAGED, pickPdf, readFile, recognise, saveDividends, saveTrades, uploadFile, UploadError,
   type DividendLine, type IntakeResult, type Picked, type StagedRow, type TradeLine,
 } from '@/features/upload/upload';
 import { dividendDuplicates, dividendKey, duplicateStatus, oversoldRefs } from '@/data/engines';
@@ -185,7 +185,13 @@ export default function Upload() {
     try {
       const out = await importFund(r.storage_path, file?.name ?? 'statement.pdf');
       clearInterval(timer);
-      const rows = out.import_id ? await fetchStaged(out.import_id).catch(() => []) : [];
+      let rows = out.import_id ? await fetchStaged(out.import_id).catch(() => []) : [];
+      // Auto-approve whatever is still waiting (owner); only rows the server refuses stay under "Waiting for you".
+      if (out.import_id && !out.duplicate_file && rows.some((x) => OPEN_STAGED.includes(x.review_status))) {
+        step('fifo', 'active', 'Approving');
+        await approveAllOpen(out.import_id, rows).catch(() => 0);
+        rows = await fetchStaged(out.import_id).catch(() => rows);
+      }
       const added = rows.filter((x) => x.review_status === 'approved').length;
       const dup = rows.filter((x) => x.review_status === 'duplicate').length;
       step('dupes', 'done', dup ? `${dup} already in portfolio` : 'None');
