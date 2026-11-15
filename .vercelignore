@@ -1,2 +1,6 @@
-# The Expo app is built by EAS, not Vercel.
-mobile/
+# mobile/ is uploaded on purpose: Vercel builds it as the phone web app at /m (scripts/build-mobile-web.mjs).
+# APKs are still built by EAS.
+mobile/node_modules/
+mobile/.expo/
+mobile/android/
+mobile/ios/
