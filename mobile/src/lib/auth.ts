@@ -7,7 +7,7 @@
 import type { Session, User } from '@supabase/supabase-js';
 import { create } from 'zustand';
 import { env } from './env';
-import { forgetCache } from './queryClient';
+import { claimCache, forgetCache } from './queryClient';
 import { useApp } from './store';
 import { supabase, wipeStoredSession } from './supabase';
 import { closeVault, disableBiometricKey } from './vault';
@@ -38,12 +38,19 @@ let subscribed = false;
 export async function startAuth() {
   if (!subscribed) {
     subscribed = true;
-    supabase.auth.onAuthStateChange((_event, session) => {
-      useAuth.setState({ session, user: session?.user ?? null, ready: true });
-    });
+    supabase.auth.onAuthStateChange((_event, session) => { publish(session).catch(() => {}); });
   }
   const { data } = await supabase.auth.getSession();
-  useAuth.setState({ session: data.session, user: data.session?.user ?? null, ready: true });
+  await publish(data.session);
+}
+
+/**
+ * Publishes the session. A different account than the one whose data is cached on this phone first wipes that
+ * cache (claimCache), so another user's figures can never paint — the cache now survives automatic sign-outs.
+ */
+async function publish(session: Session | null) {
+  if (session?.user.id) await claimCache(session.user.id).catch(() => {});
+  useAuth.setState({ session, user: session?.user ?? null, ready: true });
 }
 
 const looksLikeEmail = (s: string) => /@/.test(s);
@@ -94,13 +101,20 @@ export async function sendReset(email: string) {
   if (error) throw error;
 }
 
-/** Sign out: revoke on the server when possible, then wipe the session, cache and this user's local marks. */
-export async function signOut() {
+/**
+ * Sign out: revoke on the server when possible, then wipe the session. A sign-out the user chose also wipes the
+ * cache and this user's local marks; an automatic one (auto-lock, lock screen → password) keeps the encrypted
+ * cache (owner, 2026-11-15: "mobile is not using cache, slow") so signing back in paints at once. It is wiped the
+ * moment a different account signs in (`publish` → `claimCache`).
+ */
+export async function signOut({ keepData = false }: { keepData?: boolean } = {}) {
   const uid = useAuth.getState().user?.id;
   const { error } = await supabase.auth.signOut().catch((e) => ({ error: e }));
   await wipeStoredSession();
-  await forgetCache();
-  if (uid) useApp.getState().forgetUser(uid);
+  if (!keepData) {
+    await forgetCache();
+    if (uid) useApp.getState().forgetUser(uid);
+  }
   if (useApp.getState().biometricEnabled) {
     await disableBiometricKey().catch(() => {});
     useApp.getState().set({ biometricEnabled: false, biometricUser: null });
@@ -116,7 +130,7 @@ export async function signOut() {
 export async function autoLock(reason: 'idle' | 'closed') {
   if (!useAuth.getState().session || useAuth.getState().locked) return;
   if (useApp.getState().biometricEnabled) { lockNow(); return; }
-  await signOut();
+  await signOut({ keepData: true });
   useAuth.getState().setNotice(reason === 'idle' ? 'Signed out after a minute without activity.' : 'Signed out because the app was closed.');
 }
 

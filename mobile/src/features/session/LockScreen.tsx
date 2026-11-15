@@ -53,7 +53,7 @@ export function LockScreen() {
   const usePassword = async () => {
     await openVault({ biometric: false }).catch(() => {});
     await startAuth().catch(() => {});
-    await signOut().catch(() => {});
+    await signOut({ keepData: true }).catch(() => {});
     useAuth.setState({ locked: false, ready: true, notice: 'Sign in with your password. Fingerprint unlock can be turned back on in Me › Security.' });
   };
 

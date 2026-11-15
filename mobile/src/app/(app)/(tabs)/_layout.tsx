@@ -2,7 +2,7 @@ import { Tabs, useFocusEffect } from 'expo-router';
 import { BlurTargetView, BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useCallback, useLayoutEffect, useRef, useState, type ComponentRef, type RefObject } from 'react';
-import { BackHandler, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { BackHandler, Platform, Pressable, StyleSheet, ToastAndroid, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AddMenu, FAB_CENTER_FROM_BOTTOM, FAB_SIZE } from '@/features/nav/AddMenu';
 import { useInvestView, type InvestView } from '@/features/nav/investView';
@@ -19,7 +19,6 @@ import { useTabBarProps, type BarProps } from '@/features/nav/tabBarStore';
 import { CandlestickChart, ChartPie, House, PiggyBank, Plus, TrendingUp, Wallet, type LucideIcon } from '@/ui/icons';
 import { Text } from '@/ui/Text';
 import { useGlass } from '@/ui/glass';
-import { toast } from '@/ui/feedback';
 import { useTheme } from '@/ui/theme';
 
 const TABS: Record<string, { icon: LucideIcon; label: string }> = {
@@ -152,12 +151,13 @@ function TabBarInner({ state, navigateToTab, blurTarget }: Pick<BarProps, 'state
   );
 }
 
-/** How long the first back press on Home stays armed. */
+/** How long the first back press on Home stays armed: the length of Android's short toast. */
 const EXIT_WINDOW_MS = 2000;
 
 /**
- * Android back on Home (owner, 2026-11-15: "double back to exit like formal apps"): the first press shows
- * "Press back again to exit", a second within 2 s closes the app. On another tab back still goes to Home, an open
+ * Android back on Home (owner, 2026-11-15: "double back to exit like formal apps"): the first press shows Android's
+ * own system toast "Press back again to exit" — no vibration, no sliding in-app toast ("formal, less shaky") — and a
+ * second press within 2 s closes the app. On another tab back still goes to Home, an open
  * sheet closes first, and pages opened over the tabs (Me, Upload, Add…) keep their normal back.
  * Registered while the tabs are focused, so it runs before the navigator's own handler.
  */
@@ -171,8 +171,7 @@ function useDoubleBackExit() {
       if (bar && bar.state.routes[bar.state.index]?.name !== 'index') return false; // the navigator goes back to Home
       if (Date.now() - armedAt < EXIT_WINDOW_MS) { BackHandler.exitApp(); return true; }
       armedAt = Date.now();
-      haptic.tick();
-      toast('Press back again to exit');
+      ToastAndroid.show('Press back again to exit', ToastAndroid.SHORT);
       return true;
     });
     return () => sub.remove();
