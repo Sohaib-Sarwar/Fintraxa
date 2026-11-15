@@ -30,4 +30,3 @@ Center-cropped to the card ratio (1.586:1) and resized to 1000 px wide.
 | bamboo.webp | Pexels photo 7898337 — https://www.pexels.com/photo/green-leaves-of-plant-against-black-background-7898337/ | Pexels License |
 | foliage.webp | Pexels photo 9660579 — https://www.pexels.com/photo/plants-with-dark-green-leaves-9660579/ | Pexels License |
 | night-bloom.webp | Pexels photo 4032763 — https://www.pexels.com/photo/purple-flower-in-black-background-4032763/ | Pexels License |
-| visa-black.webp, amex-botanical.webp | Supplied by the owner (`Cards/` folder); card designs and marks belong to Visa and American Express — used only in this personal, non-commercial app | Owner-supplied |

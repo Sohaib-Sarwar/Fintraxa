@@ -14,7 +14,7 @@ import { ChartCard } from '@/features/today/ChartCard';
 import { GainChange } from '@/features/invest/GainChange';
 import { NetWorthCard } from '@/features/today/NetWorthCard';
 import { ALL_TIME_START, fyOf, monthLabel, monthName, todayIso } from '@/lib/dates';
-import { autoDecimals, compactNumber, group, share } from '@/lib/format';
+import { autoDecimals, compactNumber, group, isLong, share } from '@/lib/format';
 import { useTracks } from '@/lib/store';
 import { EmptyState, ErrorState, OfflinePill, Skeleton } from '@/ui/feedback';
 import { useHidden } from '@/ui/Figures';
@@ -49,12 +49,15 @@ function useInvestBars(side: 'funds' | 'stocks', analysis: unknown) {
   }).slice(-CHART_MONTHS).map((pt) => ({ ...pt, key: pt.month })), [snaps.data, side, analysis, range.start, range.end, today]);
 }
 
-/** Hold card = the web's hover: the value (now / at the month's close), Invested, Unrealized gain, Realized in it. */
+/**
+ * Hold card = the web's hover: the value (now / at the month's close), Invested, Unrealized, Realized (owner,
+ * 2026-11-15: short labels; long figures go compact — Rs 1.25Cr — and shrink to fit instead of overflowing).
+ */
 function ValueTip({ m }: { m: InvestBar }) {
   const p = useTheme();
   const hidden = useHidden();
   // Same wording and sign rule as the web hover; full rupees (decimals below 10,000).
-  const fmt = (v: number) => group(Math.abs(v), autoDecimals(v));
+  const fmt = (v: number) => (isLong(v, 1e7) ? compactNumber(Math.abs(v)) : group(Math.abs(v), autoDecimals(v)));
   const signed = (v: number) => (hidden ? '••••' : `${v > 0 ? '+' : v < 0 ? '−' : ''}Rs ${fmt(v)}`);
   const gainColor = m.unrealized > 0 ? p.pos : m.unrealized < 0 ? p.neg : p.ink2;
   return (
@@ -64,11 +67,11 @@ function ValueTip({ m }: { m: InvestBar }) {
       <Text variant="caption" tone="muted">{m.live ? 'Value now' : 'Value at the end of the month'}</Text>
       <View style={[styles.tipRule, { backgroundColor: p.mode === 'dark' ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)' }]} />
       {[{ k: 'Invested', v: hidden ? '••••' : `Rs ${fmt(m.invested)}`, c: p.ink },
-        { k: 'Unrealized gain', v: signed(m.unrealized), c: gainColor },
-        { k: 'Realized in the period', v: signed(m.realized), c: p.ink }].map((r) => (
+        { k: 'Unrealized', v: signed(m.unrealized), c: gainColor },
+        { k: 'Realized', v: signed(m.realized), c: p.ink }].map((r) => (
         <View key={r.k} style={styles.tipRow}>
-          <Text variant="caption" tone="ink2" style={{ flex: 1 }} numberOfLines={1}>{r.k}</Text>
-          <Text style={[styles.tipNum, { color: r.c }]}>{r.v}</Text>
+          <Text variant="caption" tone="ink2" numberOfLines={1}>{r.k}</Text>
+          <Text style={[styles.tipNum, { color: r.c }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>{r.v}</Text>
         </View>
       ))}
     </View>
@@ -189,7 +192,7 @@ const styles = StyleSheet.create({
   tipValue: { fontFamily: font.numHeavy, fontSize: 18, lineHeight: 23, letterSpacing: -0.3 },
   tipRule: { height: StyleSheet.hairlineWidth, marginVertical: 3 },
   tipRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  tipNum: { fontFamily: font.num, fontSize: 12.5 },
+  tipNum: { flex: 1, textAlign: 'right', fontFamily: font.num, fontSize: 12.5 },
   rowCard: { paddingHorizontal: space.lg, borderRadius: 20 },
   link: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 64 },
   linkIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },

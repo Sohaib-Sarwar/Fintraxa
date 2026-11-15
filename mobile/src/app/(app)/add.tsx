@@ -1,8 +1,8 @@
 import { BlurTargetView } from 'expo-blur';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef, type ReactNode } from 'react';
-import { BackHandler, KeyboardAvoidingView, Pressable, StyleSheet, TextInput, View } from 'react-native';
-import Animated, { Easing, FadeInLeft, FadeInRight } from 'react-native-reanimated';
+import { BackHandler, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import Animated, { Easing, FadeInLeft, FadeInRight, useAnimatedKeyboard, useAnimatedStyle } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AddDone } from '@/features/money/AddDone';
 import { checkAmount, newTxnId, useAddTransaction, useUpdateTransaction } from '@/data/mutations';
@@ -109,6 +109,12 @@ export default function AddTransaction() {
   const [taxTyped, setTaxTyped] = useState<string | null>(editing?.tax_amount !== undefined && editing?.tax_amount !== null ? String(Number(editing.tax_amount)) : null);
   const [acctOpen, setAcctOpen] = useState(false);
   const blurTarget = useRef<ComponentRef<typeof View>>(null);
+  // Keyboard (owner, 2026-11-15: the Note hid behind it): edge-to-edge Android doesn't resize the window, so the details
+  // step lifts by the keyboard's height itself (as the sheets do), the fields scroll, and the Note scrolls into view.
+  const kb = useAnimatedKeyboard();
+  const bottomPad = Math.max(insets.bottom, space.md);
+  const lift = useAnimatedStyle(() => ({ paddingBottom: Math.max(0, kb.height.get() - bottomPad) }));
+  const detailsScroll = useRef<ComponentRef<typeof ScrollView>>(null);
   const add = useAddTransaction(cats.data);
   const update = useUpdateTransaction();
 
@@ -231,7 +237,8 @@ export default function AddTransaction() {
           </Animated.View>
         ) : step === 'details' ? (
           <Animated.View key="details" entering={enter} style={styles.root}>
-            <KeyboardAvoidingView behavior="padding" style={[styles.root, styles.detailsBody]}>
+            <Animated.View style={[styles.root, styles.detailsBody, lift]}>
+              <ScrollView ref={detailsScroll} style={styles.root} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
               {/* Amount summary: tap to change it. */}
               <Pressable onPress={goAmount} accessibilityRole="button" accessibilityLabel={`Amount Rs ${display}. Change`}
                 style={({ pressed }) => [styles.summary, { backgroundColor: p.surface, borderColor: p.border, opacity: pressed ? 0.85 : 1 }]}>
@@ -286,6 +293,7 @@ export default function AddTransaction() {
                       maxLength={NOTE_MAX}
                       returnKeyType="done"
                       style={[styles.noteInput, { color: p.ink }]}
+                      onFocus={() => setTimeout(() => detailsScroll.current?.scrollToEnd({ animated: true }), 280)}
                       accessibilityLabel="Note"
                       selectionColor={p.accent}
                       cursorColor={p.accent}
@@ -293,11 +301,11 @@ export default function AddTransaction() {
                   </View>
                 </View>
               </View>
+              </ScrollView>
 
-              <View style={{ flex: 1 }} />
-              {error ? <Text variant="label" tone="neg" align="center" style={{ marginBottom: space.sm }} accessibilityLiveRegion="assertive">{error}</Text> : null}
-              <Button label={editing ? 'Save changes' : isExpense ? 'Save expense' : 'Save income'} onPress={save} />
-            </KeyboardAvoidingView>
+              {error ? <Text variant="label" tone="neg" align="center" style={{ marginVertical: space.sm }} accessibilityLiveRegion="assertive">{error}</Text> : null}
+              <Button label={editing ? 'Save changes' : isExpense ? 'Save expense' : 'Save income'} onPress={save} style={{ marginTop: space.sm }} />
+            </Animated.View>
           </Animated.View>
         ) : null}
       </BlurTargetView>
