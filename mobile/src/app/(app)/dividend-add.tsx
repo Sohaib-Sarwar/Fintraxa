@@ -69,6 +69,7 @@ export default function DividendAdd() {
   const [shares, setShares] = useState<string | null>(null); // null = the shares held that day, from the trades
   const [dps, setDps] = useState('');
   const [rate, setRate] = useState<string | null>(null); // null = from the profile's filer status
+  const [taxRs, setTaxRs] = useState<string | null>(null); // null = worked out from the rate; typed rupees win
   const [picking, setPicking] = useState(false);
   const [dateOpen, setDateOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -80,9 +81,9 @@ export default function DividendAdd() {
   const held = symbol ? sharesHeldOn(stocks.trades, symbol, date) : 0;
   const sharesVal = shares ?? (held ? String(held) : '');
   const rateVal = rate ?? String(profile.data?.filer_status === 'non_filer' ? WHT_NON_FILER : WHT_FILER);
-  const amounts = dividendAmounts(sharesVal, dps, rateVal);
+  const amounts = dividendAmounts(sharesVal, dps, rateVal, taxRs);
   const dup = symbol ? (divs.data ?? []).find((x) => x.symbol === symbol && x.payment_date === date) : undefined;
-  const draft = { symbol: symbol ?? '', companyName: pos?.companyName ?? null, paymentDate: date, type, shares: sharesVal, dps, ratePct: rateVal };
+  const draft = { symbol: symbol ?? '', companyName: pos?.companyName ?? null, paymentDate: date, type, shares: sharesVal, dps, ratePct: rateVal, taxRs };
   const ready = checkDividend(draft, today) === null;
 
   const close = () => (router.canGoBack() ? router.back() : router.replace('/'));
@@ -126,7 +127,7 @@ export default function DividendAdd() {
   };
 
   if (done) {
-    return <DividendDone symbol={draft.symbol} company={draft.companyName} net={done.net} gross={done.gross} tax={done.tax} rate={rateVal}
+    return <DividendDone symbol={draft.symbol} company={draft.companyName} net={done.net} gross={done.gross} tax={done.tax} rate={amounts.rate}
       shares={sharesVal} dps={dps} date={date} type={type}
       onDone={close} onReceipt={() => router.replace({ pathname: '/dividend/[id]', params: { id: done.id } })} />;
   }
@@ -182,34 +183,47 @@ export default function DividendAdd() {
 
             <BlackGlass style={styles.group}>
               <Line first label="Shares" sub={symbol ? (shares === null ? `Held on ${shortDate(date)}, from your trades` : 'Typed by you') : 'Choose a stock first'}>
-                <TextInput value={sharesVal} onChangeText={(v) => setShares(clean(v, 4))} keyboardType="decimal-pad" placeholder="0"
+                <TextInput value={sharesVal} onChangeText={(v) => { setShares(clean(v, 4)); setTaxRs(null); }} keyboardType="decimal-pad" placeholder="0"
                   placeholderTextColor={GLASS_INK2} style={styles.input} accessibilityLabel="Shares" selectTextOnFocus />
               </Line>
               <Line label="Dividend per share" sub="Rupees per share">
                 <View style={styles.right}>
                   <Text style={styles.unit}>Rs</Text>
-                  <TextInput ref={dpsRef} value={dps} onChangeText={(v) => setDps(clean(v, 4))} keyboardType="decimal-pad" placeholder="0.00"
+                  <TextInput ref={dpsRef} value={dps} onChangeText={(v) => { setDps(clean(v, 4)); setTaxRs(null); }} keyboardType="decimal-pad" placeholder="0.00"
                     placeholderTextColor={GLASS_INK2} style={styles.input} accessibilityLabel="Dividend per share" />
                 </View>
               </Line>
-              <Line label="Withholding tax" sub={Number(rateVal) === WHT_FILER ? 'Filer rate' : Number(rateVal) === WHT_NON_FILER ? 'Non-filer rate' : 'Your rate'}>
+              {/* Withholding tax (owner, 2026-11-15: editable): pick 15% / 30% or type any rate — or type the tax itself. */}
+              <Line label="Tax rate" sub={taxRs !== null ? 'From the tax you typed' : Number(rateVal) === WHT_FILER ? 'Filer rate' : Number(rateVal) === WHT_NON_FILER ? 'Non-filer rate' : 'Your rate'}>
                 <View style={styles.right}>
-                  {[WHT_FILER, WHT_NON_FILER].map((r) => (
-                    <Pressable key={r} onPress={() => { haptic.tick(); setRate(String(r)); }} hitSlop={6} accessibilityRole="button" accessibilityLabel={`${r}%`}
-                      style={[styles.rateChip, Number(rateVal) === r && styles.segOn]}>
-                      <Text style={[styles.segText, Number(rateVal) === r && { color: '#000' }]}>{r}%</Text>
-                    </Pressable>
-                  ))}
-                  <TextInput value={rateVal} onChangeText={(v) => setRate(clean(v, 2))} keyboardType="decimal-pad" style={[styles.input, { minWidth: 44 }]}
-                    accessibilityLabel="Tax rate, percent" selectTextOnFocus />
-                  <Text style={styles.unit}>%</Text>
+                  {[WHT_FILER, WHT_NON_FILER].map((r) => {
+                    const on = taxRs === null && Number(rateVal) === r;
+                    return (
+                      <Pressable key={r} onPress={() => { haptic.tick(); setRate(String(r)); setTaxRs(null); }} hitSlop={6} accessibilityRole="button" accessibilityLabel={`${r}%`}
+                        accessibilityState={{ selected: on }} style={[styles.rateChip, on && styles.segOn]}>
+                        <Text style={[styles.segText, on && { color: '#000' }]}>{r}%</Text>
+                      </Pressable>
+                    );
+                  })}
+                  <View style={styles.box}>
+                    <TextInput value={taxRs !== null ? amounts.rate : rateVal} onChangeText={(v) => { setRate(clean(v, 2)); setTaxRs(null); }} keyboardType="decimal-pad"
+                      style={styles.boxInput} accessibilityLabel="Tax rate, percent" selectTextOnFocus />
+                    <Text style={styles.unit}>%</Text>
+                  </View>
+                </View>
+              </Line>
+              <Line label="Tax withheld" sub={taxRs !== null ? 'Typed by you' : 'Worked out from the rate · tap to change'}>
+                <View style={styles.box}>
+                  <Text style={styles.unit}>Rs</Text>
+                  <TextInput value={taxRs ?? amounts.tax} onChangeText={(v) => setTaxRs(clean(v, 2))} keyboardType="decimal-pad"
+                    style={[styles.boxInput, { minWidth: 84 }]} accessibilityLabel="Tax withheld, rupees" selectTextOnFocus />
                 </View>
               </Line>
             </BlackGlass>
 
             <BlackGlass style={styles.group}>
               <View style={styles.sumRow}><Text style={styles.label}>Gross dividend</Text><Text style={styles.sumVal}>Rs {group(amounts.gross, 2)}</Text></View>
-              <View style={styles.sumRow}><Text style={styles.label}>Tax withheld ({rateVal || 0}%)</Text><Text style={styles.sumVal}>−Rs {group(amounts.tax, 2)}</Text></View>
+              <View style={styles.sumRow}><Text style={styles.label}>Tax withheld ({amounts.rate}%)</Text><Text style={styles.sumVal}>−Rs {group(amounts.tax, 2)}</Text></View>
               <View style={[styles.sumRow, styles.lineSep, { paddingTop: space.md }]}>
                 <Text style={[styles.label, { fontFamily: font.semibold }]}>You receive</Text>
                 <Text style={styles.net} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>Rs {group(amounts.net, 2)}</Text>
@@ -329,6 +343,8 @@ const styles = StyleSheet.create({
   segItem: { paddingHorizontal: 11, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   segOn: { backgroundColor: '#F3F4F2' },
   segText: { color: GLASS_INK, fontFamily: font.semibold, fontSize: 12.5 },
+  box: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 36, paddingHorizontal: 10, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.08)' },
+  boxInput: { minWidth: 40, textAlign: 'right', color: GLASS_INK, fontFamily: font.num, fontSize: 16, paddingVertical: 0 },
   rateChip: { paddingHorizontal: 10, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.08)' },
   sumRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.md, paddingVertical: 6 },
   sumVal: { color: GLASS_INK, fontFamily: font.num, fontSize: 15 },
