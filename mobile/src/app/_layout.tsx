@@ -17,6 +17,7 @@ import { Platform, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { LockScreen } from '@/features/session/LockScreen';
+import { SignInCurtain, useCurtain } from '@/features/session/SignInCurtain';
 import { useOtaUpdates } from '@/lib/otaUpdates';
 import { markActive, useSession } from '@/features/session/useSession';
 import { useAuth } from '@/lib/auth';
@@ -94,10 +95,15 @@ function Root({ fontsReady }: { fontsReady: boolean }) {
   const [settled, setSettled] = useState(false);
   useRecentsPrivacy();
   useOtaUpdates();
-  // Splash stays until fonts are in and the user is on the right screen (or the lock screen is up).
+  // Splash stays until fonts are in and the user is on the right screen (or the lock screen is up) — and, signed in,
+  // until Home has its figures on screen (at most 2.5 s more), so the app opens on a finished page (owner, 2026-11-15).
+  const signedIn = useAuth((s) => !!s.session);
+  const homeReady = useCurtain((s) => s.ready);
+  const [waited, setWaited] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setWaited(true), 2500); return () => clearTimeout(t); }, []);
   useEffect(() => {
-    if (fontsReady && (boot === 'locked' || (boot === 'ready' && settled))) SplashScreen.hideAsync().catch(() => {});
-  }, [fontsReady, boot, settled]);
+    if (fontsReady && (boot === 'locked' || (boot === 'ready' && settled && (!signedIn || homeReady || waited)))) SplashScreen.hideAsync().catch(() => {});
+  }, [fontsReady, boot, settled, signedIn, homeReady, waited]);
   // The navigator is mounted from the first render (Expo Router needs it); the splash covers it while
   // booting, and when locked the lock screen covers it and hides it from TalkBack. Signed-out-while-locked
   // shows only the auth group underneath, never figures: the session isn't readable until unlock.
@@ -109,6 +115,8 @@ function Root({ fontsReady }: { fontsReady: boolean }) {
       <View style={{ flex: 1 }} onTouchStart={markActive} importantForAccessibility={locked ? 'no-hide-descendants' : 'auto'} accessibilityElementsHidden={locked}>
         <Navigator onSettled={setSettled} />
       </View>
+      {/* Sign-in → Home: the landing's loader until Home is ready, then an unlock-style reveal. */}
+      <SignInCurtain />
       {locked ? <View style={StyleSheet.absoluteFill}><LockScreen /></View> : null}
       <ToastHost />
     </View>
