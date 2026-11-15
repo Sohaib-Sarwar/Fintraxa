@@ -22,14 +22,20 @@ describe('sharesHeldOn', () => {
 
 describe('dividendAmounts', () => {
   it('gross = shares × DPS, 15% WHT, net = gross − tax (to the paisa)', () => {
-    expect(dividendAmounts('120', '7.5', '15')).toEqual({ gross: '900.00', tax: '135.00', net: '765.00' });
+    expect(dividendAmounts('120', '7.5', '15')).toEqual({ gross: '900.00', tax: '135.00', net: '765.00', rate: '15' });
   });
   it('rounds half up and keeps net exact', () => {
     // 333 × 1.115 = 371.295 → 371.30; 15% = 55.695 → 55.70; net 315.60
-    expect(dividendAmounts('333', '1.115', '15')).toEqual({ gross: '371.30', tax: '55.70', net: '315.60' });
+    expect(dividendAmounts('333', '1.115', '15')).toEqual({ gross: '371.30', tax: '55.70', net: '315.60', rate: '15' });
+  });
+  it('takes the tax typed in rupees over the rate, capped at the gross, and reports its rate', () => {
+    expect(dividendAmounts('120', '7.5', '15', '100')).toEqual({ gross: '900.00', tax: '100.00', net: '800.00', rate: '11.11' });
+    expect(dividendAmounts('120', '7.5', '15', '5000').net).toBe('0.00');
+    expect(dividendAmounts('120', '7.5', '15', '').tax).toBe('135.00');
+    expect(dividendAmounts('120', '7.5', '15', null).tax).toBe('135.00');
   });
   it('takes another rate (non-filer 30%, 0%) and clamps silly ones', () => {
-    expect(dividendAmounts('1000', '2', '30')).toEqual({ gross: '2000.00', tax: '600.00', net: '1400.00' });
+    expect(dividendAmounts('1000', '2', '30')).toEqual({ gross: '2000.00', tax: '600.00', net: '1400.00', rate: '30' });
     expect(dividendAmounts('1000', '2', '0').net).toBe('2000.00');
     expect(dividendAmounts('1000', '2', '150').net).toBe('0.00');
   });
@@ -48,5 +54,7 @@ describe('checkDividend', () => {
     expect(checkDividend({ ...ok, dps: '' }, '2026-11-15')).toMatch(/per share/);
     expect(checkDividend({ ...ok, ratePct: '101' }, '2026-11-15')).toMatch(/rate/);
     expect(checkDividend({ ...ok, ratePct: '' }, '2026-11-15')).toMatch(/rate/);
+    expect(checkDividend({ ...ok, taxRs: '500' }, '2026-11-15')).toMatch(/more than the gross/);
+    expect(checkDividend({ ...ok, ratePct: '', taxRs: '20' }, '2026-11-15')).toBeNull();
   });
 });
