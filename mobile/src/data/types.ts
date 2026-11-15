@@ -10,7 +10,7 @@ export type Txn = {
   id: string; user_id: string; amount: number | string; type: 'credit' | 'debit'; category_id: string | null;
   date: string; notes: string | null; created_at: string;
   categories: { name: string; icon: string | null; kind: CategoryKind | null; type?: string; default_tax_rate?: number | null } | null;
-  gross_amount?: number | string | null; savings_account_id?: string | null;
+  gross_amount?: number | string | null; tax_amount?: number | string | null; tax_rate?: number | string | null; savings_account_id?: string | null;
   savings_accounts?: { name: string; bank_symbol: string | null; bank_name: string | null } | null;
 };
 
@@ -53,6 +53,11 @@ export type FeedHealthRow = { feed: string; latest_data: string | null; last_suc
 
 export type Profile = { username: string | null; full_name: string | null; filer_status: string | null; avatar_path?: string | null };
 export type Prefs = { tracks: { spending?: boolean; funds?: boolean; stocks?: boolean } | null; auto_lock_minutes: number | null };
+/** A bank account savings profit is credited to (public.savings_accounts; web: lib/finance/useSavingsAccounts.js). */
+export type SavingsAccount = {
+  id: string; bank_symbol: string; bank_name: string; name: string; profit_rate: number | null; tax_rate: number; archived: boolean;
+};
+
 export type Release = { version_code: number; version_name: string; apk_url: string; notes: string; min_supported_code: number };
 
 // ── engine outputs used by the screens (src/lib/mf/profit.js, src/lib/psx/portfolio.js) ──

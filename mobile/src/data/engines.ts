@@ -5,7 +5,8 @@
  */
 import { summarize as summarizeJs } from '@core/finance/summary.js';
 import { assetRows as assetRowsJs, valueSeries as valueSeriesJs } from '@core/snapshots/series.js';
-import { analyzePassive as analyzePassiveJs, passiveEvents as passiveEventsJs, SOURCE_LABEL as SOURCE_LABEL_JS } from '@core/finance/passive.js';
+import { analyzePassive as analyzePassiveJs, passiveEvents as passiveEventsJs, savingsTax as savingsTaxJs, SOURCE_LABEL as SOURCE_LABEL_JS } from '@core/finance/passive.js';
+import { bankName as bankNameJs, PSX_BANKS as PSX_BANKS_JS } from '@core/finance/banks.js';
 import { duplicateStatus as duplicateStatusJs, oversoldRefs as oversoldRefsJs, toTradeRows as toTradeRowsJs } from '@core/psx/confirmations.js';
 import { dividendDuplicates as dividendDuplicatesJs, dividendKey as dividendKeyJs } from '@core/psx/dividends.js';
 import { analyzeFunds as analyzeFundsJs } from '@core/mf/profit.js';
@@ -64,6 +65,11 @@ export type PassiveAnalysis = {
 export const passiveEvents = passiveEventsJs as Loose as (o: { mfMonths: unknown[]; dividends: unknown[]; transactions: unknown[]; today: string }) => PassiveEvent[];
 export const analyzePassive = analyzePassiveJs as Loose as (events: PassiveEvent[], o: { start: string; end: string; today: string }) => PassiveAnalysis;
 export const SOURCE_LABEL = SOURCE_LABEL_JS as Record<PassiveSource, string>;
+/** Savings profit: the gross typed, the bank's withholding (20% filer / 40% non-filer), the net credited — the web's split. */
+export const savingsTax = savingsTaxJs as Loose as (gross: string | number, rate?: number) => { gross: string; tax: string; net: string; rate: number } | null;
+/** Banks for savings accounts (shared with the web: src/lib/finance/banks.js). */
+export const BANKS = PSX_BANKS_JS as { symbol: string; name: string }[];
+export const bankName = bankNameJs as (symbol: string) => string;
 
 export const duplicateStatus = duplicateStatusJs as Loose as (confirmations: unknown[], existing: unknown[]) => Record<string, 'recorded' | 'similar'>;
 /** FIFO holdings check (the web's TradeImportDialog): imported sales that sell more than the recorded holdings on that date. */

@@ -7,6 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { glassLevels, LiquidLayers, useGlass } from './glass';
+import { ChevronRight } from './icons';
 import { Text } from './Text';
 import { font, space } from './tokens';
 
@@ -46,16 +47,27 @@ export function BlackGlass({ children, style, onPress, accessibilityLabel, liqui
 }
 
 /** A 2-column grid of figures on black glass: small label, figure, optional coloured sub-line. */
-export function GlassStats({ items }: { items: { label: string; value: string; color?: string; sub?: string; subColor?: string }[] }) {
+/** A 2-column figure grid; an item with `onPress` is tappable and shows a small chevron after its label. */
+export function GlassStats({ items }: { items: { label: string; value: string; color?: string; sub?: string; subColor?: string; onPress?: () => void }[] }) {
   return (
     <View style={styles.grid}>
-      {items.map((it, i) => (
-        <View key={it.label} style={[styles.cell, i % 2 === 1 && styles.cellRight, i >= 2 && styles.cellTop]}>
-          <Text style={styles.label} numberOfLines={1}>{it.label}</Text>
-          <Text style={[styles.value, { color: it.color ?? GLASS_INK }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{it.value}</Text>
-          {it.sub ? <Text style={[styles.label, { color: it.subColor ?? GLASS_INK2 }]} numberOfLines={1}>{it.sub}</Text> : null}
-        </View>
-      ))}
+      {items.map((it, i) => {
+        const body = (
+          <>
+            <View style={styles.labelRow}>
+              <Text style={[styles.label, { flexShrink: 1 }]} numberOfLines={1}>{it.label}</Text>
+              {it.onPress ? <ChevronRight size={12} color={GLASS_INK2} strokeWidth={2.4} /> : null}
+            </View>
+            <Text style={[styles.value, { color: it.color ?? GLASS_INK }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{it.value}</Text>
+            {it.sub ? <Text style={[styles.label, { color: it.subColor ?? GLASS_INK2 }]} numberOfLines={1}>{it.sub}</Text> : null}
+          </>
+        );
+        const cell = [styles.cell, i % 2 === 1 && styles.cellRight, i >= 2 && styles.cellTop];
+        return it.onPress ? (
+          <Pressable key={it.label} onPress={it.onPress} accessibilityRole="button" accessibilityLabel={`${it.label}, ${it.value}. Open`}
+            style={({ pressed }) => [...cell, { opacity: pressed ? 0.7 : 1 }]}>{body}</Pressable>
+        ) : <View key={it.label} style={cell}>{body}</View>;
+      })}
     </View>
   );
 }
@@ -71,5 +83,6 @@ const styles = StyleSheet.create({
   cellRight: { paddingLeft: space.md, borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: GLASS_LINE },
   cellTop: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: GLASS_LINE },
   label: { color: GLASS_INK2, fontFamily: font.medium, fontSize: 11.5 },
+  labelRow: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   value: { fontFamily: font.num, fontSize: 16, lineHeight: 21 },
 });

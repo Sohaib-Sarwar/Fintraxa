@@ -1,6 +1,6 @@
 import { Box } from '@mui/material';
 import { AccountBalanceRounded, PaymentsRounded, WorkRounded, ShoppingBagRounded } from '@mui/icons-material';
-import StockLogo from '../../components/StockLogo';
+import BankLogo from '../../components/BankLogo';
 import { useTheme } from '@mui/material';
 import { passiveColors, flowColors } from '../../components/fx';
 
@@ -32,7 +32,7 @@ export function PassiveSourceIcon({ source, size = 26, symbol }) {
   if (source === 'dividends') {
     return <Box component="img" src="/psx.png" alt="PSX" width={size} height={size} sx={{ width: size, height: size, borderRadius: '50%', objectFit: 'contain', bgcolor: '#fff', p: '2px', boxSizing: 'border-box', flexShrink: 0 }} />;
   }
-  if (source === 'savings' && symbol) return <StockLogo symbol={symbol} size={size >= 30 ? 'md' : 'sm'} />;
+  if (source === 'savings' && symbol) return <BankLogo symbol={symbol} size={size >= 30 ? 'md' : 'sm'} />;
   const Icon = source === 'mutual_funds' ? AccountBalanceRounded : source === 'savings' ? AccountBalanceRounded : PaymentsRounded;
   return (
     <Box sx={{ width: size, height: size, borderRadius: '50%', bgcolor: `${c}22`, color: c, display: 'grid', placeItems: 'center', flexShrink: 0 }}>

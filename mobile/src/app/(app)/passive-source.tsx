@@ -5,7 +5,7 @@ import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { type PassiveMonth, type PassiveSource } from '@/data/engines';
 import { useFundsAnalysis, usePassive } from '@/data/portfolio';
-import { PassiveTip, SourceIcon, TAX_LABEL, VIEW_LABEL } from '@/features/passive/passiveUi';
+import { PassiveTip, SourceIcon, TAX_LABEL, VIEW_LABEL, type Payer } from '@/features/passive/passiveUi';
 import { RangeButton } from '@/features/range/RangeButton';
 import { RangeSheet } from '@/features/range/RangeSheet';
 import { usePeriod } from '@/features/range/usePeriod';
@@ -16,7 +16,7 @@ import { monthLabel, monthName } from '@/lib/dates';
 import { compactNumber } from '@/lib/format';
 import { ErrorState, Skeleton } from '@/ui/feedback';
 import { useHidden } from '@/ui/Figures';
-import { AmcLogo, StockLogo } from '@/ui/Logos';
+import { AmcLogo, BankLogo, StockLogo } from '@/ui/Logos';
 import { Gap } from '@/ui/primitives';
 import { Screen } from '@/ui/Screen';
 import { useTheme } from '@/ui/theme';
@@ -51,6 +51,23 @@ export default function PassiveSourcePage() {
   const bars = useMemo<Bar[]>(() => (a?.months ?? []).slice(-12).map((m) => ({ ...m, key: m.month, value: m.net })), [a]);
   const sel = selected && bars.some((b) => b.key === selected) ? selected : bars[bars.length - 1]?.key;
 
+  // Who paid in each month — stocks for dividends, banks for savings profit — biggest first (the bar's hold card).
+  const payers = useMemo(() => {
+    const out: Record<string, Payer[]> = {};
+    if (source !== 'dividends' && source !== 'savings') return out;
+    const by = new Map<string, Map<string, Payer>>();
+    for (const e of events ?? []) {
+      const k = source === 'dividends' ? e.symbol ?? e.title : `${e.title}|${e.symbol ?? ''}`;
+      const month = by.get(e.month) ?? new Map<string, Payer>();
+      const cur = month.get(k) ?? { key: k, label: source === 'dividends' ? e.symbol ?? e.title : e.title, symbol: e.symbol ?? null, kind: source === 'dividends' ? 'stock' : 'bank', net: 0 };
+      cur.net += Number(e.net) || 0;
+      month.set(k, cur);
+      by.set(e.month, month);
+    }
+    for (const [mo, m] of by) out[mo] = [...m.values()].filter((x) => x.net !== 0).sort((a, b) => b.net - a.net);
+    return out;
+  }, [source, events]);
+
   // The web's donut for one source: by fund, by stock, or by account.
   const pie = useMemo<DonutItem[]>(() => {
     if (source === 'mutual_funds') {
@@ -62,7 +79,8 @@ export default function PassiveSourcePage() {
     const map = new Map<string, DonutItem>();
     for (const e of inRange) {
       const k = source === 'dividends' ? e.symbol ?? e.title : e.title;
-      const cur = map.get(k) ?? { key: k, label: k, value: 0, logo: source === 'dividends' && e.symbol ? (n: number) => <StockLogo symbol={e.symbol!} size={n} /> : (n: number) => <SourceIcon source={source} size={n} /> };
+      const cur = map.get(k) ?? { key: k, label: k, value: 0, logo: source === 'dividends' && e.symbol ? (n: number) => <StockLogo symbol={e.symbol!} size={n} />
+        : source === 'savings' && e.symbol ? (n: number) => <BankLogo symbol={e.symbol} size={n} /> : (n: number) => <SourceIcon source={source} size={n} /> };
       cur.value += Number(e.net) || 0;
       map.set(k, cur);
     }
@@ -82,7 +100,7 @@ export default function PassiveSourcePage() {
       ]} />
       <View style={styles.chartWrap}>
         <ChartCard<Bar> barTitle={sel ? monthLabel(sel, true) : 'By month'} bars={bars} selected={sel} onSelect={setSelected} hidden={hidden}
-          format={(v) => (hidden ? '••••' : `Rs ${compactNumber(v)}`)} renderTip={(b) => <PassiveTip m={b} pick={source} />}
+          format={(v) => (hidden ? '••••' : `Rs ${compactNumber(v)}`)} renderTip={(b) => <PassiveTip m={b} pick={source} payers={payers[b.key]} />}
           pieTitle={source === 'mutual_funds' ? 'By fund' : source === 'dividends' ? 'By stock' : 'By account'} pieCenter={title} pieItems={pie} />
       </View>
     </View>

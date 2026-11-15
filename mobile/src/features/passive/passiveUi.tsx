@@ -10,6 +10,7 @@ import type { PassiveMonth, PassiveSource } from '@/data/engines';
 import { monthName } from '@/lib/dates';
 import { compactNumber, group } from '@/lib/format';
 import { useHidden } from '@/ui/Figures';
+import { BankLogo, StockLogo } from '@/ui/Logos';
 import { Coins, HandCoins, LineChart, PiggyBank, type LucideIcon } from '@/ui/icons';
 import { Text } from '@/ui/Text';
 import { useTheme } from '@/ui/theme';
@@ -31,8 +32,11 @@ export function SourceIcon({ source, size = 40 }: { source: PassiveSource; size?
   );
 }
 
+/** One payer in a month (owner, 2026-11-15: "on hold, who paid me, a small minimal icon"): a stock or a bank. */
+export type Payer = { key: string; label: string; symbol: string | null; kind: 'stock' | 'bank'; net: number };
+
 /** The web tooltip for a passive month. `pick`: one source (its page) or all of them (the Passive income page). */
-export function PassiveTip({ m, pick }: { m: PassiveMonth; pick: PassiveSource | 'all' }) {
+export function PassiveTip({ m, pick, payers }: { m: PassiveMonth; pick: PassiveSource | 'all'; payers?: Payer[] }) {
   const p = useTheme();
   const hidden = useHidden();
   const rs = (v: number) => (hidden ? '••••' : `Rs ${Math.abs(v) >= 1e6 ? compactNumber(v) : group(v, Math.abs(v) < 1e4 ? 2 : 0)}`);
@@ -50,6 +54,14 @@ export function PassiveTip({ m, pick }: { m: PassiveMonth; pick: PassiveSource |
           <Text style={{ fontFamily: font.num, fontSize: 12.5, color: p.ink }}>{rs(m[s] ?? 0)}</Text>
         </View>
       ))}
+      {(payers ?? []).slice(0, 4).map((x) => (
+        <View key={x.key} style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+          {x.kind === 'bank' ? <BankLogo symbol={x.symbol} size={16} /> : x.symbol ? <StockLogo symbol={x.symbol} size={16} /> : null}
+          <Text variant="caption" tone="ink2" style={{ flex: 1 }} numberOfLines={1}>{x.label}</Text>
+          <Text style={{ fontFamily: font.num, fontSize: 12.5, color: p.ink }}>{rs(x.net)}</Text>
+        </View>
+      ))}
+      {(payers?.length ?? 0) > 4 ? <Text variant="caption" tone="muted">+{payers!.length - 4} more</Text> : null}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <Text variant="caption" tone="ink2" style={{ flex: 1 }} numberOfLines={1}>{pick === 'mutual_funds' ? 'CGT' : 'Tax withheld'}</Text>
         <Text style={{ fontFamily: font.num, fontSize: 12.5, color: p.ink2 }}>{rs(m.tax)}</Text>

@@ -50,7 +50,7 @@ export function dividendAmounts(shares: string | number, dps: string | number, r
 }
 
 export type DividendDraft = {
-  symbol: string; companyName: string | null; paymentDate: string; type: DividendType; shares: string; dps: string; ratePct: string;
+  symbol: string; companyName: string | null; paymentDate: string; type?: DividendType | null; shares: string; dps: string; ratePct: string;
   /** Tax typed in rupees (overrides the rate); null = worked out from the rate. */
   taxRs?: string | null;
 };
@@ -86,7 +86,7 @@ export function useAddDividend() {
         payment_date: d.paymentDate,
         shares: D(d.shares).toFixed(4),
         dps: D(d.dps).toFixed(4),
-        dividend_type: d.type,
+        dividend_type: d.type ?? null,
         gross_amount: a.gross,
         tax_amount: a.tax,
         net_amount: a.net,

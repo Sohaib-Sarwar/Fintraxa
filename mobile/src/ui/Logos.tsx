@@ -29,6 +29,26 @@ function Initials({ text, size }: { text: string; size: number }) {
   );
 }
 
+/** Banks with their own logo, bundled (UBL shows UBL Ameen as a bank; the UBL share keeps its stock logo). */
+const BANK_LOGOS: Record<string, number> = {
+  UBL: require('../../assets/bank-logos/UBL.webp'),
+  MCBIB: require('../../assets/bank-logos/MCBIB.webp'),
+  RAQAMI: require('../../assets/bank-logos/RAQAMI.webp'),
+};
+
+/** A savings account's bank (owner, 2026-11-15): its own logo when bundled, otherwise its PSX stock logo. */
+export const BankLogo = memo(function BankLogo({ symbol, size = 40 }: { symbol: string | null | undefined; size?: number }) {
+  const p = useTheme();
+  const own = symbol ? BANK_LOGOS[symbol.toUpperCase()] : undefined;
+  if (!symbol) return <Initials text="B" size={size} />;
+  if (!own) return <StockLogo symbol={symbol} size={size} />;
+  return (
+    <View style={[styles.circle, { width: size, height: size, borderRadius: size / 2, backgroundColor: p.surface3 }]}>
+      <Image source={own} style={{ width: size, height: size }} contentFit="cover" accessibilityIgnoresInvertColors />
+    </View>
+  );
+});
+
 /**
  * PSX company logo. The files are TradingView's 18×18 SVGs with their own full-bleed square background,
  * made to be cropped to a circle — so the image fills the whole circle (drawing it at 70% inside a white

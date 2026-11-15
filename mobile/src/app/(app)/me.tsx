@@ -23,7 +23,7 @@ import { GlassSheet } from '@/ui/GlassSheet';
 import { GlassSlider } from '@/ui/GlassSlider';
 import { GlassToggle } from '@/ui/GlassToggle';
 import {
-  Activity, AppWindow, Camera, Check, ChevronRight, KeyRound, EyeOff, Fingerprint, Globe, Landmark, LineChart, Lock, LogOut, Plus, RefreshCw, Timer, Vibrate, Wallet, type LucideIcon,
+  Activity, AppWindow, Camera, Check, ChevronRight, KeyRound, EyeOff, Fingerprint, Globe, Landmark, LineChart, Lock, LogOut, PiggyBank, Plus, RefreshCw, Timer, Vibrate, Wallet, type LucideIcon,
 } from '@/ui/icons';
 import { Avatar } from '@/ui/Logos';
 import { Button, Gap } from '@/ui/primitives';
@@ -240,6 +240,10 @@ export default function Me() {
             <Row first icon={Wallet} title="Spending" toggle={tracks.spending} onToggle={(v) => setTrack('spending', v)} />
             <Row icon={LineChart} title="Mutual funds" toggle={tracks.funds} onToggle={(v) => setTrack('funds', v)} />
             <Row icon={Landmark} title="PSX shares" toggle={tracks.stocks} onToggle={(v) => setTrack('stocks', v)} />
+          </Section>
+
+          <Section title="Savings">
+            <Row first icon={PiggyBank} title="Savings accounts" onPress={() => { haptic.tick(); router.push('/savings-accounts'); }} />
           </Section>
 
           <Section title="Security">
