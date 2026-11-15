@@ -182,6 +182,25 @@ export async function fetchStaged(importId: string): Promise<StagedRow[]> {
   return (data ?? []) as unknown as StagedRow[];
 }
 
+/**
+ * Approve everything still waiting (owner, 2026-11-15: "auto approve everything"): all open rows in one call; if the
+ * server refuses the batch (e.g. one row it cannot classify), each row is tried on its own so the rest still go in.
+ * The server keeps its checks either way — it re-checks duplicates and never books an unclassified row.
+ */
+export async function approveAllOpen(importId: string, rows: StagedRow[]): Promise<number> {
+  const ids = rows.filter((x) => OPEN_STAGED.includes(x.review_status)).map((x) => x.id);
+  if (!ids.length) return 0;
+  try {
+    return (await approveStaged(importId, ids)).approved;
+  } catch {
+    let n = 0;
+    for (const id of ids) {
+      try { n += (await approveStaged(importId, [id])).approved; } catch { /* stays waiting: the server refused it */ }
+    }
+    return n;
+  }
+}
+
 /** Approve the open rows (web: mf_approve_staged, manual mode, one idempotency key per press). */
 export async function approveStaged(importId: string, ids: string[]): Promise<{ approved: number }> {
   const { data, error } = await supabase.rpc('mf_approve_staged', {
