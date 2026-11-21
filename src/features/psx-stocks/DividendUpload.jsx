@@ -125,7 +125,10 @@ export default function DividendUpload({ existing, onClose }) {
   if (phase === 'done' && result) {
     return (
       <DoneMark title={result.added ? `${result.added} dividend${result.added === 1 ? '' : 's'} added` : 'Nothing new to add'}
-        sub={result.skipped ? `${result.skipped} ${result.skipped === 1 ? 'was' : 'were'} already saved and skipped.` : 'Dividends, the PSX dashboard and Analytics are up to date.'}
+        sub={[
+          result.completed ? `${result.completed} already on file ${result.completed === 1 ? 'was' : 'were'} completed with the report's details (warrant, filer status…), not added again.` : '',
+          result.skipped ? `${result.skipped} ${result.skipped === 1 ? 'was' : 'were'} already saved and skipped.` : '',
+        ].filter(Boolean).join(' ') || 'Dividends, the PSX dashboard and Analytics are up to date.'}
         onDone={onClose}>
         {result.symbols.slice(0, 10).map((s) => <Tooltip key={s} title={s} arrow><Box component="span"><StockLogo symbol={s} size="md" /></Box></Tooltip>)}
       </DoneMark>

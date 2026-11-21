@@ -148,7 +148,7 @@ read market data), `market/refreshPrices.js` (streaming), `mf/statementUpload.js
 - Private schemas (no client access): `mf_private` (ledger logic), `snapshot_private.dirty` (user → recompute-from date),
   `market_private` (`psx_summary_days`, `snapshot_requests`, held_symbols/held_funds), `fx_private.login_attempts`.
 
-**Client RPCs:** `delete_category`, `market_feed_health`, `mf_approve_staged`, `mf_edit_staged`, `mf_set_review_status`,
+**Client RPCs:** `delete_category`, `dividends_save` (merge-aware dividend insert: fills missing fields of an existing row, never a second amount), `market_feed_health`, `mf_approve_staged`, `mf_edit_staged`, `mf_set_review_status`,
 `mf_record_manual_entry`, `mf_edit_entry`, `mf_delete_entry`, `mf_delete_import`, `sync_passive_postings`, `username_available`.
 Service-only: `snapshot_work/done`, `psx_backfill_work/save`, `market_refresh_targets/save`, `username_login_*`, `admin_*`.
 
@@ -159,10 +159,10 @@ Service-only: `snapshot_work/done`, `psx_backfill_work/save`, `market_refresh_ta
 | `mf-import` | on | statement PDF → per-AMC parser (`_shared/mf/parsers/`: atlas, mcb, meezan, nbp, ubl, generic) → staging → auto-approve clean sections | `npm run deploy:edge` (only this one) |
 | `portfolio-snapshot` | off (cron secret or user JWT checked in code) | daily snapshots; `engine/` is **GENERATED** from `src/lib` by `node scripts/sync-snapshot-engine.mjs` | MCP `deploy_edge_function` with `import_map_path: "deno.json"`, or CLI `--no-verify-jwt` |
 | `psx-backfill` | off | missing PSX closes from PSX daily market summaries (fflate) | same |
-| `refresh-prices` | off | live prices for held stocks/funds via worker `/v1/quotes` (PSX, MUFAP tab1/3, AMC pages); streams NDJSON | `npx supabase@2 functions deploy refresh-prices --no-verify-jwt --project-ref qrekpudclwesajfhrokv --use-api` |
+| `refresh-prices` | off | live prices for held stocks/funds via worker `/v1/quotes` (PSX pages + `/screener` fallback, MUFAP tab1/3, AMC pages UBL/Meezan/NBP/Atlas); MCB via Gemini URL-context (`amcReader.js`, two agreeing reads); last resort the published MUFAP file; streams NDJSON | `npx supabase@2 functions deploy refresh-prices --no-verify-jwt --project-ref qrekpudclwesajfhrokv --use-api` |
 | `username-login` | off | username → sign-in, lockout after failed attempts | `--no-verify-jwt` |
 
-Env names: `MF_ALLOWED_ORIGINS`, `FX_ALLOWED_ORIGINS`, `MARKET_QUOTES_URL`, `MARKET_FUNDS_URL` + standard `SUPABASE_*`.
+Env names: `MF_ALLOWED_ORIGINS`, `FX_ALLOWED_ORIGINS`, `MARKET_QUOTES_URL`, `MARKET_FUNDS_URL`, `GEMINI_API_KEY` (secret; read-only use: official pages behind bot checks), `GEMINI_MODEL` (default `gemini-3.5-flash-lite`) + standard `SUPABASE_*`.
 Storage buckets: `mf-statements`, `avatars` (private, signed URLs).
 
 **pg_cron (UTC → PKT):**
@@ -199,7 +199,12 @@ price precision (`20261109120000`), market refresh (`20261110120000`, `…160000
   `psx/stocks/top/{metric}.json`, `psx/sectors*.json`, `psx/indices.json`, `psx/indices/{slug}.json`, `psx/market-status.json`,
   `psx/session.json`, `mufap/funds.json`, `mufap/fund/{key}.json`, `mufap/funds/*`, `search.json`, `freshness.json`.
 - PSX publishes once per working day after close; MUFAP evenings every day (forward-dated NAVs!). Held prices are also
-  refreshed live 3×/day by `refresh-prices`. MUFAP often blocks bots → AMC pages are the fallback (`mf_nav_history.source = 'amc'`).
+  refreshed by `refresh-prices` (nightly 23:40 PKT + on demand). MUFAP often blocks bots → AMC pages are the fallback (`mf_nav_history.source = 'amc'`).
+- Price stamp: every holding price carries the day it is for, its source and when it was fetched (`psx_price_history.captured_at`,
+  `mf_nav_history.imported_at`, the feeds' `freshness.fetched_at`) → `priceFetchedAt`/`priceRefreshed` on stock positions, `price.fetchedAt`
+  on fund positions. Wording in `lib/market/priceStamp.js` (PKT by hand); web hover/long-press `components/PriceStampTip.jsx`,
+  mobile tap/long-press `ui/PriceStampSheet.tsx`. After a refresh, `lib/market/refreshSummary.js` gives the formal report
+  (updated with price/date/source; not updated with the reason) — web Settings › Market prices card + snackbar, mobile Me sheet + toast.
 - Feed health notice: `market_feed_health()` + `lib/market/health.js` + `MarketDataNotice`.
 
 ## 10. Money rules (summary — full rules in CLAUDE.md and docs/mutual-funds/PROFIT_CALCULATION.md)
@@ -296,6 +301,10 @@ category glyphs map MUI names → MaterialIcons (`src/ui/categoryIcons.ts`, test
 ## Change log
 
 Newest first. One line per change: date, commit (or "data"), what and why. Data fixes name the user only by role.
+
+- 2026-11-22 — Price stamps + formal refresh report (web + mobile). Hover (web) / tap or long-press (phone) a stock's last price or a fund's NAV → the day it is for, when it was fetched (PKT) and where from. Engines carry it: `analyzeStocks` adds `priceFetchedAt`, `priceRefreshed` and the live price's own date; `preferNewerPrices(…, boardFetchedAt)`; fund prices carry `fetchedAt` (engine.js + profit.js; same day/source → the later fetch). Snapshot engine copy re-synced (no output change; redeploy optional). Refresh now ends with a report: what was updated (price, date, source) and what was not, with the reason; Settings › Market prices also shows the new 'via Google' manager step and the feeds' own schedule text.
+- 2026-11-22 — Refresh-prices hardening: client complaint "only some stocks refresh" was Cloudflare's 50-subrequest cap (Cache API calls count) → worker skips the cache for PSX pages, `/screener` fills misses/stale, batch 15. Funds: NBP + Atlas pages added to the worker; MCB (Cloudflare challenge) read through Gemini URL-context on mcbfunds.com (`amcReader.js`: two reads must agree, ≤10 days old, within 5%/15% of the last price); the published MUFAP file is the last resort. Edge Function v5 deployed; scheduled run: 17/17 stocks, 8/8 funds in 9 s.
+- 2026-11-22 — Migration `20261122120000_dividend_merge_and_amc_targets` APPLIED: `dividends_save(p_rows)` (security invoker) — a re-uploaded report or a hand-added row that matches an existing dividend (same warrant ±7 days, or amount within 2% and date ±7 days) only fills its missing fields (warrant, issue date, filer status, account…), never adds the amount twice; returns {added, completed, skipped}. Web upload/dialog and mobile upload use it. `market_refresh_targets` returns each fund's manager.
 
 - 2026-11-15 — Mobile upload: fund statements auto-approve every row still open after `mf-import` (`approveAllOpen`: one `mf_approve_staged` call, then row by row if the server refuses the batch); only rows the server refuses (unclassified) stay under 'Waiting for you' with the Approve button. The server still re-checks duplicates and never books unclassified rows.
 - 2026-11-15 — Mobile + /m: (1) persisted cache fixed — the buster was the user id, but the cache is restored before the session is read, so it was 'signed-out' at restore and TanStack DELETED the cache on every launch; now a fixed `CACHE_VERSION` with `useCacheOwner` (wipe when another account signs in). Web build stores it in IndexedDB (`lib/webKv.ts`; localStorage is ~5 MB). Avatar cached by path (`cacheKey`), so it shows at once. (2) Auto-lock for everyone: fingerprint on → lock; off → sign out with a notice (`autoLock` in lib/auth.ts); triggers: no touch for max(1, auto-lock) min (root `onTouchStart` → `markActive`; the clock restarts at sign-in/unlock), background for the auto-lock time, or a cold start after it (`lastActiveAt`). The lock time is a device setting now (the cached server copy used to overwrite it on start). LockScreen = the sign-in landing look with the fingerprint prompt opening by itself. (3) Dates never truncated: RangeButton sizes to its label; Add/DatePicker date fields allow two lines. (4) /m: phones never see the desktop loader (page hidden before the redirect), an instant splash in the landing's layout, the old site-wide worker is unregistered on /m (it could serve the desktop app at /m), photo upload works on the web.

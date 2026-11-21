@@ -77,11 +77,17 @@ function closeOn(list, date) {
   return best;
 }
 
-/** Price for a symbol at a date, with where it came from. */
+/**
+ * Price for a symbol at a date, with where it came from, the day it is for and when it was fetched
+ * (`fetchedAt`: the board's fetch time, or the stored close's `captured_at`; null when unknown).
+ */
 function priceAt({ symbol, date, today, live, history, lastTradePrice }) {
-  if (date >= today && live[symbol]?.current) return { price: D(live[symbol].current), source: 'live' };
+  const q = live[symbol];
+  if (date >= today && q?.current) {
+    return { price: D(q.current), source: 'live', date: q.as_of ? String(q.as_of).slice(0, 10) : undefined, fetchedAt: q.fetched_at ?? null, refreshed: !!q.refreshed };
+  }
   const close = closeOn(history[symbol], date);
-  if (close) return { price: D(close.close), source: 'close', date: close.date };
+  if (close) return { price: D(close.close), source: 'close', date: close.date, fetchedAt: close.captured_at ?? null };
   if (lastTradePrice) return { price: lastTradePrice, source: 'trade' };
   return null;
 }
@@ -138,6 +144,8 @@ export function analyzeStocks(trades, { live = {}, history = {}, start = '0000-0
       price: px ? Number(px.price) : null,
       priceSource: px?.source ?? null,
       priceDate: px?.date ?? (px?.source === 'live' ? today : null),
+      priceFetchedAt: px?.fetchedAt ?? null,   // when this price was fetched (ISO), for the price stamp
+      priceRefreshed: !!px?.refreshed,         // from a refresh (Settings / scheduled), not the daily board
       dayChange: isNow && held ? (q?.change ?? null) : null,
       dayChangePct: isNow && held ? (q?.change_pct ?? null) : null,
       value: r2(value),

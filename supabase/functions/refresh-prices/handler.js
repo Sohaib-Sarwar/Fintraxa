@@ -21,13 +21,21 @@
  * manager its MUFAP link (mf_funds.mufap_slug) has in the published fund list, not by the name
  * Fintraxa stores, which can be a statement's spelling.
  *
+ * Managers whose pages are behind a bot challenge (MCB / Alhamra) are read through Gemini's URL-context tool —
+ * Google's fetcher opens the manager's own page; only a NAV both reads agree on, recent and plausible, is kept
+ * (amcReader.js). When neither MUFAP nor a manager answers, the price published in the service's MUFAP file
+ * (scraped whenever MUFAP lets it through) is the last resort. Per fund the newest date wins.
+ *
  * Every step is sent to the caller as it happens (one JSON object per line), so Settings can show
  * the progress live. Plain JS, shared with the Node tests (scripts/psx/refresh-prices.test.mjs).
  */
+import { READ_VIA_AI, readManagersViaAi } from './amcReader.js';
 
 export const STALE_RUN_MS = 2 * 60_000;    // a "running" row older than this was abandoned
 export const MIN_GAP_MS = 20_000;          // one refresh per user per 20 s
-export const BATCH = 40;                   // the worker's per-request cap
+// 15 per worker call (its cap is 40): a symbol may need its page, a retry and /etf/, plus one /screener, and
+// Cloudflare allows 50 subrequests per call (2026-11-22). Calls run in parallel, so smaller batches cost no time.
+export const BATCH = 15;
 
 /** Newest NAV of a fund across MUFAP's tab=1 (NAV) and tab=3 (prices) rows; see app/mufap/parsers.py. */
 export function pickFund(t1, t3) {
@@ -39,6 +47,20 @@ export function pickFund(t1, t3) {
   // The repurchase price is what a holding is worth, but only when it is for that same day.
   const repurchase = t3 && d3 === date ? t3.repurchase_price : null;
   return { nav_date: date, price: repurchase || nav, kind: repurchase ? 'repurchase' : 'nav', nav, source: 'mufap' };
+}
+
+/** The later-dated of two picks (the first on a tie). */
+export function newerOf(a, b) {
+  if (!a?.nav_date) return b?.nav_date ? b : a ?? b ?? null;
+  if (!b?.nav_date) return a;
+  return b.nav_date > a.nav_date ? b : a;
+}
+
+/** A fund's row in the published MUFAP file as a pick (its validity date; repurchase when given, else NAV). */
+export function publishedPick(m) {
+  const price = m?.repurchase_price > 0 ? m.repurchase_price : m?.nav > 0 ? m.nav : null;
+  if (!price || !/^\d{4}-\d{2}-\d{2}$/.test(String(m?.validity_date ?? ''))) return null;
+  return { nav_date: m.validity_date, price, kind: m.repurchase_price > 0 ? 'repurchase' : 'nav', nav: m.nav ?? price, source: 'mufap' };
 }
 
 /** MUFAP's pick, or the manager's own price when it is for a later day (or MUFAP has none). */
@@ -74,10 +96,11 @@ async function batched(quotes, list, body, key) {
 /**
  * deps: { userId (null = everyone's holdings, the scheduled run), admin (service-role client),
  *         quotes(body) → Promise<json>, emit(event), now(),
- *         mufapIndex() → Promise<Map<slug, { fund_name, category, amc }>> (the published fund list) }
+ *         mufapIndex() → Promise<Map<slug, { fund_name, category, amc, nav, repurchase_price, validity_date }>>,
+ *         generate(prompt) → Promise<string> (Gemini with URL context; absent = managers behind a challenge wait) }
  * Returns the finished run row.
  */
-export async function refresh({ userId = null, admin, quotes, emit = () => {}, now = () => Date.now(), mufapIndex = async () => new Map() }) {
+export async function refresh({ userId = null, admin, quotes, emit = () => {}, now = () => Date.now(), mufapIndex = async () => new Map(), generate = null }) {
   const t0 = now();
   const since = (t) => now() - t;
   const scheduled = userId === null;
@@ -112,7 +135,9 @@ export async function refresh({ userId = null, admin, quotes, emit = () => {}, n
     const index = (targets?.funds ?? []).length ? await mufapIndex().catch(() => new Map()) : new Map();
     const funds = (targets?.funds ?? []).map((f) => {
       const m = f.slug ? index.get(f.slug) : null;
-      return { ...f, mufapName: m?.fund_name ?? f.name, mufapCategory: m?.category ?? f.category ?? '', amc: m?.amc ?? null };
+      // The manager comes from Fintraxa's own fund record when MUFAP's list doesn't give one (late feed, fund not
+      // listed), so the managers' own price pages are always asked — no dependence on MUFAP (owner, 2026-11-22).
+      return { ...f, mufapName: m?.fund_name ?? f.name, mufapCategory: m?.category ?? f.category ?? '', amc: m?.amc ?? f.amc_name ?? null, published: publishedPick(m) };
     });
     emit({ type: 'holdings', ...step('holdings', tH), psx: symbols, funds: funds.map((f) => f.name) });
 
@@ -131,14 +156,29 @@ export async function refresh({ userId = null, admin, quotes, emit = () => {}, n
       emit({ type: 'source', source: `mufap_tab${n}`, ...step(`mufap_tab${n}`, tF, { status: r.status, matched: (r.funds ?? []).length }), status: r.status, error: r.error ?? null });
       return r;
     });
-    const amcJob = batched(quotes, managed, { source: 'amc' }, 'funds').then((r) => {
+    const amcJob = batched(quotes, managed.filter((f) => !READ_VIA_AI[f.amc]), { source: 'amc' }, 'funds').then((r) => {
       if (!r) return null;
       emit({ type: 'source', source: 'amc', ...step('amc', tF, { status: r.status, matched: (r.funds ?? []).length, requested: managed.length }), status: r.status, managers: r.managers ?? [] });
       return r;
     });
-    const names = ['psx', 'mufap_tab1', 'mufap_tab3', 'amc'];
-    const settled = await Promise.allSettled([psxJob, tab(1), tab(3), amcJob]);
-    const [psxRes, t1Res, t3Res, amcRes] = settled.map((s) => (s.status === 'fulfilled' ? s.value : { failed: String(s.reason?.message ?? s.reason) }));
+    // Managers behind a bot challenge: their own page, read through Gemini's URL context (checked; amcReader.js).
+    const viaAi = managed.filter((f) => READ_VIA_AI[f.amc]);
+    const aiJob = (async () => {
+      if (!viaAi.length || !generate) return null;
+      const lastByName = new Map();
+      const ids = funds.filter((f) => READ_VIA_AI[f.amc]).map((f) => f.id);
+      const { data: prev } = await admin.from('mf_nav_history').select('fund_id, price, nav_date').in('fund_id', ids).order('nav_date', { ascending: false }).limit(60);
+      for (const f of funds.filter((x) => READ_VIA_AI[x.amc])) {
+        const p = (prev ?? []).find((r) => r.fund_id === f.id);
+        if (p) lastByName.set(fundNorm(f.mufapName), { price: Number(p.price), category: f.mufapCategory });
+      }
+      const r = await readManagersViaAi(viaAi, { generate, today: new Date(now()).toISOString().slice(0, 10), last: lastByName });
+      emit({ type: 'source', source: 'amc_ai', ...step('amc_ai', tF, { matched: r.funds.length, requested: viaAi.length }), managers: r.managers });
+      return r;
+    })();
+    const names = ['psx', 'mufap_tab1', 'mufap_tab3', 'amc', 'amc_ai'];
+    const settled = await Promise.allSettled([psxJob, tab(1), tab(3), amcJob, aiJob]);
+    const [psxRes, t1Res, t3Res, amcRes, aiRes] = settled.map((s) => (s.status === 'fulfilled' ? s.value : { failed: String(s.reason?.message ?? s.reason) }));
     settled.forEach((s, i) => {
       if (s.status === 'rejected') emit({ type: 'source', source: names[i], status: 'unavailable', error: String(s.reason?.message ?? s.reason) });
     });
@@ -148,11 +188,11 @@ export async function refresh({ userId = null, admin, quotes, emit = () => {}, n
       .map((q) => ({ symbol: q.symbol, day: q.as_of, close: q.price, change: q.change, change_pct: q.change_pct }));
     const byKey = (res) => new Map((res?.funds ?? []).map((r) => [fundKey(r.name, r.category), r]));
     const m1 = byKey(t1Res); const m3 = byKey(t3Res);
-    const mA = new Map((amcRes?.funds ?? []).map((r) => [`${fundNorm(r.name)}|${r.amc}`, r]));
+    const mA = new Map([...(amcRes?.funds ?? []), ...(aiRes?.funds ?? [])].map((r) => [`${fundNorm(r.name)}|${r.amc}`, r]));
     const fundRows = [];
     const fundResults = funds.map((f) => {
       const k = fundKey(f.mufapName, f.mufapCategory);
-      const picked = pickNewest(pickFund(m1.get(k), m3.get(k)), f.amc ? mA.get(`${fundNorm(f.mufapName)}|${f.amc}`) : null);
+      const picked = pickNewest(newerOf(pickFund(m1.get(k), m3.get(k)), f.published), f.amc ? mA.get(`${fundNorm(f.mufapName)}|${f.amc}`) : null);
       if (picked?.nav_date && picked.price > 0) {
         fundRows.push({
           fund_id: f.id, nav_date: picked.nav_date, price: picked.price, kind: picked.kind,
@@ -181,9 +221,9 @@ export async function refresh({ userId = null, admin, quotes, emit = () => {}, n
     };
     details.amc = {
       status: amcRes?.status ?? (managed.length ? 'unavailable' : 'none'),
-      managers: amcRes?.managers ?? [],
-      unsupported: amcRes?.unsupported ?? [],
-      error: amcRes?.failed ?? null,
+      managers: [...(amcRes?.managers ?? []), ...(aiRes?.managers ?? [])],
+      unsupported: (amcRes?.unsupported ?? []).filter((a) => !(READ_VIA_AI[a] && aiRes?.managers?.length)),
+      error: amcRes?.failed ?? aiRes?.failed ?? null,
     };
 
     const finished = {

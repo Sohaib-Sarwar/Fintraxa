@@ -6,6 +6,8 @@ import { useFx, FONT_NUM, signColor, PeriodProfit } from '../../components/fx';
 import StockLogo from '../../components/StockLogo';
 import { useDividends } from '../../lib/psx/useDividends';
 import { useDateRange, rangeLabel } from '../../lib/dateRange';
+import { stockStamp, fetchedShort } from '../../lib/market/priceStamp';
+import PriceStampTip from '../../components/PriceStampTip';
 
 const signed = (v, dp = 2) => (v === null || v === undefined ? '—' : `${v > 0 ? '+' : v < 0 ? '−' : ''}${formatCurrency(Math.abs(v), dp)}`);
 const fmtDate = (d) => (d ? new Date(`${d}T00:00:00`).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
@@ -38,9 +40,12 @@ export default function StockDetailsDialog({ position: p, onClose }) {
           <Stat label="Value" value={p.isOpen ? (p.value === null ? '—' : formatCurrency(p.value, 2)) : 'Sold'} />
           <Stat label="Invested" value={formatCurrency(p.invested, 2)} />
           <Stat label="Shares" value={formatNumber(p.shares, p.shares % 1 ? 2 : 0)} sub={p.avgCost !== null ? `avg ${formatNumber(p.avgCost, 2)}` : null} />
-          <Stat label="Live price" value={p.price !== null ? formatNumber(p.price, 2) : '—'}
-            sub={p.dayChangePct !== null ? `${p.dayChangePct >= 0 ? '+' : ''}${p.dayChangePct.toFixed(2)}% today` : null}
-            subColor={p.dayChangePct !== null ? signColor(t, p.dayChangePct) : undefined} />
+          <PriceStampTip stamp={stockStamp(p)}>
+            <Stat label="Live price" value={p.price !== null ? formatNumber(p.price, 2) : '—'}
+              sub={p.dayChangePct !== null ? `${p.dayChangePct >= 0 ? '+' : ''}${p.dayChangePct.toFixed(2)}% today` : null}
+              subColor={p.dayChangePct !== null ? signColor(t, p.dayChangePct) : undefined}
+              foot={p.price !== null ? (fetchedShort(p.priceFetchedAt) ?? (p.priceDate ? `for ${fmtDate(p.priceDate)}` : null)) : null} />
+          </PriceStampTip>
         </Box>
 
         <PeriodProfit assetType="psx" assetKey={p.symbol} />
@@ -111,13 +116,14 @@ export default function StockDetailsDialog({ position: p, onClose }) {
   );
 }
 
-function Stat({ label, value, sub, subColor }) {
+function Stat({ label, value, sub, subColor, foot }) {
   const t = useFx();
   return (
     <Box sx={{ bgcolor: t.surface2, borderRadius: '14px', px: 1.5, py: 1.1 }}>
       <Typography sx={{ fontSize: '0.66rem', color: t.muted, fontWeight: 600 }}>{label}</Typography>
       <Typography data-numeric noWrap sx={{ fontFamily: FONT_NUM, fontSize: '0.98rem', fontWeight: 650, letterSpacing: '-0.03em' }}>{value}</Typography>
       {sub && <Typography sx={{ fontSize: '0.64rem', color: subColor ?? t.muted, fontFamily: FONT_NUM }}>{sub}</Typography>}
+      {foot && <Typography sx={{ fontSize: '0.6rem', color: t.muted }} noWrap>{foot}</Typography>}
     </Box>
   );
 }

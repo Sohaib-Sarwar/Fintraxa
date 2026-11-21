@@ -189,3 +189,77 @@ test("the scheduled run covers everyone's holdings, in batches the worker accept
   assert.deepEqual(batches.sort((a, b) => b - a), [BATCH, 5]);
   assert.equal(run.psx_updated, BATCH + 5);
 });
+
+// ── 2026-11-22: managers behind a bot challenge (MCB) via Gemini URL context; the published MUFAP file ──
+import { acceptReads, parseReader, readManagersViaAi, readerPrompt } from '../../supabase/functions/refresh-prices/amcReader.js';
+import { newerOf, publishedPick } from '../../supabase/functions/refresh-prices/handler.js';
+
+test('the AI page reader keeps only a NAV two reads agree on, recent and plausible', () => {
+  const names = ['MCB Cash Management Optimizer', 'Alhamra Cash Management Optimizer', 'MCB Pakistan Stock Market Fund'];
+  const read = (rows) => ({ page_read: true, funds: rows.map(([fund, nav, date]) => ({ fund, nav, date })) });
+  const a = read([[names[0], 106.9315, '2026-11-23'], [names[1], 104.8537, '2026-11-23'], [names[2], 160, '2026-11-20']]);
+  const b = read([[names[0], 106.9315, '2026-11-23'], [names[1], 104.85, '2026-11-23'], [names[2], 160, '2026-11-20']]);
+  const last = new Map([['mcbpakistanstockmarketfund', { price: 100, category: 'Equity' }]]);
+  const ok = acceptReads(a, b, names, { today: '2026-11-22', last });
+  assert.deepEqual(ok.map((r) => [r.name, r.price, r.validity_date]), [[names[0], 106.9315, '2026-11-23']], 'disagreeing reads and a 60% jump are dropped');
+  assert.deepEqual(acceptReads(a, a, [names[0]], { today: '2026-12-20' }), [], 'a NAV dated weeks ago is not taken');
+  assert.deepEqual(acceptReads({ ...a, page_read: false }, a, names, { today: '2026-11-22' }), [], 'nothing when the page was not read');
+  assert.deepEqual(parseReader('```json\n{"page_read":true,"funds":[]}\n```'), { page_read: true, funds: [] });
+  assert.equal(parseReader('no json here'), null);
+  assert.match(readerPrompt('https://x.test/prices', ['A Fund']), /Do not use any other website/);
+});
+
+test('readManagersViaAi reads only the managers behind a challenge, twice each', async () => {
+  let calls = 0;
+  const generate = async () => { calls += 1; return '{"page_read":true,"funds":[{"fund":"MCB Cash Management Optimizer","nav":106.9315,"date":"2026-11-23"}]}'; };
+  const r = await readManagersViaAi([
+    { name: 'MCB Cash Management Optimizer', amc: 'MCB Investment Management Limited' },
+    { name: 'UBL Stock Advantage Fund', amc: 'UBL Fund Managers Limited' },
+  ], { generate, today: '2026-11-22' });
+  assert.equal(calls, 2);
+  assert.deepEqual(r.funds.map((f) => [f.name, f.price, f.amc]), [['MCB Cash Management Optimizer', 106.9315, 'MCB Investment Management Limited']]);
+  assert.deepEqual((await readManagersViaAi([{ name: 'X', amc: 'MCB Investment Management Limited' }], {})).funds, [], 'no key, no reading');
+});
+
+test('the published MUFAP file is a dated fallback; the newest price wins', () => {
+  const pub = publishedPick({ nav: 106.841, repurchase_price: 106.841, validity_date: '2026-11-20' });
+  assert.deepEqual(pub, { nav_date: '2026-11-20', price: 106.841, kind: 'repurchase', nav: 106.841, source: 'mufap' });
+  assert.equal(publishedPick({ nav: 0, validity_date: '2026-11-20' }), null);
+  assert.equal(newerOf(null, pub), pub);
+  const live = { nav_date: '2026-11-21', price: 107 };
+  assert.equal(newerOf(live, pub), live);
+  assert.equal(pickNewest(newerOf(null, pub), { validity_date: '2026-11-23', price: 106.9315, kind: 'nav' }).source, 'amc');
+});
+
+test('price stamp: the day a price is for, when it was fetched (PKT) and where from', async () => {
+  const { stockStamp, fundStamp, stampTime, fetchedShort } = await import('../../src/lib/market/priceStamp.js');
+  assert.equal(stampTime('2026-11-20T15:01:10Z'), '20 Nov 2026, 8:01 pm PKT');
+  assert.equal(stampTime('2026-11-21T19:30:00Z'), '22 Nov 2026, 12:30 am PKT');
+  assert.equal(stampTime(null), null);
+  assert.equal(fetchedShort('2026-11-22T05:00:00Z', Date.parse('2026-11-22T09:00:00Z')), 'fetched today 10:00 am');
+  const s = stockStamp({ symbol: 'OGDC', price: 312.55, priceSource: 'live', priceRefreshed: true, priceDate: '2026-11-20', priceFetchedAt: '2026-11-20T15:01:10Z' });
+  assert.deepEqual(s.rows, [['Price for', '20 Nov 2026'], ['Fetched', '20 Nov 2026, 8:01 pm PKT'], ['Source', 'PSX company page (price refresh)']]);
+  assert.equal(stockStamp({ symbol: 'X', price: 10, priceSource: 'trade' }).rows[1][1], 'Not fetched: taken from your trade');
+  const f = fundStamp({ value: 101.2345, date: '2026-11-21', source: 'amc', kind: 'repurchase', fetchedAt: null }, 'Fund');
+  assert.deepEqual(f.rows[0], ['Repurchase price for', '21 Nov 2026']);
+  assert.equal(f.rows[1][1], 'Time not recorded');
+  assert.equal(stockStamp({ price: null }), null);
+});
+
+test('refresh summary: updated vs not updated, each with its reason', async () => {
+  const { refreshSummary } = await import('../../src/lib/market/refreshSummary.js');
+  const run = { finished_at: '2026-11-22T06:12:00Z', duration_ms: 9300, details: {
+    psx: [{ symbol: 'AAA', status: 'ok', price: 10, as_of: '2026-11-20', as_of_text: 'PSX screener, 2026-11-20' }, { symbol: 'BBB', status: 'unavailable' }],
+    funds: [{ name: 'F1', amc: 'M1', source: 'amc', price: 100, nav_date: '2026-11-21', kind: 'nav' }, { name: 'F2', amc: 'M2', status: 'not_found' }],
+    amc: { managers: [{ amc: 'M1', status: 'ok', via: 'gemini_url_context' }, { amc: 'M2', status: 'unavailable' }], unsupported: [] } } };
+  const s = refreshSummary(run);
+  assert.equal(s.tone, 'partial');
+  assert.equal(s.headline, 'Partly updated: 1 of 2 stocks and 1 of 2 funds.');
+  assert.equal(s.updated[0].source, 'PSX screener (all stocks page)');
+  assert.equal(s.updated[1].source, 'M1 website (read via Google)');
+  assert.match(s.notUpdated[0].reason, /did not answer in time/);
+  assert.match(s.notUpdated[1].reason, /M2’s website did not answer/);
+  const all = refreshSummary({ details: { psx: [{ symbol: 'AAA', status: 'ok', price: 1, as_of: '2026-11-20' }], funds: [] } });
+  assert.equal(all.tone, 'ok');
+  assert.equal(all.headline, 'Prices updated: all 1 stock.');
+});

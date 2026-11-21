@@ -305,7 +305,9 @@ export default function Upload() {
         const r = await saveDividends(uid, result.rows.filter((d) => !excluded.has(dividendKey(d))));
         ['stock-dividends', 'snapshots'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
         setSaved(r);
-        toast(r.added ? `${plural(r.added, 'dividend')} saved` : 'Everything here was already saved', { tone: r.added ? 'success' : 'info' });
+        toast(r.added ? `${plural(r.added, 'dividend')} saved${r.completed ? `, ${r.completed} completed` : ''}`
+          : r.completed ? `${plural(r.completed, 'dividend')} already on file, completed with the report's details` : 'Everything here was already saved',
+        { tone: r.added || r.completed ? 'success' : 'info' });
       }
       haptic.success();
       setPhase('done');

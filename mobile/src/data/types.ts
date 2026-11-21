@@ -37,17 +37,17 @@ export type Ledger = {
   funds: { id: string; name: string; amc_id: string; mufap_slug: string | null; category: string | null }[];
   amcs: { id: string; code: string; name: string }[];
   accounts: { id: string; amc_id: string; account_ref_masked: string | null; label: string | null }[];
-  navs: { id: string; fund_id: string; nav_date: string; price: string; price_kind: string; source: string }[];
+  navs: { id: string; fund_id: string; nav_date: string; price: string; price_kind: string; source: string; imported_at?: string | null }[];
 };
 
 export type BoardStock = {
   symbol: string; name: string; sector: string | null; current: number | null; change: number | null; change_pct: number | null; ldcp: number | null;
 };
-export type Board = { asOf: string | null; data: BoardStock[] };
+export type Board = { asOf: string | null; fetchedAt?: string | null; data: BoardStock[] };
 export type FundQuote = {
   slug: string; fund_name: string; category: string | null; amc: string | null; nav: number | null; repurchase_price: number | null; validity_date: string | null;
 };
-export type FundsFeed = { asOf: string | null; data: FundQuote[] };
+export type FundsFeed = { asOf: string | null; fetchedAt?: string | null; data: FundQuote[] };
 export type IndexRow = { index_name: string; current: number; change: number; change_pct: number };
 export type FeedHealthRow = { feed: string; latest_data: string | null; last_success: string | null; last_error: string | null; last_error_at: string | null };
 
@@ -64,7 +64,7 @@ export type Release = { version_code: number; version_name: string; apk_url: str
 
 export type FundPosition = {
   key: string; accountId: string; fundId: string; fundName: string | null; amcCode: string | null; amcName: string | null;
-  isOpen: boolean; units: number; price: { value: number; date: string; source: string; stale: boolean } | null;
+  isOpen: boolean; units: number; price: { value: number; date: string; source: string; kind?: string | null; fetchedAt?: string | null; stale: boolean } | null;
   /** Held when the range starts, or traded inside it (the engine's rule for what a period shows). */
   inRange: boolean;
   value: number | null; invested: number; avgCost: number | null;
@@ -89,7 +89,8 @@ export type StockPosition = {
   symbol: string; companyName: string; isOpen: boolean; shares: number; avgCost: number | null; invested: number;
   /** Held when the range starts, or traded (or a sale settled) inside it. */
   inRange: boolean;
-  price: number | null; priceSource: string | null; priceDate: string | null; dayChange: number | null; dayChangePct: number | null;
+  price: number | null; priceSource: string | null; priceDate: string | null; priceFetchedAt?: string | null; priceRefreshed?: boolean;
+  dayChange: number | null; dayChangePct: number | null;
   value: number | null; unrealized: number | null; unrealizedPct: number | null; realized: number;
   trades: Trade[]; firstDate: string; lastDate?: string | null; flags: string[];
 };

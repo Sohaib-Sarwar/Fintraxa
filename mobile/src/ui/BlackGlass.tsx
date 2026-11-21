@@ -48,7 +48,7 @@ export function BlackGlass({ children, style, onPress, accessibilityLabel, liqui
 
 /** A 2-column grid of figures on black glass: small label, figure, optional coloured sub-line. */
 /** A 2-column figure grid; an item with `onPress` is tappable and shows a small chevron after its label. */
-export function GlassStats({ items }: { items: { label: string; value: string; color?: string; sub?: string; subColor?: string; onPress?: () => void }[] }) {
+export function GlassStats({ items }: { items: { label: string; value: string; color?: string; sub?: string; subColor?: string; onPress?: () => void; onLongPress?: () => void; hint?: string }[] }) {
   return (
     <View style={styles.grid}>
       {items.map((it, i) => {
@@ -64,7 +64,7 @@ export function GlassStats({ items }: { items: { label: string; value: string; c
         );
         const cell = [styles.cell, i % 2 === 1 && styles.cellRight, i >= 2 && styles.cellTop];
         return it.onPress ? (
-          <Pressable key={it.label} onPress={it.onPress} accessibilityRole="button" accessibilityLabel={`${it.label}, ${it.value}. Open`}
+          <Pressable key={it.label} onPress={it.onPress} onLongPress={it.onLongPress} accessibilityRole="button" accessibilityLabel={`${it.label}, ${it.value}. Open`} accessibilityHint={it.hint}
             style={({ pressed }) => [...cell, { opacity: pressed ? 0.7 : 1 }]}>{body}</Pressable>
         ) : <View key={it.label} style={cell}>{body}</View>;
       })}

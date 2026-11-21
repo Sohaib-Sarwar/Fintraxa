@@ -1,5 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { fetchedShort, fundStamp, type PriceStamp } from '@/data/engines';
 import { useFundsAnalysis } from '@/data/portfolio';
 import { RangeButton } from '@/features/range/RangeButton';
 import { usePeriod } from '@/features/range/usePeriod';
@@ -11,6 +13,7 @@ import { useHidden } from '@/ui/Figures';
 import { ChevronRight, ScrollText } from '@/ui/icons';
 import { AmcLogo } from '@/ui/Logos';
 import { Gap } from '@/ui/primitives';
+import { PriceStampSheet } from '@/ui/PriceStampSheet';
 import { Screen } from '@/ui/Screen';
 import { Text } from '@/ui/Text';
 import { dark, font, space } from '@/ui/tokens';
@@ -29,6 +32,7 @@ export default function FundDetail() {
   const { analysis, isLoading } = useFundsAnalysis(range);
   const x = analysis?.allPositions.find((pos) => pos.key === key);
   const right = <RangeButton />;
+  const [stamp, setStamp] = useState<PriceStamp | null>(null);
 
   if (isLoading && !analysis) return <Screen back title="Mutual fund" right={right}><Skeleton height={200} radius={22} /><Gap h={space.md} /><Skeleton height={160} radius={22} /></Screen>;
   if (!x) return <Screen back title="Mutual fund" right={right}><EmptyState title="Nothing in this period" body={`No entries for this fund by the end of ${period.label}.`} /></Screen>;
@@ -66,8 +70,10 @@ export default function FundDetail() {
         <GlassStats items={[
           { label: 'Units', value: units(x.units) },
           // Owner, 2026-11-15: the current NAV and its date, not the cost per unit.
+          // Tap or long-press → when this price was fetched and where from (owner, 2026-11-22).
           { label: 'Current NAV', value: x.price ? group(x.price.value, 4) : '—',
-            sub: x.price ? `${shortDate(x.price.date)}${x.price.stale ? ' · old' : ''}` : 'No price yet', subColor: x.price?.stale ? dark.warn : undefined },
+            sub: x.price ? `${shortDate(x.price.date)}${x.price.stale ? ' · old' : ''}${fetchedShort(x.price.fetchedAt) ? ` · ${fetchedShort(x.price.fetchedAt)}` : ''}` : 'No price yet', subColor: x.price?.stale ? dark.warn : undefined,
+            ...(x.price ? { onPress: () => setStamp(fundStamp(x.price, x.fundName)), onLongPress: () => setStamp(fundStamp(x.price, x.fundName)), hint: 'Shows when this price was fetched and where from' } : {}) },
           { label: 'Invested', value: rs(x.invested) },
           { label: 'Realized', value: signed(realized), color: realized > 0 ? dark.pos : realized < 0 ? dark.neg : GLASS_INK, sub: `${period.label} · after CGT` },
           // What the statements deducted and gave back in the period (owner, 2026-11-15: "clearly see the CGT paid and refunded").
@@ -85,6 +91,7 @@ export default function FundDetail() {
         </View>
         <ChevronRight size={18} color={GLASS_INK2} />
       </BlackGlass>
+      <PriceStampSheet stamp={stamp} onClose={() => setStamp(null)} />
     </Screen>
   );
 }
