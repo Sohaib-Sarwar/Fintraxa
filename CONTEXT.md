@@ -210,7 +210,7 @@ price precision (`20261109120000`), market refresh (`20261110120000`, `…160000
   (updated with price/date/source; not updated with the reason) — web Settings › Market prices card + snackbar, mobile Me sheet + toast.
 - Feed health notice: `market_feed_health()` + `lib/market/health.js` + `MarketDataNotice`.
 - Upcoming dividends (`lib/psx/upcomingDividends.js` wording, `useUpcomingDividends.js`; web PSX › Dividends panel `UpcomingDividends.jsx`;
-  phone Dividend payments › Upcoming + `upcoming-dividend/[id]`): nightly + "Check now". Only held stocks (held now or traded in 120 days).
+  phone Dividend payments › calendar icon → `upcoming-dividends` → `upcoming-dividend/[id]`): nightly + "Check now". Only held stocks (held now or traded in 120 days).
   Entitlement (T+1 since 9 Feb 2026): ex-date = last PSX business day before book closure starts; last cum day = the business day
   before it (`market_private.psx_prev_business_day`, weekends + PSX no-file days); shares = trades up to the last cum day. Rs/share =
   % × face value / 100 (face value from dps company page; BAFL 5, CLOV 1). Tax 15% filer / 30% non-filer (profiles). Expected pay by =
@@ -313,6 +313,8 @@ category glyphs map MUI names → MaterialIcons (`src/ui/categoryIcons.ts`, test
 ## Change log
 
 Newest first. One line per change: date, commit (or "data"), what and why. Data fixes name the user only by role.
+
+- 2026-11-22 — Phone polish (owner): Me › Refresh my prices shows a filling ring and four step rows (turning arc → tick; amber tick when partial; `RefreshProgress.tsx`, no running commentary), then a short report (no bar/timestamp; short reasons `short`, `sourceShort` from refreshSummary.js). Price details sheet (`PriceStampSheet`): logo, big price, Price date / Fetched / Source rows (structured fields from priceStamp.js). Dividend payments: Upcoming moved to its own page `upcoming-dividends` (Check now in the header, expected total, one row each with its next step), opened by a calendar icon in the summary card (dot when any wait); approve screen `upcoming-dividend/[id]` fits one screen (expected + one gross/tax line, two key dates, received amount + date).
 
 - 2026-11-22 — Upcoming dividends (web + phone). Migrations APPLIED: `20261122160000_upcoming_dividends`, `20261122163000_dividend_docs_read`, `20261122170000_upcoming_dividends_dedupe`, `20261122171000_fix_dividend_delete_trigger` (the dedupe migration's BEFORE DELETE trigger returned NULL for a few minutes, silently blocking dividend deletes; no delete was attempted in that window), `20261122173000_dividends_scan_cron`. Edge Function `dividends-scan` v1; cron 23:55 PKT. First run: 18 held symbols, 11 announcements, 17 pending, 6 auto-matched to recorded dividends. Tests `scripts/psx/dividends-scan.test.mjs` (fixtures: trimmed PSX pages).
 - 2026-11-22 — Refresh report redesigned (web Settings card + phone Me sheet): count with split bar, stock/fund pills, "Needs attention" with reasons, "Updated" rows with logos, source · day and price (`RefreshReport.tsx`, `Summary` in MarketPricesSettings). refresh-prices v6 adds `amc_code` per fund (logos).

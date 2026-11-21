@@ -16,6 +16,7 @@ export { default as Banknote } from 'lucide-react-native/icons/banknote';
 export { default as Briefcase } from 'lucide-react-native/icons/briefcase';
 export { default as Building2 } from 'lucide-react-native/icons/building-complex';
 export { default as Calendar } from 'lucide-react-native/icons/calendar';
+export { default as CalendarClock } from 'lucide-react-native/icons/calendar-clock';
 export { default as CalendarDays } from 'lucide-react-native/icons/calendar-days';
 export { default as Camera } from 'lucide-react-native/icons/camera';
 export { default as CandlestickChart } from 'lucide-react-native/icons/chart-candlestick';
