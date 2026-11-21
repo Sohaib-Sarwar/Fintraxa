@@ -79,8 +79,8 @@ function ManualForm({ dividend, onDone }) {
       });
     }
     return add.mutate([row], {
-      onSuccess: ({ added }) => {
-        showSnackbar(added ? `Added ${row.symbol} dividend` : 'That warrant is already saved', added ? 'success' : 'info');
+      onSuccess: ({ added, completed }) => {
+        showSnackbar(added ? `Added ${row.symbol} dividend` : completed ? `${row.symbol} dividend was already on file — its details were completed` : 'That dividend is already saved', added ? 'success' : 'info');
         onDone();
       },
       onError: dbErrorHandler(showSnackbar, 'Could not save the dividend'),

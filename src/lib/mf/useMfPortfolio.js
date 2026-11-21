@@ -53,7 +53,7 @@ export function mfLedgerQuery(userId) {
       // the oldest prices (and with them past month-end values).
       const fundIds = [...new Set(entries.map((e) => e.fund_id))];
       const navs = fundIds.length
-        ? await fetchAll(() => supabase.from('mf_nav_history').select('id, fund_id, nav_date, price::text, price_kind, source')
+        ? await fetchAll(() => supabase.from('mf_nav_history').select('id, fund_id, nav_date, price::text, price_kind, source, imported_at')
           .in('fund_id', fundIds).order('nav_date').order('id'))
         : [];
       return { entries, components, funds, amcs, accounts, navs };
@@ -66,12 +66,13 @@ function buildInputs(d, market) {
   const funds = Object.fromEntries(d.funds.map((f) => [f.id, f]));
   const amcs = Object.fromEntries(d.amcs.map((a) => [a.id, a]));
   const bySlug = fundBySlug(market);
-  const prices = d.navs.map((n) => ({ fund_id: n.fund_id, price: n.price, date: n.nav_date, source: n.source, kind: n.price_kind }));
+  const prices = d.navs.map((n) => ({ fund_id: n.fund_id, price: n.price, date: n.nav_date, source: n.source, kind: n.price_kind, fetched_at: n.imported_at ?? null }));
+  const feedFetchedAt = market?.freshness?.fetched_at ?? null;
   for (const f of d.funds) {
     const m = f.mufap_slug ? bySlug[f.mufap_slug] : null;
     const p = m?.repurchase_price || m?.nav;
     if (p && m.validity_date) {
-      prices.push({ fund_id: f.id, price: String(p), date: String(m.validity_date).slice(0, 10), source: 'mufap', kind: m.repurchase_price ? 'repurchase' : 'nav' });
+      prices.push({ fund_id: f.id, price: String(p), date: String(m.validity_date).slice(0, 10), source: 'mufap', kind: m.repurchase_price ? 'repurchase' : 'nav', fetched_at: feedFetchedAt });
     }
   }
   return { funds, amcs, bySlug, prices };

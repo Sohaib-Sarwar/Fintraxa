@@ -112,7 +112,8 @@ function latestPrices(prices) {
     if (!p || p.price === null || p.price === undefined || Number(p.price) <= 0) continue;
     const cur = best.get(p.fund_id);
     // Latest date wins; on a tie prefer the market feed (repurchase price).
-    if (!cur || p.date > cur.date || (p.date === cur.date && p.source === 'mufap' && cur.source !== 'mufap')) {
+    if (!cur || p.date > cur.date || (p.date === cur.date && p.source === 'mufap' && cur.source !== 'mufap')
+      || (p.date === cur.date && p.source === cur.source && String(p.fetched_at ?? '') > String(cur.fetched_at ?? ''))) {
       best.set(p.fund_id, p);
     }
   }
@@ -257,7 +258,7 @@ function computePosition(key, list, compsByEntry, price, ctx) {
   let priceInfo = null;
   if (price) {
     const age = Math.round((Date.parse(ctx.today) - Date.parse(price.date)) / 86_400_000);
-    priceInfo = { value: new Decimal(price.price), date: price.date, source: price.source, kind: price.kind ?? 'nav', ageDays: age, stale: age > ctx.staleDays };
+    priceInfo = { value: new Decimal(price.price), date: price.date, source: price.source, kind: price.kind ?? 'nav', fetchedAt: price.fetched_at ?? null, ageDays: age, stale: age > ctx.staleDays };
     marketValue = units.gt(0) ? units.times(price.price) : ZERO;
     unrealized = costKnown ? marketValue.minus(costOpen) : null;
   } else if (units.lte(DUST_UNITS)) {

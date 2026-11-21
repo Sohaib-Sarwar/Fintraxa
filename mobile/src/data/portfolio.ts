@@ -41,7 +41,7 @@ export function useStocksAnalysis(range: Range) {
   const { start, end } = range;
   const analysis = useMemo(() => {
     if (!trades.data) return null;
-    const live = preferNewerPrices(stockPriceMap(board.data), closes.data, boardAsOf);
+    const live = preferNewerPrices(stockPriceMap(board.data), closes.data, boardAsOf, board.data?.fetchedAt ?? null);
     return analyzeStocks(trades.data, { live, history: closes.data ?? {}, start, end, today: todayIso() });
   }, [trades.data, board.data, closes.data, boardAsOf, start, end]);
   return {

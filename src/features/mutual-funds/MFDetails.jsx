@@ -4,6 +4,8 @@ import { formatCurrency, formatNumber } from '../../lib/formatters';
 import { useFx, FONT_NUM, GainCard, PeriodProfit } from '../../components/fx';
 import { fmtDate } from './mfLabels';
 import AmcLogo from './AmcLogo';
+import { fundStamp, fetchedShort } from '../../lib/market/priceStamp';
+import PriceStampTip from '../../components/PriceStampTip';
 
 /**
  * One fund at a glance: what it is worth, what it cost, what it earned over
@@ -32,7 +34,10 @@ export function FundDetailsDialog({ open, onClose, position: p, rangeLabel }) {
           <Stat label="Value" value={p.value === null ? '—' : formatCurrency(p.value, 2)} />
           <Stat label="Invested" value={formatCurrency(p.invested, 2)} />
           <Stat label="Units" value={formatNumber(p.units, 4)} />
-          <Stat label="Price" value={p.price ? formatNumber(p.price.value, 4) : '—'} sub={p.price ? fmtDate(p.price.date) : null} />
+          <PriceStampTip stamp={fundStamp(p.price, p.fundName)}>
+            <Stat label="Price" value={p.price ? formatNumber(p.price.value, 4) : '—'}
+              sub={p.price ? [fmtDate(p.price.date), fetchedShort(p.price.fetchedAt)].filter(Boolean).join(' · ') : null} />
+          </PriceStampTip>
         </Box>
 
         <PeriodProfit assetType="mf" assetKey={p.key} />

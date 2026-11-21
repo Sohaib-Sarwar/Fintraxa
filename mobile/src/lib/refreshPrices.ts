@@ -10,9 +10,9 @@ import { supabase } from './supabase';
 
 export type RefreshEvent =
   | { type: 'holdings'; psx: string[]; funds: string[] }
-  | { type: 'source'; source: string; status?: string; ok?: number; requested?: number; matched?: number }
+  | { type: 'source'; source: string; status?: string; ok?: number; requested?: number; matched?: number; managers?: { status?: string; error?: string }[] }
   | { type: 'saving'; psx: number; funds: number }
-  | { type: 'done'; run: { psx_updated?: number; mufap_updated?: number } }
+  | { type: 'done'; run: { psx_updated?: number; mufap_updated?: number; finished_at?: string; duration_ms?: number; details?: unknown } }
   | { type: 'busy' | 'error'; message: string };
 
 export async function refreshMyPrices(onEvent: (e: RefreshEvent) => void, signal?: AbortSignal): Promise<RefreshEvent | null> {
@@ -58,6 +58,11 @@ export function describe(e: RefreshEvent): string | null {
     case 'holdings': return `Looking up ${n(e.psx.length, 'stock')} and ${n(e.funds.length, 'fund')}`;
     case 'source':
       if (e.source === 'psx') return `PSX: ${e.ok ?? 0} of ${n(e.requested ?? 0, 'price')} found`;
+      if (e.source === 'amc_ai') {
+        return (e.managers ?? []).some((m) => m.status === 'ok')
+          ? `MCB Funds’ own page (read via Google): ${e.matched ?? 0} of ${n(e.requested ?? 0, 'fund')} found`
+          : 'MCB Funds’ page couldn’t be read';
+      }
       if (e.source === 'amc') return e.status === 'ok' ? `Fund managers: ${e.matched ?? 0} of ${n(e.requested ?? 0, 'fund')} found` : 'Fund managers’ sites didn’t answer';
       if (e.source.startsWith('mufap')) return e.status === 'ok' ? `MUFAP: ${n(e.matched ?? 0, 'fund')} found` : e.status === 'blocked' ? 'MUFAP refused; using the fund managers’ prices' : 'MUFAP didn’t answer';
       return null;

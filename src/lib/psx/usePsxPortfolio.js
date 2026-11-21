@@ -35,10 +35,10 @@ export const stockClosesQuery = (symbols) => ({
   queryFn: async () => {
     const out = {};
     for (let from = 0; ; from += 1000) {
-      const { data, error } = await supabase.from('psx_price_history').select('symbol, price_date, close::text, change::text, change_pct::text')
+      const { data, error } = await supabase.from('psx_price_history').select('symbol, price_date, close::text, change::text, change_pct::text, captured_at')
         .in('symbol', symbols).order('price_date').order('symbol').range(from, from + 999);
       if (error) throw error;
-      for (const r of data ?? []) (out[r.symbol] ??= []).push({ date: r.price_date, close: r.close, change: r.change, change_pct: r.change_pct });
+      for (const r of data ?? []) (out[r.symbol] ??= []).push({ date: r.price_date, close: r.close, change: r.change, change_pct: r.change_pct, captured_at: r.captured_at });
       if (!data || data.length < 1000) return out;
     }
   },
@@ -56,7 +56,8 @@ export function usePsxPortfolio(range, filter = {}) {
   const closes = useQuery(stockClosesQuery(symbols));
   // The board, with any newer price a Settings refresh stored (see ./livePrices.js).
   const boardAsOf = String(market.data?.freshness?.data_as_of ?? market.data?.data_as_of ?? '').slice(0, 10) || null;
-  const live = useMemo(() => preferNewerPrices(stockPriceMap(market.data), closes.data, boardAsOf), [market.data, closes.data, boardAsOf]);
+  const boardFetchedAt = market.data?.freshness?.fetched_at ?? null;
+  const live = useMemo(() => preferNewerPrices(stockPriceMap(market.data), closes.data, boardAsOf, boardFetchedAt), [market.data, closes.data, boardAsOf, boardFetchedAt]);
   const start = range?.start; const end = range?.end;
   const sector = filter.sector ?? 'all'; const symbol = filter.symbol ?? 'all';
   const broker = filter.broker ?? 'all'; // a broker code, 'manual' (no broker) or 'all'

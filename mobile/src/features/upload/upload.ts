@@ -145,12 +145,17 @@ const cleanDividend = (f: DividendLine, uid: string) => ({
   notes: null,
 });
 
+/**
+ * Through `dividends_save` (owner, 2026-11-22), like the web: a dividend already on file — same warrant, or the same
+ * payment recorded by hand (same stock, within a week, amount ±2%) — is completed with the report's details
+ * (warrant, filer status, issue date, account), never added a second time; amounts are left as they are.
+ */
 export async function saveDividends(uid: string, rows: DividendLine[]) {
-  if (!rows.length) return { added: 0, skipped: 0 };
-  const { data, error } = await supabase.from('stock_dividends')
-    .upsert(rows.map((r) => cleanDividend(r, uid)), { onConflict: 'user_id,symbol,payment_date,warrant_no', ignoreDuplicates: true }).select('id');
+  if (!rows.length) return { added: 0, completed: 0, skipped: 0 };
+  const { data, error } = await supabase.rpc('dividends_save', { p_rows: rows.map((r) => cleanDividend(r, uid)) });
   if (error) throw error;
-  return { added: data?.length ?? 0, skipped: rows.length - (data?.length ?? 0) };
+  const r = (data ?? {}) as { added?: number; completed?: number; skipped?: number };
+  return { added: r.added ?? 0, completed: r.completed ?? 0, skipped: r.skipped ?? 0 };
 }
 
 export type FundImport = { import_id: string; status: string; summary?: { events?: number; auto_approved?: number; needs_review?: number; duplicates?: number; sections?: number; period?: { start?: string; end?: string } | null }; duplicate_file?: boolean };

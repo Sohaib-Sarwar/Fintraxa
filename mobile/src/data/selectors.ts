@@ -10,19 +10,19 @@ import type { Board, Dividend, FeedHealthRow, FundPosition, FundsAnalysis, Funds
 const D = (v: unknown) => new Decimal(String(v ?? 0));
 const r2 = (d: Decimal) => Number(d.toFixed(2));
 
-export type Price = { fund_id: string; price: string; date: string; source: string; kind: string };
+export type Price = { fund_id: string; price: string; date: string; source: string; kind: string; fetched_at?: string | null };
 
 /** Same inputs as the web's buildInputs (useMfPortfolio.js): statement/captured NAVs + MUFAP's latest. */
 export function fundInputs(ledger: Ledger, feed: FundsFeed | undefined) {
   const funds = Object.fromEntries(ledger.funds.map((f) => [f.id, f]));
   const amcs = Object.fromEntries(ledger.amcs.map((a) => [a.id, a]));
   const bySlug = Object.fromEntries((feed?.data ?? []).map((f) => [f.slug, f]));
-  const prices: Price[] = ledger.navs.map((n) => ({ fund_id: n.fund_id, price: n.price, date: n.nav_date, source: n.source, kind: n.price_kind }));
+  const prices: Price[] = ledger.navs.map((n) => ({ fund_id: n.fund_id, price: n.price, date: n.nav_date, source: n.source, kind: n.price_kind, fetched_at: n.imported_at ?? null }));
   for (const f of ledger.funds) {
     const m = f.mufap_slug ? bySlug[f.mufap_slug] : null;
     const p = m?.repurchase_price || m?.nav;
     if (m && p && m.validity_date) {
-      prices.push({ fund_id: f.id, price: String(p), date: String(m.validity_date).slice(0, 10), source: 'mufap', kind: m.repurchase_price ? 'repurchase' : 'nav' });
+      prices.push({ fund_id: f.id, price: String(p), date: String(m.validity_date).slice(0, 10), source: 'mufap', kind: m.repurchase_price ? 'repurchase' : 'nav', fetched_at: feed?.fetchedAt ?? null });
     }
   }
   return { funds, amcs, prices };

@@ -10,13 +10,15 @@ import { bankName as bankNameJs, PSX_BANKS as PSX_BANKS_JS } from '@core/finance
 import { duplicateStatus as duplicateStatusJs, oversoldRefs as oversoldRefsJs, toTradeRows as toTradeRowsJs } from '@core/psx/confirmations.js';
 import { dividendDuplicates as dividendDuplicatesJs, dividendKey as dividendKeyJs } from '@core/psx/dividends.js';
 import { analyzeFunds as analyzeFundsJs } from '@core/mf/profit.js';
+import { fetchedShort as fetchedShortJs, fundStamp as fundStampJs, stockStamp as stockStampJs } from '@core/market/priceStamp.js';
+import { refreshSummary as refreshSummaryJs, updatedLine as updatedLineJs } from '@core/market/refreshSummary.js';
 import { analyzeStocks as analyzeStocksJs, normSymbol as normSymbolJs } from '@core/psx/portfolio.js';
 import { nccplPeriod as nccplPeriodJs, nccplReport as nccplReportJs, taxYearLabel as taxYearLabelJs, taxYearOf as taxYearOfJs } from '@core/psx/nccpl.js';
 import { summarizeDividends as summarizeDividendsJs } from '@core/psx/dividends.js';
 import { preferNewerPrices as preferNewerPricesJs } from '@core/psx/livePrices.js';
 import { staleFeeds as staleFeedsJs } from '@core/market/health.js';
 import { getStockSector as getStockSectorJs } from '@core/psxSectors.js';
-import type { FeedHealthRow, FundsAnalysis, StocksAnalysis, Txn } from './types';
+import type { FeedHealthRow, FundPosition, FundsAnalysis, StockPosition, StocksAnalysis, Txn } from './types';
 
 // The deliberate typing seam: engines are loose JS, cast once here to the shapes declared below.
 type Loose = (...args: never[]) => unknown;
@@ -47,7 +49,15 @@ export const nccplPeriod = nccplPeriodJs as Loose as (report: NccplReport, range
 export const taxYearOf = taxYearOfJs as (iso: string) => number;
 export const taxYearLabel = taxYearLabelJs as (ty: number) => string;
 export const summarizeDividends = summarizeDividendsJs as Loose as (rows: unknown[], o: { start: string; end: string; today: string }) => DividendSummary;
-export const preferNewerPrices = preferNewerPricesJs as Loose as (live: Record<string, unknown>, history: unknown, boardAsOf: string | null) => Record<string, unknown>;
+export const preferNewerPrices = preferNewerPricesJs as Loose as (live: Record<string, unknown>, history: unknown, boardAsOf: string | null, boardFetchedAt?: string | null) => Record<string, unknown>;
+export type PriceStamp = { title: string; rows: [string, string][]; note: string | null };
+export const stockStamp = stockStampJs as Loose as (p: StockPosition) => PriceStamp | null;
+export const fundStamp = fundStampJs as Loose as (price: FundPosition['price'], name?: string | null) => PriceStamp | null;
+export const fetchedShort = fetchedShortJs as Loose as (ts: string | null | undefined) => string | null;
+export type RefreshUpdated = { kind: 'stock' | 'fund'; name: string; price: number; dp: number; date: string | null; source: string };
+export type RefreshSummary = { tone: 'ok' | 'partial' | 'failed'; headline: string; sub: string; updated: RefreshUpdated[]; notUpdated: { kind: 'stock' | 'fund'; name: string; reason: string }[] };
+export const refreshSummary = refreshSummaryJs as Loose as (run: unknown) => RefreshSummary | null;
+export const updatedLine = updatedLineJs as Loose as (u: RefreshUpdated) => string;
 export const staleFeeds = staleFeedsJs as Loose as (rows: FeedHealthRow[], now?: Date) => { feed: string; name: string; latest: string | null; behind: number }[];
 export const getStockSector = getStockSectorJs as (symbol: string) => string;
 

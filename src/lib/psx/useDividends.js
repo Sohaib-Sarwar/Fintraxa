@@ -75,21 +75,20 @@ function useRefresh() {
 }
 
 /**
- * Save one or many dividends. A warrant already on file (same stock, payment
- * date and warrant number) is skipped by the database, so re-importing a
- * statement is safe. Resolves to { added, skipped }.
+ * Save one or many dividends through `dividends_save` (owner, 2026-11-22): a dividend already on file is never
+ * added twice — the same warrant, or the same payment recorded another way (a hand-added row and its CDC report
+ * row: same stock, within a week, same amount ±2%) — its empty details (warrant, filer status, issue date,
+ * account) are filled instead, amounts untouched. Resolves to { added, completed, skipped }.
  */
 export function useSaveDividends() {
   const user = useAuthStore((s) => s.user);
   const refresh = useRefresh();
   return useMutation({
     mutationFn: async (list) => {
-      const rows = list.map((f) => ({ ...clean(f), user_id: user.id }));
-      const { data, error } = await supabase.from('stock_dividends')
-        .upsert(rows, { onConflict: 'user_id,symbol,payment_date,warrant_no', ignoreDuplicates: true })
-        .select('id');
+      if (!user?.id) throw new Error('Not signed in');
+      const { data, error } = await supabase.rpc('dividends_save', { p_rows: list.map(clean) });
       if (error) throw error;
-      return { added: data?.length ?? 0, skipped: rows.length - (data?.length ?? 0) };
+      return { added: data?.added ?? 0, completed: data?.completed ?? 0, skipped: data?.skipped ?? 0 };
     },
     onSuccess: refresh,
   });

@@ -159,15 +159,17 @@ export function replayHolding(list, componentsByEntry) {
  */
 export function priceBook(prices, entries, today) {
   const obs = new Map();
-  const add = (fundId, date, price, source) => {
+  const add = (fundId, date, price, source, fetchedAt = null, kind = null) => {
     if (!fundId || !date || price === null || price === undefined || Number(price) <= 0) return;
     if (!obs.has(fundId)) obs.set(fundId, []);
-    obs.get(fundId).push({ date, price: new Decimal(String(price)), source });
+    obs.get(fundId).push({ date, price: new Decimal(String(price)), source, fetchedAt, kind });
   };
-  for (const p of prices) add(p.fund_id, p.date, p.price, p.source);
+  for (const p of prices) add(p.fund_id, p.date, p.price, p.source, p.fetched_at ?? null, p.kind ?? null);
   for (const e of entries) if (e.nav) add(e.fund_id, e.price_date ?? e.trade_date, e.nav, 'statement');
   const rank = { mufap: 2, statement: 1 };
-  for (const list of obs.values()) list.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : (rank[a.source] ?? 0) - (rank[b.source] ?? 0)));
+  // Same day and source: the later fetch last, so the price shown carries its newest fetch time.
+  const fetched = (o) => String(o.fetchedAt ?? '');
+  for (const list of obs.values()) list.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : ((rank[a.source] ?? 0) - (rank[b.source] ?? 0)) || fetched(a).localeCompare(fetched(b))));
   return (fundId, date) => {
     const list = obs.get(fundId);
     if (!list) return null;
@@ -258,7 +260,7 @@ export function analyzeFunds({ entries, components = [], prices = [], funds = {}
       // Fully redeemed before the start, or first bought after the end → not part of it.
       inRange: heldAtStart || tradedInRange,
       units: Number(atEnd.units.toFixed(4)),
-      price: atEnd.price ? { value: Number(atEnd.price.price), date: atEnd.price.date, source: atEnd.price.source, stale: Date.parse(endEff) - Date.parse(atEnd.price.date) > 4 * 86_400_000 } : null,
+      price: atEnd.price ? { value: Number(atEnd.price.price), date: atEnd.price.date, source: atEnd.price.source, kind: atEnd.price.kind ?? null, fetchedAt: atEnd.price.fetchedAt ?? null, stale: Date.parse(endEff) - Date.parse(atEnd.price.date) > 4 * 86_400_000 } : null,
       value: r2(atEnd.value),
       invested: r2(atEnd.cost),
       avgCost: atEnd.units.gt(0) && atEnd.costKnown ? Number(atEnd.cost.dividedBy(atEnd.units).toFixed(4)) : null,

@@ -7,6 +7,8 @@ import { refreshMyPrices, afterRefresh, marketRefreshRunsQuery } from '../../lib
 import { freshnessQuery } from '../../lib/marketQueries';
 import { formatCurrency } from '../../lib/formatters';
 import { useFx, FONT_NUM, signColor } from '../../components/fx';
+import { useAppStore } from '../../store/appStore';
+import { refreshSummary, updatedLine } from '../../lib/market/refreshSummary';
 
 const STEPS = [
   { id: 'holdings', label: 'Your holdings' },
@@ -14,11 +16,12 @@ const STEPS = [
   { id: 'mufap_tab1', label: 'MUFAP NAVs' },
   { id: 'mufap_tab3', label: 'MUFAP prices' },
   { id: 'amc', label: 'Fund managers' },
+  { id: 'amc_ai', label: 'Fund managers behind a bot check' },
   { id: 'save', label: 'Saving and updating pages' },
 ];
 
 /** Short names for the fund managers the worker reads (quotes.js AMCS). */
-const MANAGER = { ubl: 'UBL Funds', meezan: 'Al Meezan' };
+const MANAGER = { ubl: 'UBL Funds', meezan: 'Al Meezan', nbp: 'NBP Funds', atlas: 'Atlas Funds', mcb: 'MCB Funds' };
 
 /** "10 Nov 2026, 5:42 pm", Pakistan time. */
 const when = (iso) => (iso ? new Date(iso).toLocaleString('en-GB', {
@@ -38,11 +41,21 @@ function reducer(s, a) {
       steps.mufap_tab1 = a.funds.length ? { state: 'active' } : { state: 'skip', note: 'No funds held' };
       steps.mufap_tab3 = a.funds.length ? { state: 'active' } : { state: 'skip', note: 'No funds held' };
       steps.amc = a.funds.length ? { state: 'active' } : { state: 'skip', note: 'No funds held' };
+      steps.amc_ai = a.funds.length ? { state: 'active' } : { state: 'skip', note: 'No funds held' };
       return { ...s, steps };
     }
     case 'source': {
       if (a.source === 'psx') {
         return { ...s, steps: set('psx', { state: a.ok === a.requested ? 'ok' : 'warn', ms: a.ms, note: `${a.ok} of ${a.requested} updated` }) };
+      }
+      if (a.source === 'amc_ai') {
+        const m = (a.managers ?? [])[0];
+        const ok = (a.managers ?? []).some((x) => x.status === 'ok');
+        return {
+          ...s, steps: set('amc_ai', ok
+            ? { state: (a.matched ?? 0) === (a.requested ?? 0) ? 'ok' : 'warn', ms: a.ms, note: `${a.matched ?? 0} of ${plural(a.requested ?? 0, 'fund')} read from the manager’s own page (via Google)` }
+            : { state: 'warn', ms: a.ms, note: m?.error ? `Could not read the page: ${m.error}` : 'Could not read the manager’s page' }),
+        };
       }
       if (a.source === 'amc') {
         const names = (a.managers ?? []).filter((m) => m.status === 'ok').map((m) => MANAGER[m.id] ?? m.amc).filter(Boolean);
@@ -90,6 +103,9 @@ export default function MarketPricesSettings() {
     return () => clearInterval(id);
   }, [running]);
 
+  const showSnackbar = useAppStore((st) => st.showSnackbar);
+  const summary = s.run ? refreshSummary(s.run) : null;
+
   const start = async () => {
     const at = Date.now();
     setClock(at);
@@ -97,11 +113,19 @@ export default function MarketPricesSettings() {
     try {
       await refreshMyPrices((e) => {
         if (e.type === 'holdings' || e.type === 'source' || e.type === 'saving' || e.type === 'done') dispatch(e);
-        if (e.type === 'busy' || e.type === 'error') dispatch({ type: 'fail', message: e.message });
-        if (e.type === 'done') afterRefresh(qc);
+        if (e.type === 'busy' || e.type === 'error') {
+          dispatch({ type: 'fail', message: e.message });
+          showSnackbar(`Prices were not refreshed: ${e.message}`, 'error');
+        }
+        if (e.type === 'done') {
+          afterRefresh(qc);
+          const sum = refreshSummary(e.run);
+          if (sum) showSnackbar(`${sum.headline}${sum.notUpdated.length ? ` ${plural(sum.notUpdated.length, 'item')} not updated — see the list below.` : ''}`, sum.tone === 'ok' ? 'success' : sum.tone === 'failed' ? 'error' : 'warning');
+        }
       });
     } catch (err) {
       dispatch({ type: 'fail', message: err.message });
+      showSnackbar(`Prices were not refreshed: ${err.message}`, 'error');
     }
   };
 
@@ -140,17 +164,18 @@ export default function MarketPricesSettings() {
         )}
       </Box>
 
+      {summary && <Summary summary={summary} />}
       {s.run && <Results run={s.run} />}
 
       <Box sx={card}>
         <Typography sx={{ fontSize: '0.86rem', fontWeight: 750, mb: 1 }}>Scheduled updates</Typography>
-        <Feed label="PSX board" schedule="Weekdays at 5:00 pm" feed={psxFeed} />
-        <Feed label="MUFAP NAVs" schedule="Every day, hourly 6:00 pm – 12:00 am" feed={mufapFeed} />
+        <Feed label="PSX board" schedule={psxFeed?.schedule ?? 'Once per working day after the PSX close'} feed={psxFeed} />
+        <Feed label="MUFAP NAVs" schedule={mufapFeed?.schedule ?? 'Every evening'} feed={mufapFeed} />
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, py: 0.7 }}>
           <ScheduleRounded sx={{ fontSize: 17, color: t.muted }} />
           <Box sx={{ flex: 1 }}>
             <Typography sx={{ fontSize: '0.8rem', fontWeight: 650 }}>Your holdings</Typography>
-            <Typography sx={{ fontSize: '0.7rem', color: t.muted }}>Also refreshed on their own at 4:40 pm on trading days, and 8:40 pm and 11:40 pm every day</Typography>
+            <Typography sx={{ fontSize: '0.7rem', color: t.muted }}>Also refreshed on their own every night at 11:40 pm, straight from PSX and the fund managers</Typography>
           </Box>
         </Box>
       </Box>
@@ -183,6 +208,47 @@ function StepRow({ label, step, pending }) {
       <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, color: state === 'pending' ? t.muted : t.ink, minWidth: 170 }}>{label}</Typography>
       <Typography sx={{ fontSize: '0.74rem', color: state === 'warn' ? t.warn : t.muted, flex: 1, minWidth: 0 }} noWrap>{step?.note ?? ''}</Typography>
       <Typography sx={{ fontFamily: FONT_NUM, fontSize: '0.72rem', color: t.muted, whiteSpace: 'nowrap' }}>{secs(step?.ms)}</Typography>
+    </Box>
+  );
+}
+
+/** The formal verdict of a run: what was updated and what was not, with the reason. */
+function Summary({ summary }) {
+  const t = useFx();
+  const color = summary.tone === 'ok' ? t.pos : summary.tone === 'failed' ? t.neg : t.warn;
+  const Icon = summary.tone === 'ok' ? CheckCircleRounded : WarningAmberRounded;
+  const updated = summary.updated; const missed = summary.notUpdated;
+  return (
+    <Box role="status" sx={{ bgcolor: t.surface2, borderRadius: '18px', p: { xs: 1.75, md: 2.25 }, borderLeft: `4px solid ${color}` }}>
+      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.25 }}>
+        <Icon sx={{ fontSize: 22, color, mt: 0.1 }} />
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Typography sx={{ fontSize: '0.92rem', fontWeight: 750 }}>{summary.headline}</Typography>
+          {summary.sub && <Typography sx={{ fontSize: '0.72rem', color: t.muted, mt: 0.25 }}>{summary.sub}</Typography>}
+        </Box>
+      </Box>
+      {missed.length > 0 && (
+        <Box sx={{ mt: 1.75 }}>
+          <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.warn, mb: 0.5 }}>Not updated · {missed.length}</Typography>
+          {missed.map((m) => (
+            <Box key={`${m.kind}-${m.name}`} sx={{ display: 'flex', gap: 1.5, py: 0.55, alignItems: 'baseline', flexWrap: 'wrap' }}>
+              <Typography sx={{ fontSize: '0.8rem', fontWeight: 700, minWidth: 70 }}>{m.name}</Typography>
+              <Typography sx={{ fontSize: '0.74rem', color: t.muted, flex: 1, minWidth: 200 }}>{m.reason} The last saved price stays in use.</Typography>
+            </Box>
+          ))}
+        </Box>
+      )}
+      {updated.length > 0 && (
+        <Box sx={{ mt: 1.75 }}>
+          <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.pos, mb: 0.5 }}>Updated · {updated.length}</Typography>
+          {updated.map((u) => (
+            <Box key={`${u.kind}-${u.name}`} sx={{ display: 'flex', gap: 1.5, py: 0.45, alignItems: 'baseline', flexWrap: 'wrap' }}>
+              <Typography sx={{ fontSize: '0.8rem', fontWeight: 650, minWidth: 70, maxWidth: { md: 320 } }} noWrap>{u.name}</Typography>
+              <Typography sx={{ fontFamily: FONT_NUM, fontSize: '0.74rem', color: t.muted, flex: 1, minWidth: 200 }}>{updatedLine(u)}</Typography>
+            </Box>
+          ))}
+        </Box>
+      )}
     </Box>
   );
 }

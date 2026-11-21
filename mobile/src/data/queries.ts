@@ -95,7 +95,7 @@ export function useLedger() {
       ]);
       const fundIds = [...new Set(entries.map((e) => e.fund_id))];
       const navs = fundIds.length
-        ? await fetchAll(() => supabase.from('mf_nav_history').select('id, fund_id, nav_date, price::text, price_kind, source')
+        ? await fetchAll(() => supabase.from('mf_nav_history').select('id, fund_id, nav_date, price::text, price_kind, source, imported_at')
           .in('fund_id', fundIds).order('nav_date').order('id'))
         : [];
       return { entries, components, funds, amcs, accounts, navs } as unknown as Ledger;
@@ -135,7 +135,7 @@ export function useTrades() {
   });
 }
 
-export type Closes = Record<string, { date: string; close: string; change: string | null; change_pct: string | null }[]>;
+export type Closes = Record<string, { date: string; close: string; change: string | null; change_pct: string | null; captured_at?: string | null }[]>;
 export function useCloses(symbols: string[]) {
   return useQuery({
     queryKey: ['psx-closes', symbols],
@@ -143,10 +143,10 @@ export function useCloses(symbols: string[]) {
     staleTime: 30 * 60_000,
     queryFn: async () => {
       const out: Closes = {};
-      const rows = await fetchAll<{ symbol: string; price_date: string; close: string; change: string | null; change_pct: string | null }>(() => supabase
-        .from('psx_price_history').select('symbol, price_date, close::text, change::text, change_pct::text')
+      const rows = await fetchAll<{ symbol: string; price_date: string; close: string; change: string | null; change_pct: string | null; captured_at: string | null }>(() => supabase
+        .from('psx_price_history').select('symbol, price_date, close::text, change::text, change_pct::text, captured_at')
         .in('symbol', symbols).order('price_date').order('symbol'));
-      for (const r of rows) (out[r.symbol] ??= []).push({ date: r.price_date, close: r.close, change: r.change, change_pct: r.change_pct });
+      for (const r of rows) (out[r.symbol] ??= []).push({ date: r.price_date, close: r.close, change: r.change, change_pct: r.change_pct, captured_at: r.captured_at });
       return out;
     },
   });
@@ -230,9 +230,10 @@ export function useBoard() {
     queryKey: ['psx', 'stocks'],
     staleTime: MARKET_STALE,
     queryFn: async ({ signal }): Promise<Board> => {
-      const j = await getJson<{ data: BoardStock[]; freshness?: { data_as_of?: string } }>('psx/stocks.json', signal);
+      const j = await getJson<{ data: BoardStock[]; freshness?: { data_as_of?: string; fetched_at?: string } }>('psx/stocks.json', signal);
       return {
         asOf: j.freshness?.data_as_of ?? null,
+        fetchedAt: j.freshness?.fetched_at ?? null,
         data: (j.data ?? []).map((s) => ({
           symbol: s.symbol, name: s.name, sector: s.sector, current: s.current, change: s.change, change_pct: s.change_pct, ldcp: s.ldcp,
         })),
@@ -246,9 +247,10 @@ export function useFundsFeed() {
     queryKey: ['mufap', 'funds'],
     staleTime: MARKET_STALE,
     queryFn: async ({ signal }): Promise<FundsFeed> => {
-      const j = await getJson<{ data: FundsFeed['data']; freshness?: { data_as_of?: string } }>('mufap/funds.json', signal);
+      const j = await getJson<{ data: FundsFeed['data']; freshness?: { data_as_of?: string; fetched_at?: string } }>('mufap/funds.json', signal);
       return {
         asOf: j.freshness?.data_as_of ?? null,
+        fetchedAt: j.freshness?.fetched_at ?? null,
         data: (j.data ?? []).map((f) => ({
           slug: f.slug, fund_name: f.fund_name, category: f.category, amc: f.amc, nav: f.nav, repurchase_price: f.repurchase_price, validity_date: f.validity_date,
         })),

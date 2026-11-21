@@ -38,20 +38,45 @@ function key(legacyName: string, listName: string): string {
 async function quotes(body: unknown) {
   const res = await fetch(QUOTES_URL, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-    signal: AbortSignal.timeout(45_000),
+    // Pages 25 s, a retry pass, then /screener: up to ~85 s when PSX is slow (2026-11-22).
+    signal: AbortSignal.timeout(100_000),
   });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(json?.error ?? `market service answered ${res.status}`);
   return json;
 }
 
-/** slug → MUFAP's fund name, category and manager, from the published fund list (the same slugs mf_funds links to). */
+type FundRow = { slug: string; fund_name: string; category: string; amc?: string; nav?: number | null; repurchase_price?: number | null; validity_date?: string | null };
+/** slug → MUFAP's fund name, category, manager and last published price, from the service's fund list (the same slugs mf_funds links to). */
 async function mufapIndex() {
   const res = await fetch(FUNDS_URL, { signal: AbortSignal.timeout(15_000) });
   if (!res.ok) return new Map();
   const body = await res.json();
-  return new Map((body?.data ?? []).map((r: { slug: string; fund_name: string; category: string; amc?: string }) => [r.slug, { fund_name: r.fund_name, category: r.category, amc: r.amc ?? null }]));
+  return new Map((body?.data ?? []).map((r: FundRow) => [r.slug, {
+    fund_name: r.fund_name, category: r.category, amc: r.amc ?? null, nav: r.nav ?? null, repurchase_price: r.repurchase_price ?? null, validity_date: r.validity_date ?? null,
+  }]));
 }
+
+/**
+ * Gemini with the URL-context tool (Google's fetcher opens the page named in the prompt): reads the official price
+ * page of a manager behind a bot challenge (amcReader.js). The key is the Edge Function secret GEMINI_API_KEY.
+ */
+const GEMINI_KEY = Deno.env.get('GEMINI_API_KEY') ?? '';
+const GEMINI_MODEL = Deno.env.get('GEMINI_MODEL') ?? 'gemini-3.5-flash-lite';
+async function generate(prompt: string): Promise<string> {
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_KEY },
+    body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }], tools: [{ url_context: {} }], generationConfig: { temperature: 0 } }),
+    signal: AbortSignal.timeout(45_000),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`Gemini ${res.status}: ${String(body?.error?.message ?? '').slice(0, 160)}`);
+  const meta = body?.candidates?.[0]?.urlContextMetadata?.urlMetadata ?? [];
+  if (meta.length && !meta.some((m: { urlRetrievalStatus?: string }) => m.urlRetrievalStatus === 'URL_RETRIEVAL_STATUS_SUCCESS')) throw new Error('The page could not be read.');
+  return (body?.candidates?.[0]?.content?.parts ?? []).map((p: { text?: string }) => p.text ?? '').join('');
+}
+const aiReader = GEMINI_KEY ? generate : null;
 
 Deno.serve(async (req) => {
   const base = cors(req.headers.get('origin'));
@@ -68,7 +93,7 @@ Deno.serve(async (req) => {
     const { data: ok } = await admin.rpc('snapshot_verify_cron_secret', { p_secret: cronSecret });
     if (ok !== true) return new Response(JSON.stringify({ error: 'Not allowed' }), { status: 401, headers: jsonHeaders });
     try {
-      const run = await refresh({ userId: null, admin, quotes, mufapIndex });
+      const run = await refresh({ userId: null, admin, quotes, mufapIndex, generate: aiReader });
       return new Response(JSON.stringify({ id: run?.id, status: run?.status, psx: run?.psx_updated, funds: run?.mufap_updated, ms: run?.duration_ms }), { headers: jsonHeaders });
     } catch (err) {
       const status = (err as { status?: number })?.status === 429 ? 429 : 500;
@@ -90,7 +115,7 @@ Deno.serve(async (req) => {
     async start(controller) {
       const emit = (event: unknown) => controller.enqueue(enc.encode(`${JSON.stringify(event)}\n`));
       try {
-        await refresh({ userId: auth.user.id, admin, quotes, emit, mufapIndex });
+        await refresh({ userId: auth.user.id, admin, quotes, emit, mufapIndex, generate: aiReader });
       } catch (err) {
         const status = (err as { status?: number })?.status;
         if (status === 429) emit({ type: 'busy', message: String((err as Error).message) });

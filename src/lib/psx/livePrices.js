@@ -10,9 +10,14 @@
  * live:     symbol → board record ({ current, change, change_pct, … })
  * history:  symbol → [{ date, close, change?, change_pct? }], oldest first
  * boardAsOf 'YYYY-MM-DD' of the board's session, or null
+ * boardFetchedAt  when the board was fetched (ISO), stamped on its records as `fetched_at` / `as_of`
+ * A refreshed price carries its own `fetched_at` (psx_price_history.captured_at).
  */
-export function preferNewerPrices(live, history, boardAsOf) {
+export function preferNewerPrices(live, history, boardAsOf, boardFetchedAt = null) {
   const out = { ...live };
+  if (boardFetchedAt) {
+    for (const [k, rec] of Object.entries(out)) out[k] = { ...rec, fetched_at: rec?.fetched_at ?? boardFetchedAt, as_of: rec?.as_of ?? boardAsOf };
+  }
   for (const [symbol, list] of Object.entries(history ?? {})) {
     const last = list?.[list.length - 1];
     if (!last || !(Number(last.close) > 0)) continue;
@@ -24,6 +29,7 @@ export function preferNewerPrices(live, history, boardAsOf) {
       change: last.change === null || last.change === undefined ? null : Number(last.change),
       change_pct: last.change_pct === null || last.change_pct === undefined ? null : Number(last.change_pct),
       as_of: last.date,
+      fetched_at: last.captured_at ?? null,
       refreshed: true,
     };
   }

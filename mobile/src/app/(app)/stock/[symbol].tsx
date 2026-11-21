@@ -1,7 +1,8 @@
 import Decimal from 'decimal.js';
 import { router, useLocalSearchParams } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
-import { getStockSector } from '@/data/engines';
+import { useState } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { fetchedShort, getStockSector, stockStamp, type PriceStamp } from '@/data/engines';
 import { useDividendSummary, useStocksAnalysis } from '@/data/portfolio';
 import { RangeButton } from '@/features/range/RangeButton';
 import { usePeriod } from '@/features/range/usePeriod';
@@ -13,6 +14,7 @@ import { useHidden } from '@/ui/Figures';
 import { ChevronRight, ScrollText } from '@/ui/icons';
 import { StockLogo } from '@/ui/Logos';
 import { Gap } from '@/ui/primitives';
+import { PriceStampSheet } from '@/ui/PriceStampSheet';
 import { Screen } from '@/ui/Screen';
 import { Text } from '@/ui/Text';
 import { dark, font, space } from '@/ui/tokens';
@@ -32,6 +34,7 @@ export default function StockDetail() {
   const divs = useDividendSummary(range);
   const x = analysis?.allPositions.find((pos) => pos.symbol === symbol);
   const right = <RangeButton />;
+  const [stamp, setStamp] = useState<PriceStamp | null>(null);
 
   if (isLoading && !analysis) return <Screen back title={symbol} right={right}><Skeleton height={200} radius={22} /><Gap h={space.md} /><Skeleton height={200} radius={22} /></Screen>;
   if (!x) return <Screen back title={symbol} right={right}><EmptyState title="Nothing in this period" body={`No ${symbol} trades by the end of ${period.label}.`} /></Screen>;
@@ -75,11 +78,14 @@ export default function StockDetail() {
                 {x.dayChangePct !== null && !hidden ? `${x.dayChangePct > 0 ? '+' : ''}${x.dayChangePct.toFixed(2)}%` : day === null ? 'No move yet' : ' '}
               </Text>
             </View>
-            <View style={[styles.tile, styles.tileRight]}>
+            {/* Tap or long-press → when this price was fetched and where from (owner, 2026-11-22). */}
+            <Pressable style={({ pressed }) => [styles.tile, styles.tileRight, { opacity: pressed ? 0.7 : 1 }]} disabled={x.price === null}
+              onPress={() => setStamp(stockStamp(x))} onLongPress={() => setStamp(stockStamp(x))}
+              accessibilityRole="button" accessibilityLabel={`Last price${x.price === null ? '' : `, Rs ${group(x.price, 2)}`}`} accessibilityHint="Shows when this price was fetched and where from">
               <Text style={styles.small} numberOfLines={1}>Last price</Text>
               <Text style={styles.tileValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{x.price === null ? '—' : hidden ? '••' : `Rs ${group(x.price, 2)}`}</Text>
-              <Text style={styles.small} numberOfLines={1}>{x.priceDate ? shortDate(x.priceDate) : ' '}</Text>
-            </View>
+              <Text style={styles.small} numberOfLines={1}>{[x.priceDate ? shortDate(x.priceDate) : null, fetchedShort(x.priceFetchedAt)].filter(Boolean).join(' · ') || ' '}</Text>
+            </Pressable>
           </View>
         ) : null}
         {!x.inRange ? <Text style={[styles.small, { marginTop: space.sm }]} numberOfLines={2}>No shares held or traded in {period.label}</Text> : null}
@@ -114,6 +120,7 @@ export default function StockDetail() {
         </View>
         <ChevronRight size={18} color={GLASS_INK2} />
       </BlackGlass>
+      <PriceStampSheet stamp={stamp} onClose={() => setStamp(null)} />
     </Screen>
   );
 }
