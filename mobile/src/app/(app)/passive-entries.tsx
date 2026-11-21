@@ -3,6 +3,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { type PassiveSource } from '@/data/engines';
+import { describeUpcoming, useCheckDividendsNow, useUpcoming } from '@/data/upcoming';
 import { usePassive } from '@/data/portfolio';
 import { SourceIcon, TAX_LABEL, VIEW_LABEL } from '@/features/passive/passiveUi';
 import { usePeriod } from '@/features/range/usePeriod';
@@ -11,8 +12,9 @@ import { compactNumber, group } from '@/lib/format';
 import { EmptyState, Skeleton } from '@/ui/feedback';
 import { useHidden } from '@/ui/Figures';
 import { BankLogo, StockLogo } from '@/ui/Logos';
-import { Plus, X } from '@/ui/icons';
+import { ChevronRight, Plus, RefreshCw, X } from '@/ui/icons';
 import { CircleButton, Gap } from '@/ui/primitives';
+import { toast } from '@/ui/feedback';
 import { Screen } from '@/ui/Screen';
 import { Text } from '@/ui/Text';
 import { dark, font, space } from '@/ui/tokens';
@@ -63,6 +65,18 @@ export default function PassiveEntries() {
 
   const title = source === 'dividends' ? 'Dividend payments' : source === 'savings' ? 'Savings profit' : source === 'mutual_funds' ? 'Fund profit' : 'Passive payments';
 
+  // Upcoming dividends (owner, 2026-11-22): announced on PSX for stocks held, not counted until approved.
+  const upcoming = useUpcoming();
+  const check = useCheckDividendsNow();
+  const pending = useMemo(() => (upcoming.data ?? []).filter((u) => !only || u.symbol === only), [upcoming.data, only]);
+  const checkNow = () => check.mutate(undefined, {
+    onSuccess: (r) => {
+      const n = r?.found?.length ?? 0;
+      toast(n ? `${n} cash dividend${n === 1 ? '' : 's'} announced on your stocks${r?.sync?.matched ? `; ${r.sync.matched} already on file` : ''}.` : 'No new cash dividends on your stocks.', { title: 'Checked PSX' });
+    },
+    onError: () => toast('The check did not finish. It also runs every night on its own.', { tone: 'error' }),
+  });
+
   const right = source === 'dividends'
     ? <CircleButton icon={Plus} label="Add a dividend" onPress={() => router.push('/dividend-add')} />
     : undefined;
@@ -86,6 +100,44 @@ export default function PassiveEntries() {
             <Text style={styles.total} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{rs(shown?.net ?? a.totals.net)}</Text>
             <Text style={styles.small}>{shown?.count ?? a.totals.count} payment{(shown?.count ?? a.totals.count) === 1 ? '' : 's'} · {TAX_LABEL[source]} {rs(shown?.tax ?? a.totals.tax)}</Text>
           </Glass>
+
+          {source === 'dividends' ? (
+            <View>
+              <View style={styles.upHead}>
+                <Text variant="label" tone="ink2" style={{ flex: 1 }}>Upcoming{pending.length ? ` · ${pending.length}` : ''}</Text>
+                <Pressable onPress={checkNow} disabled={check.isPending} hitSlop={8} accessibilityRole="button" accessibilityLabel="Check PSX for dividends now" style={styles.checkBtn}>
+                  <RefreshCw size={13} color={INK} strokeWidth={2.4} />
+                  <Text style={styles.checkText}>{check.isPending ? 'Checking PSX…' : 'Check now'}</Text>
+                </Pressable>
+              </View>
+              {pending.length ? (
+                <Glass>
+                  {pending.map((u, i) => {
+                    const d = describeUpcoming(u);
+                    const tint = d.stage === 'due' ? dark.warn : d.stage === 'entitled' ? dark.pos : INK2;
+                    return (
+                      <Pressable key={u.id} onPress={() => router.push({ pathname: '/upcoming-dividend/[id]', params: { id: u.id } })}
+                        accessibilityRole="button" accessibilityLabel={`${u.symbol} ${d.title}, about ${rs(d.net)} after tax, ${d.stageLabel}. Open`}
+                        style={({ pressed }) => [styles.row, i > 0 && styles.rowSep, { opacity: pressed ? 0.75 : 1 }]}>
+                        <StockLogo symbol={u.symbol} size={36} />
+                        <View style={{ flex: 1, gap: 1 }}>
+                          <Text style={styles.name} numberOfLines={1}>{u.symbol} <Text style={styles.small}>· {d.title}</Text></Text>
+                          <Text style={[styles.small, { color: tint }]} numberOfLines={1}>{d.stageLabel} · {d.stage === 'hold' ? `hold to ${shortDate(u.announcement.last_cum_date)}` : `by ${shortDate(u.announcement.expected_pay_by ?? u.announcement.book_closure_from)}`}</Text>
+                        </View>
+                        <View style={{ alignItems: 'flex-end', gap: 1 }}>
+                          <Text style={[styles.net, { color: INK }]}>{rs(d.net)}</Text>
+                          <Text style={styles.small}>expected</Text>
+                        </View>
+                        <ChevronRight size={16} color={INK2} />
+                      </Pressable>
+                    );
+                  })}
+                </Glass>
+              ) : (
+                <Glass style={styles.upEmpty}><Text style={styles.small}>{upcoming.isLoading ? 'Loading…' : 'None announced on your stocks right now. PSX is checked every night.'}</Text></Glass>
+              )}
+            </View>
+          ) : null}
 
           {groups.length ? groups.map(([m, rows]) => (
             <View key={m}>
@@ -138,4 +190,8 @@ const styles = StyleSheet.create({
   rowSep: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(255,255,255,0.08)' },
   name: { color: INK, fontFamily: font.semibold, fontSize: 14.5 },
   net: { fontFamily: font.num, fontSize: 15 },
+  upHead: { flexDirection: 'row', alignItems: 'center', marginTop: space.xl, marginBottom: space.sm, marginLeft: 4 },
+  checkBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 28, paddingHorizontal: 12, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.10)' },
+  checkText: { color: INK, fontFamily: font.semibold, fontSize: 12 },
+  upEmpty: { paddingVertical: space.md },
 });

@@ -21,10 +21,14 @@ function fundReason(f, amc) {
   return 'No published price was found for it.';
 }
 
+/** 'MCB Investment Management Limited' → 'MCB'; 'Al Meezan Investment Management Limited' → 'Al Meezan'. */
+export const shortAmc = (name) => String(name ?? '').replace(/\b(investments?|asset|funds?|managers?|management|limited|ltd|company)\b\.?/gi, ' ')
+  .replace(/\s+/g, ' ').trim() || 'Fund manager';
+
 function fundSource(f, amc) {
   if (f.source !== 'amc') return 'MUFAP';
   const m = (amc?.managers ?? []).find((x) => x.amc === f.amc);
-  return m?.via === 'gemini_url_context' ? `${f.amc ?? 'Fund manager'} website (read via Google)` : `${f.amc ?? 'Fund manager'} website`;
+  return m?.via === 'gemini_url_context' ? `${shortAmc(f.amc)} website, via Google` : `${shortAmc(f.amc)} website`;
 }
 
 /**
@@ -38,18 +42,20 @@ export function refreshSummary(run) {
   if (!run) return null;
   const d = run.details ?? {};
   const updated = []; const notUpdated = [];
+  // The fund manager's logo code (mf_amcs.code): from the run, else the manager the worker read (same ids).
+  const codeOf = (f) => f.amc_code ?? (d.amc?.managers ?? []).find((m) => m.amc === f.amc)?.id ?? null;
   for (const q of d.psx ?? []) {
     if (q.status === 'ok' && q.price > 0) {
-      updated.push({ kind: 'stock', name: q.symbol, price: Number(q.price), dp: 2, date: q.as_of ? String(q.as_of).slice(0, 10) : null, source: /screener/i.test(String(q.as_of_text ?? '')) ? 'PSX screener (all stocks page)' : 'PSX company page' });
+      updated.push({ kind: 'stock', name: q.symbol, symbol: q.symbol, price: Number(q.price), dp: 2, date: q.as_of ? String(q.as_of).slice(0, 10) : null, source: /screener/i.test(String(q.as_of_text ?? '')) ? 'PSX screener (all stocks page)' : 'PSX company page' });
     } else {
-      notUpdated.push({ kind: 'stock', name: q.symbol, reason: PSX_REASON[q.status] ?? 'PSX gave no price for it.' });
+      notUpdated.push({ kind: 'stock', name: q.symbol, symbol: q.symbol, reason: PSX_REASON[q.status] ?? 'PSX gave no price for it.' });
     }
   }
   for (const f of d.funds ?? []) {
     if (f.price > 0 && f.nav_date) {
-      updated.push({ kind: 'fund', name: f.name, price: Number(f.price), dp: 4, date: f.nav_date, source: fundSource(f, d.amc), priceKind: f.kind === 'repurchase' ? 'Repurchase' : 'NAV' });
+      updated.push({ kind: 'fund', name: f.name, code: codeOf(f), amc: f.amc ?? null, price: Number(f.price), dp: 4, date: f.nav_date, source: fundSource(f, d.amc), priceKind: f.kind === 'repurchase' ? 'Repurchase' : 'NAV' });
     } else {
-      notUpdated.push({ kind: 'fund', name: f.name, reason: fundReason(f, d.amc) });
+      notUpdated.push({ kind: 'fund', name: f.name, code: codeOf(f), amc: f.amc ?? null, reason: fundReason(f, d.amc) });
     }
   }
   const stocks = (d.psx ?? []).length; const funds = (d.funds ?? []).length;
@@ -64,8 +70,14 @@ export function refreshSummary(run) {
         : `Partly updated: ${parts.join(' and ')}.`;
   const at = stampTime(run.finished_at);
   const sub = [at ? `Finished ${at}` : null, run.duration_ms ? `in ${(run.duration_ms / 1000).toFixed(1)} s` : null].filter(Boolean).join(' ');
-  return { tone, headline, sub, updated, notUpdated };
+  return {
+    tone, headline, sub, updated, notUpdated,
+    counts: { stocks: { ok: okS, total: stocks }, funds: { ok: okF, total: funds }, ok: updated.length, total },
+  };
 }
+
+/** The short source + date line under an updated item: 'PSX company page · 20 Nov 2026'. */
+export const updatedSub = (u) => [u.source, stampDate(u.date)].filter(Boolean).join(' · ');
 
 /** One line per updated item: 'OGDC  Rs 312.55 · 20 Nov 2026 · PSX'. */
 export const updatedLine = (u) => `Rs ${u.price.toFixed(u.dp)} · ${stampDate(u.date) ?? 'date unknown'} · ${u.source}`;

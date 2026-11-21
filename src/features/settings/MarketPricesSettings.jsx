@@ -1,14 +1,16 @@
 import { useEffect, useReducer, useState } from 'react';
-import { Box, Typography, ButtonBase, CircularProgress, Tooltip } from '@mui/material';
+import { Box, Typography, ButtonBase, CircularProgress } from '@mui/material';
 import { SyncRounded, CheckCircleRounded, WarningAmberRounded, RadioButtonUncheckedRounded, RemoveCircleOutlineRounded, ScheduleRounded } from '@mui/icons-material';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '../../store/authStore';
 import { refreshMyPrices, afterRefresh, marketRefreshRunsQuery } from '../../lib/market/refreshPrices';
 import { freshnessQuery } from '../../lib/marketQueries';
-import { formatCurrency } from '../../lib/formatters';
-import { useFx, FONT_NUM, signColor } from '../../components/fx';
+import { useFx, FONT_NUM } from '../../components/fx';
 import { useAppStore } from '../../store/appStore';
-import { refreshSummary, updatedLine } from '../../lib/market/refreshSummary';
+import { refreshSummary, updatedSub } from '../../lib/market/refreshSummary';
+import { formatNumber } from '../../lib/formatters';
+import StockLogo from '../../components/StockLogo';
+import AmcLogo from '../mutual-funds/AmcLogo';
 
 const STEPS = [
   { id: 'holdings', label: 'Your holdings' },
@@ -164,8 +166,7 @@ export default function MarketPricesSettings() {
         )}
       </Box>
 
-      {summary && <Summary summary={summary} />}
-      {s.run && <Results run={s.run} />}
+      {summary && <Summary summary={summary} mufapBlocked={s.run?.details?.mufap?.status === 'blocked'} />}
 
       <Box sx={card}>
         <Typography sx={{ fontSize: '0.86rem', fontWeight: 750, mb: 1 }}>Scheduled updates</Typography>
@@ -212,94 +213,101 @@ function StepRow({ label, step, pending }) {
   );
 }
 
-/** The formal verdict of a run: what was updated and what was not, with the reason. */
-function Summary({ summary }) {
+/**
+ * The result of a refresh (owner, 2026-11-22: formal "what is updated and what is not", in the app's own dark-glass
+ * look): a count with a split bar and stock/fund pills, then what needs attention (with the reason) and what was
+ * updated (logo, source and day, price). Wording from lib/market/refreshSummary.js, shared with the phone.
+ */
+function Summary({ summary, mufapBlocked }) {
   const t = useFx();
-  const color = summary.tone === 'ok' ? t.pos : summary.tone === 'failed' ? t.neg : t.warn;
-  const Icon = summary.tone === 'ok' ? CheckCircleRounded : WarningAmberRounded;
-  const updated = summary.updated; const missed = summary.notUpdated;
+  const { counts } = summary;
+  const tint = summary.tone === 'ok' ? t.pos : summary.tone === 'failed' ? t.neg : t.warn;
+  const okShare = counts.total ? counts.ok / counts.total : 1;
+  const verdict = counts.total === 0 ? 'Nothing to refresh'
+    : summary.tone === 'ok' ? 'Everything is up to date'
+      : summary.tone === 'failed' ? 'No prices could be updated' : `${summary.notUpdated.length} not updated`;
+  const glass = { ...t.glass, borderRadius: '22px' };
   return (
-    <Box role="status" sx={{ bgcolor: t.surface2, borderRadius: '18px', p: { xs: 1.75, md: 2.25 }, borderLeft: `4px solid ${color}` }}>
-      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.25 }}>
-        <Icon sx={{ fontSize: 22, color, mt: 0.1 }} />
-        <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography sx={{ fontSize: '0.92rem', fontWeight: 750 }}>{summary.headline}</Typography>
-          {summary.sub && <Typography sx={{ fontSize: '0.72rem', color: t.muted, mt: 0.25 }}>{summary.sub}</Typography>}
-        </Box>
+    <Box role="status" aria-live="polite" sx={{ ...glass, p: { xs: 2, md: 2.5 } }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: tint, boxShadow: `0 0 10px ${tint}` }} />
+        <Typography sx={{ fontSize: '0.8rem', fontWeight: 650, color: tint }}>{verdict}</Typography>
+        <Typography sx={{ fontSize: '0.72rem', color: t.muted, ml: 'auto' }} noWrap>{summary.sub}</Typography>
       </Box>
-      {missed.length > 0 && (
-        <Box sx={{ mt: 1.75 }}>
-          <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.warn, mb: 0.5 }}>Not updated · {missed.length}</Typography>
-          {missed.map((m) => (
-            <Box key={`${m.kind}-${m.name}`} sx={{ display: 'flex', gap: 1.5, py: 0.55, alignItems: 'baseline', flexWrap: 'wrap' }}>
-              <Typography sx={{ fontSize: '0.8rem', fontWeight: 700, minWidth: 70 }}>{m.name}</Typography>
-              <Typography sx={{ fontSize: '0.74rem', color: t.muted, flex: 1, minWidth: 200 }}>{m.reason} The last saved price stays in use.</Typography>
+      <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.75, mt: 1.25 }}>
+        <Typography sx={{ fontFamily: FONT_NUM, fontSize: '2.6rem', fontWeight: 700, letterSpacing: '-0.04em', lineHeight: 1 }}>{counts.ok}</Typography>
+        <Typography sx={{ fontFamily: FONT_NUM, fontSize: '1.2rem', fontWeight: 600, color: t.muted }}>/ {counts.total}</Typography>
+        <Typography sx={{ fontSize: '0.8rem', color: t.muted, ml: 0.5 }}>prices refreshed</Typography>
+      </Box>
+      <Box sx={{ display: 'flex', gap: '2px', height: 4, borderRadius: 2, overflow: 'hidden', bgcolor: t.track, mt: 1.5 }}>
+        <Box sx={{ flex: okShare, bgcolor: t.pos, borderRadius: 2 }} />
+        {okShare < 1 && <Box sx={{ flex: 1 - okShare, bgcolor: t.warn, borderRadius: 2 }} />}
+      </Box>
+      <Box sx={{ display: 'flex', gap: 1, mt: 1.75, flexWrap: 'wrap' }}>
+        {counts.stocks.total > 0 && <Pill label="Stocks" {...counts.stocks} />}
+        {counts.funds.total > 0 && <Pill label="Funds" {...counts.funds} />}
+      </Box>
+
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: summary.notUpdated.length ? '1fr 1fr' : '1fr' }, gap: 2, mt: 2.5 }}>
+        {summary.notUpdated.length > 0 && (
+          <Group title="Needs attention" tone={t.warn}>
+            {summary.notUpdated.map((m) => (
+              <ReportRow key={`${m.kind}-${m.name}`} item={m} sub={`${m.reason} The last saved price stays in use.`}
+                right={<Box sx={{ px: 1, height: 22, display: 'flex', alignItems: 'center', borderRadius: 999, bgcolor: t.warnSoft, color: t.warn, fontSize: '0.68rem', fontWeight: 650, whiteSpace: 'nowrap' }}>Kept last</Box>} />
+            ))}
+          </Group>
+        )}
+        {summary.updated.length > 0 && (
+          <Group title="Updated" tone={t.muted}>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: summary.notUpdated.length ? '1fr' : '1fr 1fr' }, columnGap: 3 }}>
+              {summary.updated.map((u) => (
+                <ReportRow key={`${u.kind}-${u.name}`} item={u} sub={updatedSub(u)}
+                  right={<Typography sx={{ fontFamily: FONT_NUM, fontSize: '0.9rem', fontWeight: 650, letterSpacing: '-0.01em' }}>{formatNumber(u.price, u.dp)}</Typography>} />
+              ))}
             </Box>
-          ))}
-        </Box>
-      )}
-      {updated.length > 0 && (
-        <Box sx={{ mt: 1.75 }}>
-          <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.pos, mb: 0.5 }}>Updated · {updated.length}</Typography>
-          {updated.map((u) => (
-            <Box key={`${u.kind}-${u.name}`} sx={{ display: 'flex', gap: 1.5, py: 0.45, alignItems: 'baseline', flexWrap: 'wrap' }}>
-              <Typography sx={{ fontSize: '0.8rem', fontWeight: 650, minWidth: 70, maxWidth: { md: 320 } }} noWrap>{u.name}</Typography>
-              <Typography sx={{ fontFamily: FONT_NUM, fontSize: '0.74rem', color: t.muted, flex: 1, minWidth: 200 }}>{updatedLine(u)}</Typography>
-            </Box>
-          ))}
-        </Box>
+          </Group>
+        )}
+      </Box>
+      {mufapBlocked && (
+        <Typography sx={{ fontSize: '0.7rem', color: t.muted, mt: 1.5, lineHeight: 1.5 }}>
+          MUFAP’s website is refusing automated requests, so fund prices come from each fund manager’s own website (where MUFAP gets them) or MUFAP’s last published list.
+        </Typography>
       )}
     </Box>
   );
 }
 
-function Results({ run }) {
+function Pill({ label, ok, total }) {
   const t = useFx();
-  const psx = run.details?.psx ?? [];
-  const funds = run.details?.funds ?? [];
-  const row = { display: 'flex', alignItems: 'center', gap: 1.5, py: 0.65 };
+  const full = ok === total;
   return (
-    <Box sx={{ bgcolor: t.surface2, borderRadius: '18px', p: { xs: 1.75, md: 2.25 }, display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2.5 }}>
-      <Box sx={{ minWidth: 0 }}>
-        <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.muted, mb: 0.5 }}>Stocks</Typography>
-        {psx.length === 0 ? <Typography sx={{ fontSize: '0.76rem', color: t.muted }}>None held.</Typography> : psx.map((q) => (
-          <Box key={q.symbol} sx={row}>
-            <Typography sx={{ fontSize: '0.8rem', fontWeight: 700, width: 70 }}>{q.symbol}</Typography>
-            {q.status === 'ok' ? (
-              <>
-                <Typography sx={{ fontFamily: FONT_NUM, fontSize: '0.82rem', fontWeight: 650 }}>{formatCurrency(q.price, 2)}</Typography>
-                <Typography sx={{ fontFamily: FONT_NUM, fontSize: '0.74rem', fontWeight: 650, color: signColor(t, q.change_pct ?? 0) }}>
-                  {q.change_pct === null ? '' : `${q.change_pct > 0 ? '+' : ''}${q.change_pct.toFixed(2)}%`}
-                </Typography>
-                <Typography sx={{ fontSize: '0.68rem', color: t.muted, ml: 'auto' }} noWrap>{q.as_of_text ?? q.as_of}</Typography>
-              </>
-            ) : <Typography sx={{ fontSize: '0.74rem', color: t.warn }}>{q.status === 'not_found' ? 'Not found on PSX' : 'Not updated'}</Typography>}
-          </Box>
-        ))}
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 1.25, height: 28, borderRadius: 999, border: `1px solid ${full ? t.border : t.warn}`, bgcolor: t.hover }}>
+      <Typography sx={{ fontSize: '0.74rem', color: t.muted }}>{label}</Typography>
+      <Typography sx={{ fontFamily: FONT_NUM, fontSize: '0.78rem', fontWeight: 650, color: full ? t.ink : t.warn }}>{ok}/{total}</Typography>
+    </Box>
+  );
+}
+
+function Group({ title, tone, children }) {
+  const t = useFx();
+  return (
+    <Box sx={{ minWidth: 0 }}>
+      <Typography sx={{ fontSize: '0.72rem', fontWeight: 650, color: tone, mb: 0.75, ml: 0.5 }}>{title}</Typography>
+      <Box sx={{ borderRadius: '16px', bgcolor: t.hover, border: `1px solid ${t.border}`, px: 1.5 }}>{children}</Box>
+    </Box>
+  );
+}
+
+function ReportRow({ item, sub, right }) {
+  const t = useFx();
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 1.1, '& + &': { borderTop: `1px solid ${t.border}` } }}>
+      {item.kind === 'stock' ? <StockLogo symbol={item.symbol ?? item.name} size="md" /> : <AmcLogo code={item.code} name={item.amc ?? item.name} size={32} />}
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Typography sx={{ fontSize: '0.84rem', fontWeight: 650 }} noWrap>{item.name}</Typography>
+        <Typography sx={{ fontSize: '0.72rem', color: t.muted, lineHeight: 1.4 }}>{sub}</Typography>
       </Box>
-      <Box sx={{ minWidth: 0 }}>
-        <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.muted, mb: 0.5 }}>Funds</Typography>
-        {funds.length === 0 ? <Typography sx={{ fontSize: '0.76rem', color: t.muted }}>None held.</Typography> : funds.map((f) => (
-          <Box key={f.id} sx={row}>
-            <Typography sx={{ fontSize: '0.78rem', fontWeight: 650, flex: 1, minWidth: 0 }} noWrap>{f.name}</Typography>
-            {f.price ? (
-              <>
-                <Typography sx={{ fontFamily: FONT_NUM, fontSize: '0.82rem', fontWeight: 650 }}>{formatCurrency(f.price, 4)}</Typography>
-                <Tooltip arrow title={`${f.kind === 'repurchase' ? 'Repurchase price' : 'NAV'}, valid for this date · from ${f.source === 'amc' ? (f.amc ?? 'the fund manager') : 'MUFAP'}`}>
-                  <Typography sx={{ fontSize: '0.68rem', color: t.muted, whiteSpace: 'nowrap' }}>{f.nav_date} · {f.source === 'amc' ? 'Manager' : 'MUFAP'}</Typography>
-                </Tooltip>
-              </>
-            ) : <Typography sx={{ fontSize: '0.74rem', color: t.warn }}>Not updated</Typography>}
-          </Box>
-        ))}
-        {run.details?.mufap?.status === 'blocked' && (
-          <Typography sx={{ fontSize: '0.7rem', color: t.muted, mt: 1, lineHeight: 1.5 }}>
-            {funds.some((f) => f.source === 'amc')
-              ? 'MUFAP’s website is refusing automated requests at the moment, so these prices come from each fund manager’s own website, where MUFAP gets them from.'
-              : 'MUFAP’s website is refusing automated requests at the moment, so fund prices stay at the last published NAVs.'}
-          </Typography>
-        )}
-      </Box>
+      {right}
     </Box>
   );
 }
