@@ -51,7 +51,13 @@ export function stockStamp(p) {
     ['Fetched', p.priceSource === 'trade' ? 'Not fetched: taken from your trade' : (stampTime(p.priceFetchedAt) ?? 'Time not recorded')],
     ['Source', source],
   ];
-  return { title: `${p.symbol ?? 'Stock'} · Rs ${Number(p.price).toFixed(2)}`, rows, note: stampNote(p.priceDate) };
+  return {
+    title: `${p.symbol ?? 'Stock'} · Rs ${Number(p.price).toFixed(2)}`, rows, note: stampNote(p.priceDate),
+    // Structured, for the phone's detail sheet.
+    name: p.symbol ?? 'Stock', label: 'Last price', price: `Rs ${Number(p.price).toFixed(2)}`,
+    forDate: stampDate(p.priceDate), fetched: p.priceSource === 'trade' ? null : stampTime(p.priceFetchedAt),
+    source: p.priceSource === 'live' ? (p.priceRefreshed ? 'PSX · live refresh' : 'PSX · daily board') : p.priceSource === 'close' ? 'PSX · closing price' : 'Your last trade',
+  };
 }
 
 /**
@@ -70,7 +76,12 @@ export function fundStamp(price, name = null) {
     ['Fetched', price.source === 'statement' ? 'Not fetched: printed on your statement' : (stampTime(price.fetchedAt) ?? 'Time not recorded')],
     ['Source', source],
   ];
-  return { title: `${name ?? 'Fund'} · Rs ${Number(price.value).toFixed(4)}`, rows, note: stampNote(price.date) };
+  return {
+    title: `${name ?? 'Fund'} · Rs ${Number(price.value).toFixed(4)}`, rows, note: stampNote(price.date),
+    name: name ?? 'Fund', label: kind, price: `Rs ${Number(price.value).toFixed(4)}`,
+    forDate: stampDate(price.date), fetched: price.source === 'statement' ? null : stampTime(price.fetchedAt),
+    source: price.source === 'mufap' ? 'MUFAP' : price.source === 'amc' ? 'Fund manager’s website' : price.source === 'statement' ? 'Your statement' : String(price.source ?? '—'),
+  };
 }
 
 /** A plain warning when the price is for a day well behind today (PKT). */

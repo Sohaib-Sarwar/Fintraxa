@@ -9,13 +9,14 @@ import { refreshSummary, type RefreshSummary } from '@/data/engines';
 import { useSavePrefs } from '@/data/mutations';
 import { useAvatarUrl, useProfile, useUid } from '@/data/queries';
 import { useAvatarUpload, useSaveProfile, validateProfile } from '@/features/me/avatar';
+import { RefreshProgress, nextProgress, startProgress, type Progress } from '@/features/me/RefreshProgress';
 import { RefreshReport } from '@/features/me/RefreshReport';
 import { designOf } from '@/features/today/cardDesigns';
 import { authMessage, firstName, lockNow, signIn, signOut, useAuth } from '@/lib/auth';
 import { bioLoginHint, clearBioLogin, saveBioLogin } from '@/lib/bioLogin';
 import { appVersion, env, isExpoGo } from '@/lib/env';
 import { haptic } from '@/lib/haptics';
-import { afterRefresh, describe, refreshMyPrices } from '@/lib/refreshPrices';
+import { afterRefresh, refreshMyPrices } from '@/lib/refreshPrices';
 import { useApp, useTracks, type Material, type Tracks } from '@/lib/store';
 import { biometricsAvailable, disableBiometricKey, enableBiometricKey } from '@/lib/vault';
 import { BlackGlass, GLASS_INK, GLASS_INK2, GLASS_LINE } from '@/ui/BlackGlass';
@@ -126,7 +127,7 @@ export default function Me() {
   };
   // What was typed, with or without the '#' (no rewriting while typing — that broke the Android keyboard).
   const hexN = `#${hex.trim().replace(/^#/, '')}`.toUpperCase();
-  const [refresh, setRefresh] = useState<{ running: boolean; lines: string[]; error?: string; summary?: RefreshSummary | null }>({ running: false, lines: [] });
+  const [refresh, setRefresh] = useState<{ running: boolean; progress: Progress; error?: string; summary?: RefreshSummary | null }>({ running: false, progress: startProgress() });
   const abort = useRef<AbortController | null>(null);
   const target = useRef<ComponentRef<typeof View>>(null);
 
@@ -152,27 +153,29 @@ export default function Me() {
   const runRefresh = async () => {
     abort.current = new AbortController();
     setSheet('refresh');
-    setRefresh({ running: true, lines: [] });
+    setRefresh({ running: true, progress: startProgress() });
     try {
-      const last = await refreshMyPrices((e) => { const line = describe(e); if (line) setRefresh((s) => ({ ...s, lines: [...s.lines, line] })); }, abort.current.signal);
+      // Ticks as each step lands (owner, 2026-11-22: formal animation, no running commentary).
+      const last = await refreshMyPrices((e) => {
+        setRefresh((s) => ({ ...s, progress: nextProgress(s.progress, e) }));
+        if (e.type === 'source' && e.source === 'psx') haptic.tick();
+      }, abort.current.signal);
       if (last?.type === 'done') {
-        // The formal verdict (owner, 2026-11-22): what was updated, what was not and why.
         const summary = refreshSummary(last.run);
-        setRefresh((s) => ({ ...s, summary }));
         if (summary?.tone === 'ok') haptic.success(); else haptic.warning();
+        // Let the last tick land, then show the report.
+        setTimeout(() => setRefresh((s) => ({ ...s, summary })), 650);
         if (summary) {
-          toast(summary.notUpdated.length ? `${summary.notUpdated.length} not updated: ${summary.notUpdated.map((m) => m.name).join(', ')}` : summary.sub,
-            { title: summary.headline, tone: summary.tone === 'ok' ? 'success' : summary.tone === 'failed' ? 'error' : 'warning' });
+          const { ok, total } = summary.counts;
+          toast(`${ok} of ${total} prices`, { title: summary.tone === 'ok' ? 'Prices updated' : 'Partly updated', tone: summary.tone === 'ok' ? 'success' : summary.tone === 'failed' ? 'error' : 'warning' });
         }
         await afterRefresh(qc);
       }
       if (last?.type === 'error' || last?.type === 'busy') {
-        setRefresh((s) => ({ ...s, error: last.message }));
-        toast(last.message, { title: 'Prices were not refreshed', tone: 'error' });
+        setRefresh((s) => ({ ...s, error: last.type === 'busy' ? 'Already refreshing. Try again shortly.' : 'Refresh failed. Try again.' }));
       }
-    } catch (e) {
-      setRefresh((s) => ({ ...s, error: String((e as Error).message) }));
-      toast(String((e as Error).message), { title: 'Prices were not refreshed', tone: 'error' });
+    } catch {
+      setRefresh((s) => ({ ...s, error: 'Refresh failed. Try again.' }));
     } finally {
       setRefresh((s) => ({ ...s, running: false }));
     }
@@ -384,9 +387,7 @@ export default function Me() {
 
       {sheet === 'refresh' ? (
         <GlassSheet blurTarget={target} smoky title={refresh.summary ? 'Price refresh' : 'Refreshing prices'} onClose={() => { abort.current?.abort(); setSheet(null); }} maxHeight={0.85}>
-          {refresh.summary ? <RefreshReport summary={refresh.summary} /> : refresh.lines.map((l, i) => <Text key={i} variant="body" tone={i === refresh.lines.length - 1 && !refresh.running ? 'ink' : 'ink2'} style={{ paddingVertical: 3 }}>• {l}</Text>)}
-          {refresh.running ? <Text variant="caption" tone="muted" style={{ marginTop: space.sm }}>Up to a minute…</Text> : null}
-          {refresh.error ? <Text variant="body" tone="neg" style={{ marginTop: space.sm }}>{refresh.error}</Text> : null}
+          {refresh.summary ? <RefreshReport summary={refresh.summary} /> : <RefreshProgress progress={refresh.progress} error={refresh.error} />}
           <Gap h={space.lg} />
           <Button label={refresh.running ? 'Running…' : 'Done'} kind="secondary" disabled={refresh.running} onPress={() => setSheet(null)} />
         </GlassSheet>

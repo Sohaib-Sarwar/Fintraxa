@@ -120,7 +120,7 @@ export default function StockDetail() {
         </View>
         <ChevronRight size={18} color={GLASS_INK2} />
       </BlackGlass>
-      <PriceStampSheet stamp={stamp} onClose={() => setStamp(null)} />
+      <PriceStampSheet stamp={stamp} logo={<StockLogo symbol={x.symbol} size={40} />} onClose={() => setStamp(null)} />
     </Screen>
   );
 }

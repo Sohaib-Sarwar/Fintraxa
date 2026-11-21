@@ -91,7 +91,7 @@ export default function FundDetail() {
         </View>
         <ChevronRight size={18} color={GLASS_INK2} />
       </BlackGlass>
-      <PriceStampSheet stamp={stamp} onClose={() => setStamp(null)} />
+      <PriceStampSheet stamp={stamp} logo={<AmcLogo code={x.amcCode} name={x.amcName} size={40} />} onClose={() => setStamp(null)} />
     </Screen>
   );
 }

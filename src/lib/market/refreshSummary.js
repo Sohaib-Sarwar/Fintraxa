@@ -7,6 +7,9 @@ import { stampDate, stampTime } from './priceStamp.js';
 
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 
+/** Two-word versions for the phone report (owner, 2026-11-22: "less text, to the point"). */
+const PSX_SHORT = { not_found: 'Not listed', no_price: 'No trades', unavailable: 'No response' };
+
 const PSX_REASON = {
   not_found: 'Not found on PSX: check the symbol.',
   no_price: 'PSX shows no price for it (not traded, or suspended).',
@@ -46,16 +49,16 @@ export function refreshSummary(run) {
   const codeOf = (f) => f.amc_code ?? (d.amc?.managers ?? []).find((m) => m.amc === f.amc)?.id ?? null;
   for (const q of d.psx ?? []) {
     if (q.status === 'ok' && q.price > 0) {
-      updated.push({ kind: 'stock', name: q.symbol, symbol: q.symbol, price: Number(q.price), dp: 2, date: q.as_of ? String(q.as_of).slice(0, 10) : null, source: /screener/i.test(String(q.as_of_text ?? '')) ? 'PSX screener (all stocks page)' : 'PSX company page' });
+      updated.push({ kind: 'stock', name: q.symbol, symbol: q.symbol, price: Number(q.price), dp: 2, date: q.as_of ? String(q.as_of).slice(0, 10) : null, sourceShort: 'PSX', source: /screener/i.test(String(q.as_of_text ?? '')) ? 'PSX screener (all stocks page)' : 'PSX company page' });
     } else {
-      notUpdated.push({ kind: 'stock', name: q.symbol, symbol: q.symbol, reason: PSX_REASON[q.status] ?? 'PSX gave no price for it.' });
+      notUpdated.push({ kind: 'stock', name: q.symbol, symbol: q.symbol, reason: PSX_REASON[q.status] ?? 'PSX gave no price for it.', short: PSX_SHORT[q.status] ?? 'No price' });
     }
   }
   for (const f of d.funds ?? []) {
     if (f.price > 0 && f.nav_date) {
-      updated.push({ kind: 'fund', name: f.name, code: codeOf(f), amc: f.amc ?? null, price: Number(f.price), dp: 4, date: f.nav_date, source: fundSource(f, d.amc), priceKind: f.kind === 'repurchase' ? 'Repurchase' : 'NAV' });
+      updated.push({ kind: 'fund', name: f.name, code: codeOf(f), amc: f.amc ?? null, price: Number(f.price), dp: 4, date: f.nav_date, source: fundSource(f, d.amc), sourceShort: f.source === 'amc' ? shortAmc(f.amc) : 'MUFAP', priceKind: f.kind === 'repurchase' ? 'Repurchase' : 'NAV' });
     } else {
-      notUpdated.push({ kind: 'fund', name: f.name, code: codeOf(f), amc: f.amc ?? null, reason: fundReason(f, d.amc) });
+      notUpdated.push({ kind: 'fund', name: f.name, code: codeOf(f), amc: f.amc ?? null, reason: fundReason(f, d.amc), short: 'No new price' });
     }
   }
   const stocks = (d.psx ?? []).length; const funds = (d.funds ?? []).length;

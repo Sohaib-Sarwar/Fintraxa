@@ -50,15 +50,18 @@ export const taxYearOf = taxYearOfJs as (iso: string) => number;
 export const taxYearLabel = taxYearLabelJs as (ty: number) => string;
 export const summarizeDividends = summarizeDividendsJs as Loose as (rows: unknown[], o: { start: string; end: string; today: string }) => DividendSummary;
 export const preferNewerPrices = preferNewerPricesJs as Loose as (live: Record<string, unknown>, history: unknown, boardAsOf: string | null, boardFetchedAt?: string | null) => Record<string, unknown>;
-export type PriceStamp = { title: string; rows: [string, string][]; note: string | null };
+export type PriceStamp = {
+  title: string; rows: [string, string][]; note: string | null;
+  name: string; label: string; price: string; forDate: string | null; fetched: string | null; source: string;
+};
 export const stockStamp = stockStampJs as Loose as (p: StockPosition) => PriceStamp | null;
 export const fundStamp = fundStampJs as Loose as (price: FundPosition['price'], name?: string | null) => PriceStamp | null;
 export const fetchedShort = fetchedShortJs as Loose as (ts: string | null | undefined) => string | null;
 type RefreshWho = { kind: 'stock' | 'fund'; name: string; symbol?: string; code?: string | null; amc?: string | null };
-export type RefreshUpdated = RefreshWho & { price: number; dp: number; date: string | null; source: string };
+export type RefreshUpdated = RefreshWho & { price: number; dp: number; date: string | null; source: string; sourceShort?: string };
 type RefreshCount = { ok: number; total: number };
 export type RefreshSummary = {
-  tone: 'ok' | 'partial' | 'failed'; headline: string; sub: string; updated: RefreshUpdated[]; notUpdated: (RefreshWho & { reason: string })[];
+  tone: 'ok' | 'partial' | 'failed'; headline: string; sub: string; updated: RefreshUpdated[]; notUpdated: (RefreshWho & { reason: string; short?: string })[];
   counts: { stocks: RefreshCount; funds: RefreshCount; ok: number; total: number };
 };
 export const refreshSummary = refreshSummaryJs as Loose as (run: unknown) => RefreshSummary | null;
