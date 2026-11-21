@@ -139,7 +139,8 @@ read market data), `market/refreshPrices.js` (streaming), `mf/statementUpload.js
 - Mutual funds: `mf_ledger_entries` + `mf_ledger_components` (append-only ledger), `mf_accounts`, `mf_amcs`, `mf_funds`,
   `mf_fund_aliases`, `mf_nav_history`, `mf_statement_imports`, `mf_staged_transactions`, `mf_import_lines`,
   `mf_approval_requests`, `mf_audit_log`; `mutual_fund_transactions` = legacy, read-only, never read by the client.
-- PSX: `stock_transactions` (price numeric(14,4), `settlement_date`, `broker`, `fee`), `stock_dividends`, `favorite_stocks`, `psx_price_history`.
+- PSX: `stock_transactions` (price numeric(14,4), `settlement_date`, `broker`, `fee`), `stock_dividends`, `favorite_stocks`, `psx_price_history`,
+  `psx_dividend_announcements` (cash dividends of held companies, public read), `upcoming_dividends` (per user: pending/approved/rejected/matched).
 - Market/snapshots: `market_index_history` (+ view `market_index_daily`), `market_refresh_runs`, `portfolio_snapshots`, `holding_snapshots`.
 - Users/admin: `profiles` (username, full_name, filer_status `filer`/`non_filer`/…, avatar_path), `user_profiles`, `admin_audit_log`, `feature_flags`, `deletion_log`.
 - Mobile releases: `app_releases` (version_code pk, version_name, channel preview/production, apk_url https, notes, min_supported_code,
@@ -148,9 +149,9 @@ read market data), `market/refreshPrices.js` (streaming), `mf/statementUpload.js
 - Private schemas (no client access): `mf_private` (ledger logic), `snapshot_private.dirty` (user → recompute-from date),
   `market_private` (`psx_summary_days`, `snapshot_requests`, held_symbols/held_funds), `fx_private.login_attempts`.
 
-**Client RPCs:** `delete_category`, `dividends_save` (merge-aware dividend insert: fills missing fields of an existing row, never a second amount), `market_feed_health`, `mf_approve_staged`, `mf_edit_staged`, `mf_set_review_status`,
+**Client RPCs:** `delete_category`, `upcoming_dividend_approve` / `upcoming_dividend_decide`, `dividends_save` (merge-aware dividend insert: fills missing fields of an existing row, never a second amount), `market_feed_health`, `mf_approve_staged`, `mf_edit_staged`, `mf_set_review_status`,
 `mf_record_manual_entry`, `mf_edit_entry`, `mf_delete_entry`, `mf_delete_import`, `sync_passive_postings`, `username_available`.
-Service-only: `snapshot_work/done`, `psx_backfill_work/save`, `market_refresh_targets/save`, `username_login_*`, `admin_*`.
+Service-only: `snapshot_work/done`, `psx_backfill_work/save`, `market_refresh_targets/save`, `dividend_scan_symbols`, `dividends_upcoming_sync`, `dividend_docs_unread/mark`, `username_login_*`, `admin_*`.
 
 **Edge Functions** (no `supabase/config.toml` — verify_jwt is set at deploy time):
 
@@ -160,6 +161,7 @@ Service-only: `snapshot_work/done`, `psx_backfill_work/save`, `market_refresh_ta
 | `portfolio-snapshot` | off (cron secret or user JWT checked in code) | daily snapshots; `engine/` is **GENERATED** from `src/lib` by `node scripts/sync-snapshot-engine.mjs` | MCP `deploy_edge_function` with `import_map_path: "deno.json"`, or CLI `--no-verify-jwt` |
 | `psx-backfill` | off | missing PSX closes from PSX daily market summaries (fflate) | same |
 | `refresh-prices` | off | live prices for held stocks/funds via worker `/v1/quotes` (PSX pages + `/screener` fallback, MUFAP tab1/3, AMC pages UBL/Meezan/NBP/Atlas); MCB via Gemini URL-context (`amcReader.js`, two agreeing reads); last resort the published MUFAP file; streams NDJSON | `npx supabase@2 functions deploy refresh-prices --no-verify-jwt --project-ref qrekpudclwesajfhrokv --use-api` |
+| `dividends-scan` | off (cron secret or user JWT) | upcoming dividends for held stocks: PSX financial-announcements table (parse.js) + face values; fallback the companies' PSX letters via Gemini (letterReader.js); → `dividends_upcoming_sync` | MCP `deploy_edge_function` (index.ts, handler.js, parse.js, letterReader.js, deno.json) |
 | `username-login` | off | username → sign-in, lockout after failed attempts | `--no-verify-jwt` |
 
 Env names: `MF_ALLOWED_ORIGINS`, `FX_ALLOWED_ORIGINS`, `MARKET_QUOTES_URL`, `MARKET_FUNDS_URL`, `GEMINI_API_KEY` (secret; read-only use: official pages behind bot checks), `GEMINI_MODEL` (default `gemini-3.5-flash-lite`) + standard `SUPABASE_*`.
@@ -170,6 +172,7 @@ Storage buckets: `mf-statements`, `avatars` (private, signed URLs).
 | Job | UTC | PKT | Calls |
 |---|---|---|---|
 | market-refresh-holdings-night | 18:40 | 23:40 | `request_holdings_refresh()` → refresh-prices |
+| dividends-scan-nightly | 18:55 | 23:55 | `request_dividends_scan()` → dividends-scan |
 | market-snapshot-request-night | 21:15 | 02:15 | `request_snapshots()` (pg_net fetch of feed JSON) |
 | market-snapshot-ingest | 21:20, 21:40 | 02:20, 02:40 | `market_private.ingest_snapshots()` |
 | psx-backfill-nightly | 21:35 | 02:35 | `request_backfill()` |
@@ -206,6 +209,15 @@ price precision (`20261109120000`), market refresh (`20261110120000`, `…160000
   mobile tap/long-press `ui/PriceStampSheet.tsx`. After a refresh, `lib/market/refreshSummary.js` gives the formal report
   (updated with price/date/source; not updated with the reason) — web Settings › Market prices card + snackbar, mobile Me sheet + toast.
 - Feed health notice: `market_feed_health()` + `lib/market/health.js` + `MarketDataNotice`.
+- Upcoming dividends (`lib/psx/upcomingDividends.js` wording, `useUpcomingDividends.js`; web PSX › Dividends panel `UpcomingDividends.jsx`;
+  phone Dividend payments › Upcoming + `upcoming-dividend/[id]`): nightly + "Check now". Only held stocks (held now or traded in 120 days).
+  Entitlement (T+1 since 9 Feb 2026): ex-date = last PSX business day before book closure starts; last cum day = the business day
+  before it (`market_private.psx_prev_business_day`, weekends + PSX no-file days); shares = trades up to the last cum day. Rs/share =
+  % × face value / 100 (face value from dps company page; BAFL 5, CLOV 1). Tax 15% filer / 30% non-filer (profiles). Expected pay by =
+  book closure (interim) or AGM (final) + 10 working days. Nothing counts until approved with the amount and date received
+  (→ `dividends_save`). Duplicates: one announcement per (symbol, book closure, type); AI letter never overrides PSX's table;
+  already-recorded dividends are linked as 'matched' (trigger on insert + every scan; one payment ↔ one entry); deleting a
+  dividend returns its entry to pending; approve/reject only from pending. Verified with 12 rolled-back scenarios (QA account).
 
 ## 10. Money rules (summary — full rules in CLAUDE.md and docs/mutual-funds/PROFIT_CALCULATION.md)
 
@@ -301,6 +313,9 @@ category glyphs map MUI names → MaterialIcons (`src/ui/categoryIcons.ts`, test
 ## Change log
 
 Newest first. One line per change: date, commit (or "data"), what and why. Data fixes name the user only by role.
+
+- 2026-11-22 — Upcoming dividends (web + phone). Migrations APPLIED: `20261122160000_upcoming_dividends`, `20261122163000_dividend_docs_read`, `20261122170000_upcoming_dividends_dedupe`, `20261122171000_fix_dividend_delete_trigger` (the dedupe migration's BEFORE DELETE trigger returned NULL for a few minutes, silently blocking dividend deletes; no delete was attempted in that window), `20261122173000_dividends_scan_cron`. Edge Function `dividends-scan` v1; cron 23:55 PKT. First run: 18 held symbols, 11 announcements, 17 pending, 6 auto-matched to recorded dividends. Tests `scripts/psx/dividends-scan.test.mjs` (fixtures: trimmed PSX pages).
+- 2026-11-22 — Refresh report redesigned (web Settings card + phone Me sheet): count with split bar, stock/fund pills, "Needs attention" with reasons, "Updated" rows with logos, source · day and price (`RefreshReport.tsx`, `Summary` in MarketPricesSettings). refresh-prices v6 adds `amc_code` per fund (logos).
 
 - 2026-11-22 — Price stamps + formal refresh report (web + mobile). Hover (web) / tap or long-press (phone) a stock's last price or a fund's NAV → the day it is for, when it was fetched (PKT) and where from. Engines carry it: `analyzeStocks` adds `priceFetchedAt`, `priceRefreshed` and the live price's own date; `preferNewerPrices(…, boardFetchedAt)`; fund prices carry `fetchedAt` (engine.js + profit.js; same day/source → the later fetch). Snapshot engine copy re-synced (no output change; redeploy optional). Refresh now ends with a report: what was updated (price, date, source) and what was not, with the reason; Settings › Market prices also shows the new 'via Google' manager step and the feeds' own schedule text.
 - 2026-11-22 — Refresh-prices hardening: client complaint "only some stocks refresh" was Cloudflare's 50-subrequest cap (Cache API calls count) → worker skips the cache for PSX pages, `/screener` fills misses/stale, batch 15. Funds: NBP + Atlas pages added to the worker; MCB (Cloudflare challenge) read through Gemini URL-context on mcbfunds.com (`amcReader.js`: two reads must agree, ≤10 days old, within 5%/15% of the last price); the published MUFAP file is the last resort. Edge Function v5 deployed; scheduled run: 17/17 stocks, 8/8 funds in 9 s.

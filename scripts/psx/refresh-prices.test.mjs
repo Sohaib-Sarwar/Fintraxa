@@ -256,7 +256,7 @@ test('refresh summary: updated vs not updated, each with its reason', async () =
   assert.equal(s.tone, 'partial');
   assert.equal(s.headline, 'Partly updated: 1 of 2 stocks and 1 of 2 funds.');
   assert.equal(s.updated[0].source, 'PSX screener (all stocks page)');
-  assert.equal(s.updated[1].source, 'M1 website (read via Google)');
+  assert.equal(s.updated[1].source, 'M1 website, via Google');
   assert.match(s.notUpdated[0].reason, /did not answer in time/);
   assert.match(s.notUpdated[1].reason, /M2’s website did not answer/);
   const all = refreshSummary({ details: { psx: [{ symbol: 'AAA', status: 'ok', price: 1, as_of: '2026-11-20' }], funds: [] } });

@@ -11,7 +11,7 @@ import { duplicateStatus as duplicateStatusJs, oversoldRefs as oversoldRefsJs, t
 import { dividendDuplicates as dividendDuplicatesJs, dividendKey as dividendKeyJs } from '@core/psx/dividends.js';
 import { analyzeFunds as analyzeFundsJs } from '@core/mf/profit.js';
 import { fetchedShort as fetchedShortJs, fundStamp as fundStampJs, stockStamp as stockStampJs } from '@core/market/priceStamp.js';
-import { refreshSummary as refreshSummaryJs, updatedLine as updatedLineJs } from '@core/market/refreshSummary.js';
+import { refreshSummary as refreshSummaryJs, updatedLine as updatedLineJs, updatedSub as updatedSubJs } from '@core/market/refreshSummary.js';
 import { analyzeStocks as analyzeStocksJs, normSymbol as normSymbolJs } from '@core/psx/portfolio.js';
 import { nccplPeriod as nccplPeriodJs, nccplReport as nccplReportJs, taxYearLabel as taxYearLabelJs, taxYearOf as taxYearOfJs } from '@core/psx/nccpl.js';
 import { summarizeDividends as summarizeDividendsJs } from '@core/psx/dividends.js';
@@ -54,10 +54,16 @@ export type PriceStamp = { title: string; rows: [string, string][]; note: string
 export const stockStamp = stockStampJs as Loose as (p: StockPosition) => PriceStamp | null;
 export const fundStamp = fundStampJs as Loose as (price: FundPosition['price'], name?: string | null) => PriceStamp | null;
 export const fetchedShort = fetchedShortJs as Loose as (ts: string | null | undefined) => string | null;
-export type RefreshUpdated = { kind: 'stock' | 'fund'; name: string; price: number; dp: number; date: string | null; source: string };
-export type RefreshSummary = { tone: 'ok' | 'partial' | 'failed'; headline: string; sub: string; updated: RefreshUpdated[]; notUpdated: { kind: 'stock' | 'fund'; name: string; reason: string }[] };
+type RefreshWho = { kind: 'stock' | 'fund'; name: string; symbol?: string; code?: string | null; amc?: string | null };
+export type RefreshUpdated = RefreshWho & { price: number; dp: number; date: string | null; source: string };
+type RefreshCount = { ok: number; total: number };
+export type RefreshSummary = {
+  tone: 'ok' | 'partial' | 'failed'; headline: string; sub: string; updated: RefreshUpdated[]; notUpdated: (RefreshWho & { reason: string })[];
+  counts: { stocks: RefreshCount; funds: RefreshCount; ok: number; total: number };
+};
 export const refreshSummary = refreshSummaryJs as Loose as (run: unknown) => RefreshSummary | null;
 export const updatedLine = updatedLineJs as Loose as (u: RefreshUpdated) => string;
+export const updatedSub = updatedSubJs as Loose as (u: RefreshUpdated) => string;
 export const staleFeeds = staleFeedsJs as Loose as (rows: FeedHealthRow[], now?: Date) => { feed: string; name: string; latest: string | null; behind: number }[];
 export const getStockSector = getStockSectorJs as (symbol: string) => string;
 

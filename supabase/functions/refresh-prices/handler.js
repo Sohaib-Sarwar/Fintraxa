@@ -199,7 +199,7 @@ export async function refresh({ userId = null, admin, quotes, emit = () => {}, n
           source: picked.source, slug: picked.source === 'amc' ? (picked.source_url ?? f.slug) : f.slug,
         });
       }
-      return { id: f.id, name: f.name, amc: f.amc, ...(picked ?? { status: 'not_found' }) };
+      return { id: f.id, name: f.name, amc: f.amc, amc_code: f.amc_code ?? null, ...(picked ?? { status: 'not_found' }) };
     });
 
     const tS = now();

@@ -9,6 +9,7 @@ import { useFx, PageHeader, Panel, PanelHeader, SummaryCard, AllocationDonut, Ea
 import StockLogo from '../../components/StockLogo';
 import DividendDialog from './DividendDialog';
 import DividendTransactions from './DividendTransactions';
+import UpcomingDividends from './UpcomingDividends';
 
 /** Cash dividends: what came in for the selected range, month by month, and from which stocks. */
 export default function Dividends() {
@@ -63,6 +64,7 @@ export default function Dividends() {
     return (
       <Box>
         {header}
+        <UpcomingDividends />
         <Panel sx={{ alignItems: 'center', textAlign: 'center', py: 7 }}>
           <Typography sx={{ fontSize: '1.05rem', fontWeight: 700, mb: 0.5 }}>No dividends recorded yet</Typography>
           <Typography sx={{ fontSize: '0.84rem', color: t.muted, mb: 2.5, maxWidth: 420 }}>
@@ -82,6 +84,7 @@ export default function Dividends() {
   return (
     <FitPage>
       {header}
+      <UpcomingDividends />
 
       <SummaryCard
         label="Dividends received"

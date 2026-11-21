@@ -5,10 +5,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import { Linking, Platform, Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from 'react-native';
-import { refreshSummary, updatedLine, type RefreshSummary } from '@/data/engines';
+import { refreshSummary, type RefreshSummary } from '@/data/engines';
 import { useSavePrefs } from '@/data/mutations';
 import { useAvatarUrl, useProfile, useUid } from '@/data/queries';
 import { useAvatarUpload, useSaveProfile, validateProfile } from '@/features/me/avatar';
+import { RefreshReport } from '@/features/me/RefreshReport';
 import { designOf } from '@/features/today/cardDesigns';
 import { authMessage, firstName, lockNow, signIn, signOut, useAuth } from '@/lib/auth';
 import { bioLoginHint, clearBioLogin, saveBioLogin } from '@/lib/bioLogin';
@@ -382,7 +383,7 @@ export default function Me() {
       ) : null}
 
       {sheet === 'refresh' ? (
-        <GlassSheet blurTarget={target} smoky title={refresh.summary ? 'Price refresh report' : 'Refreshing prices'} onClose={() => { abort.current?.abort(); setSheet(null); }} maxHeight={0.85}>
+        <GlassSheet blurTarget={target} smoky title={refresh.summary ? 'Price refresh' : 'Refreshing prices'} onClose={() => { abort.current?.abort(); setSheet(null); }} maxHeight={0.85}>
           {refresh.summary ? <RefreshReport summary={refresh.summary} /> : refresh.lines.map((l, i) => <Text key={i} variant="body" tone={i === refresh.lines.length - 1 && !refresh.running ? 'ink' : 'ink2'} style={{ paddingVertical: 3 }}>• {l}</Text>)}
           {refresh.running ? <Text variant="caption" tone="muted" style={{ marginTop: space.sm }}>Up to a minute…</Text> : null}
           {refresh.error ? <Text variant="body" tone="neg" style={{ marginTop: space.sm }}>{refresh.error}</Text> : null}
@@ -394,46 +395,8 @@ export default function Me() {
   );
 }
 
-/** The formal result of a refresh: verdict, what was not updated (with the reason), then what was. */
-function RefreshReport({ summary }: { summary: RefreshSummary }) {
-  const color = summary.tone === 'ok' ? dark.pos : summary.tone === 'failed' ? dark.neg : dark.warn;
-  return (
-    <View accessibilityLiveRegion="polite">
-      <View style={[styles.reportHead, { borderLeftColor: color }]}>
-        <Text variant="body" weight="Inter_600SemiBold" style={{ color: GLASS_INK }}>{summary.headline}</Text>
-        {summary.sub ? <Text variant="caption" style={{ color: GLASS_INK2, marginTop: 2 }}>{summary.sub}</Text> : null}
-      </View>
-      {summary.notUpdated.length ? (
-        <>
-          <Text variant="caption" style={[styles.reportSection, { color: dark.warn }]}>NOT UPDATED · {summary.notUpdated.length}</Text>
-          {summary.notUpdated.map((m) => (
-            <View key={`${m.kind}-${m.name}`} style={styles.reportRow}>
-              <Text variant="body" weight="Inter_600SemiBold" style={{ color: GLASS_INK }} numberOfLines={1}>{m.name}</Text>
-              <Text variant="caption" style={{ color: GLASS_INK2 }}>{m.reason} The last saved price stays in use.</Text>
-            </View>
-          ))}
-        </>
-      ) : null}
-      {summary.updated.length ? (
-        <>
-          <Text variant="caption" style={[styles.reportSection, { color: dark.pos }]}>UPDATED · {summary.updated.length}</Text>
-          {summary.updated.map((u) => (
-            <View key={`${u.kind}-${u.name}`} style={styles.reportRow}>
-              <Text variant="body" weight="Inter_600SemiBold" style={{ color: GLASS_INK }} numberOfLines={1}>{u.name}</Text>
-              <Text variant="caption" style={{ color: GLASS_INK2, fontVariant: ['tabular-nums'] }}>{updatedLine(u)}</Text>
-            </View>
-          ))}
-        </>
-      ) : null}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  reportHead: { borderLeftWidth: 3, paddingLeft: space.md, paddingVertical: 2 },
-  reportSection: { marginTop: space.lg, marginBottom: 4, letterSpacing: 0.8, fontFamily: font.bold },
-  reportRow: { paddingVertical: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: GLASS_LINE },
   profile: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingVertical: space.lg },
   camera: { position: 'absolute', right: -2, bottom: -2, width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#000' },
   editChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.08)' },
