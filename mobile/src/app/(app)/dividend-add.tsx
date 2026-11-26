@@ -8,7 +8,7 @@ import Svg, { Path } from 'react-native-svg';
 import { useStocksAnalysis } from '@/data/portfolio';
 import { friendlyError } from '@/data/mutations';
 import { useDividends, useProfile, useUid } from '@/data/queries';
-import { checkDividend, dividendAmounts, sharesHeldOn, useAddDividend, WHT_FILER, WHT_NON_FILER } from '@/features/dividends/addDividend';
+import { checkDividend, dividendAmounts, sharesHeldOn, useAddDividend, WHT_FILER, WHT_NON_FILER, type DividendOutcome } from '@/features/dividends/addDividend';
 import { ALL_TIME_START, longDate, shortDate, todayIso } from '@/lib/dates';
 import { group, units } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
@@ -72,7 +72,7 @@ export default function DividendAdd() {
   const [dateOpen, setDateOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState<{ id: string; gross: string; tax: string; net: string } | null>(null);
+  const [done, setDone] = useState<{ id: string; outcome: DividendOutcome; gross: string; tax: string; net: string } | null>(null);
 
   const positions = useMemo(() => stocks.analysis?.allPositions ?? [], [stocks.analysis]);
   const pos = positions.find((x) => x.symbol === symbol) ?? null;
@@ -128,7 +128,7 @@ export default function DividendAdd() {
   };
 
   if (done) {
-    return <DividendDone symbol={draft.symbol} company={draft.companyName} net={done.net} gross={done.gross} tax={done.tax} rate={amounts.rate}
+    return <DividendDone outcome={done.outcome} symbol={draft.symbol} company={draft.companyName} net={done.net} gross={done.gross} tax={done.tax} rate={amounts.rate}
       shares={sharesVal} dps={dps} date={date}
       onDone={close} onReceipt={() => router.replace({ pathname: '/dividend/[id]', params: { id: done.id } })} />;
   }
@@ -240,8 +240,8 @@ export default function DividendAdd() {
 }
 
 /** Saved: the accent disc and check draw in, then the receipt's essentials rise in; Done or the full receipt. */
-function DividendDone({ symbol, company, net, gross, tax, rate, shares, dps, date, onDone, onReceipt }: {
-  symbol: string; company: string | null; net: string; gross: string; tax: string; rate: string; shares: string; dps: string; date: string;
+function DividendDone({ outcome, symbol, company, net, gross, tax, rate, shares, dps, date, onDone, onReceipt }: {
+  outcome: DividendOutcome; symbol: string; company: string | null; net: string; gross: string; tax: string; rate: string; shares: string; dps: string; date: string;
   onDone: () => void; onReceipt: () => void;
 }) {
   const insets = useSafeAreaInsets();
@@ -270,8 +270,16 @@ function DividendDone({ symbol, company, net, gross, tax, rate, shares, dps, dat
           </Svg>
         </Animated.View>
         <Animated.View entering={FadeInDown.delay(260).duration(320).easing(EASE)} style={{ alignItems: 'center', marginTop: space.lg, gap: 4 }}>
-          <Text style={styles.doneTitle} accessibilityRole="header">Dividend added</Text>
-          <Text style={styles.doneAmount} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>+Rs {group(net, 2)}</Text>
+          <Text style={styles.doneTitle} accessibilityRole="header">
+            {outcome === 'added' ? 'Dividend added' : outcome === 'completed' ? 'Already on file — updated' : 'Already saved'}
+          </Text>
+          {outcome === 'added'
+            ? <Text style={styles.doneAmount} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>+Rs {group(net, 2)}</Text>
+            : <Text style={[styles.sub, { textAlign: 'center', maxWidth: 300 }]}>
+                {outcome === 'completed'
+                  ? `This ${symbol} payment was already in your dividends (from your CDC report). Its missing details were filled in; the amount was not added again.`
+                  : `This ${symbol} payment is already in your dividends with these details. Nothing was added.`}
+              </Text>}
         </Animated.View>
       </View>
       <Animated.View entering={FadeInDown.delay(380).duration(340).easing(EASE)}>

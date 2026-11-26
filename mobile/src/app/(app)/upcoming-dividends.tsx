@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { useEffect } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, { Easing, cancelAnimation, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
-import { describeUpcoming, useCheckDividendsNow, useUpcoming } from '@/data/upcoming';
+import { checkSummary, describeUpcoming, useCheckDividendsNow, useUpcoming } from '@/data/upcoming';
 import { shortDate } from '@/lib/dates';
 import { compactNumber, group } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
@@ -33,8 +33,8 @@ export default function UpcomingDividends() {
     haptic.tick();
     check.mutate(undefined, {
       onSuccess: (r) => {
-        const n = r?.found?.length ?? 0;
-        toast(n ? `${n} announced on your stocks` : 'No new dividends', { title: 'PSX checked' });
+        const s = checkSummary(r);
+        toast(s.text, { title: s.title, tone: s.tone });
       },
       onError: () => toast('Try again shortly', { title: 'Check did not finish', tone: 'error' }),
     });

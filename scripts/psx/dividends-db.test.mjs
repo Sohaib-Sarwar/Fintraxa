@@ -81,3 +81,52 @@ test('edits bump updated_at; deletes land in deletion_log', async () => {
   const log = await one(`select table_name, record_data->>'symbol' s from public.deletion_log where record_id = $1`, [before.id]);
   assert.deepEqual([log.table_name, log.s], ['stock_dividends', 'FFC']);
 });
+
+// dividends_save (20261122120000 + 20261126120000): a CDC report completes dividends typed by hand, never adds twice.
+const saveFull = (uid, rows) => asUser(db, uid, async () => (await one(`select public.dividends_save($1::jsonb) r`, [JSON.stringify(rows)])).r);
+const save = async (uid, rows) => { const { results, ...counts } = await saveFull(uid, rows); assert.equal(results.length, rows.length); return counts; };
+const cdcRow = (o) => ({ symbol: 'MEBX', payment_date: '2026-11-14', issue_date: '2026-11-10', warrant_no: '4756345', account_ref: '10000-200000',
+  company_name: 'MEBX BANK LIMITED', filer_status: 'filer', filer_status_raw: 'Filler', shares: '2', gross_amount: '16.00', tax_amount: '2.00',
+  jh_tax_amount: '0.00', zakat_amount: '0.00', net_amount: '14.00', source: 'statement', ...o });
+
+test('CDC report completes a hand-added dividend (same day, and a day apart); a re-upload changes nothing', async () => {
+  const W = randomUUID();
+  await db.query(`insert into auth.users (id, email) values ($1, 'w@test')`, [W]);
+  // Typed by hand without the CDC details; one on the CDC day, one dated the day the money arrived.
+  const hand = await save(W, [
+    { symbol: 'MEBX', payment_date: '2026-11-14', shares: '2', gross_amount: '16.00', tax_amount: '2.00', net_amount: '14.00', filer_status: 'filer' },
+    { symbol: 'SAZX', payment_date: '2026-11-18', shares: '1', gross_amount: '5.00', tax_amount: '1.00', net_amount: '4.00', filer_status: 'filer', dps: '5' },
+  ]);
+  assert.deepEqual(hand, { added: 2, completed: 0, skipped: 0 });
+
+  const report = [cdcRow({}), cdcRow({ symbol: 'SAZX', payment_date: '2026-11-19', issue_date: '2026-11-18', warrant_no: '26029354', company_name: 'SAZX LIMITED',
+    filer_status_raw: 'Filer', shares: '1', gross_amount: '5.00', tax_amount: '1.00', net_amount: '4.00' }), cdcRow({ symbol: 'NEWX', warrant_no: '1', gross_amount: '9.00', tax_amount: '1.35', net_amount: '7.65' })];
+  assert.deepEqual(await save(W, report), { added: 1, completed: 2, skipped: 0 });
+
+  const rows = await asUser(db, W, async () => (await db.query(`select symbol, payment_date::text pay, issue_date::text issue, warrant_no, account_ref, company_name,
+    filer_status_raw, dps::text, net_amount::text net, source from public.stock_dividends order by symbol`)).rows);
+  const m = Object.fromEntries(rows.map((r) => [r.symbol, r]));
+  assert.equal(rows.length, 3, 'nothing added twice');
+  assert.deepEqual([m.MEBX.warrant_no, m.MEBX.issue, m.MEBX.account_ref, m.MEBX.company_name, m.MEBX.filer_status_raw, m.MEBX.dps, m.MEBX.net, m.MEBX.source],
+    ['4756345', '2026-11-10', '10000-200000', 'MEBX BANK LIMITED', 'Filler', '8.0000', '14.00', 'manual']);
+  // The owner's own date stays; the issue date (18th) is not after it (18th), so it is filled.
+  assert.deepEqual([m.SAZX.pay, m.SAZX.warrant_no, m.SAZX.issue, m.SAZX.dps], ['2026-11-18', '26029354', '2026-11-18', '5.0000']);
+
+  // The same report again: every row is already on file with all its details.
+  assert.deepEqual(await save(W, report), { added: 0, completed: 0, skipped: 3 });
+});
+
+test('results name the dividend and the outcome of every row; a hand entry made after the report is not a second dividend', async () => {
+  const X = randomUUID();
+  await db.query(`insert into auth.users (id, email) values ($1, 'x@test')`, [X]);
+  const first = await saveFull(X, [cdcRow({ symbol: 'HUBX', payment_date: '2026-11-21', warrant_no: '61094295', shares: '1', gross_amount: '5.00', tax_amount: '1.00', net_amount: '4.00' })]);
+  assert.equal(first.results[0].action, 'added');
+  // The owner then types the same payment by hand (a day later, the day it reached the bank).
+  const hand = await saveFull(X, [{ symbol: 'HUBX', payment_date: '2026-11-22', shares: '1', gross_amount: '5.00', tax_amount: '1.00', net_amount: '4.00', dps: '5', dividend_type: 'interim', source: 'manual' }]);
+  assert.deepEqual([hand.added, hand.completed, hand.results[0].action, hand.results[0].id], [0, 1, 'completed', first.results[0].id]);
+  const n = await asUser(db, X, async () => (await one(`select count(*)::int n, max(dividend_type) t, max(dps)::text dps from public.stock_dividends`)));
+  assert.deepEqual([n.n, n.t, n.dps], [1, 'interim', '5.0000']);
+  // The same report row again → skipped, still pointing at that dividend.
+  const again = await saveFull(X, [cdcRow({ symbol: 'HUBX', payment_date: '2026-11-21', warrant_no: '61094295', shares: '1', gross_amount: '5.00', tax_amount: '1.00', net_amount: '4.00' })]);
+  assert.deepEqual(again.results, [{ id: first.results[0].id, action: 'skipped' }]);
+});

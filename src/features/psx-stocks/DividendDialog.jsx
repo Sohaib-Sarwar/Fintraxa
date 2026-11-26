@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Box, Dialog, DialogContent, Typography, IconButton, ButtonBase, InputBase, useMediaQuery } from '@mui/material';
 import { CloseRounded, DeleteOutlineRounded } from '@mui/icons-material';
 import { dbErrorHandler } from '../../lib/dbErrors';
@@ -9,7 +9,12 @@ import { useSaveDividends, useEditDividend, useDeleteDividend } from '../../lib/
 import { useFx, Seg, FONT_NUM } from '../../components/fx';
 import DateField from '../../components/fx/DateField';
 import StockLogo from '../../components/StockLogo';
+import Receipt, { ReceiptToolbar } from '../../components/Receipt';
+import { downloadReceipt, receiptDate } from '../../lib/receipt';
+import { getStockName } from '../../lib/stockMeta';
 import DividendUpload from './DividendUpload';
+import UpcomingDividends from './UpcomingDividends';
+import { useUpcomingDividends } from '../../lib/psx/useUpcomingDividends';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const fmtDate = (d) => (d ? new Date(`${d}T00:00:00`).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
@@ -17,30 +22,51 @@ const num = (v) => { const n = Number(String(v ?? '').replace(/,/g, '')); return
 const FILER = [{ value: 'filer', label: 'Filer' }, { value: 'non_filer', label: 'Non-filer' }, { value: 'unknown', label: 'Not sure' }];
 
 /**
- * Add dividends (upload a CDC report, or one by hand) or edit / delete one.
+ * Add dividends (upload a CDC report, enter one by hand, or confirm an upcoming one PSX announced) or edit / delete one.
  * dividend: an existing row to edit, or null to add.
- * existing: every dividend on file, to mark warrants already saved.
+ * existing: every dividend on file, to tell new rows from ones to complete or already saved.
+ * initialMode: 'upload' | 'manual' | 'upcoming' (the tab to open on).
  */
-export default function DividendDialog({ dividend, existing = [], onClose }) {
+export default function DividendDialog({ dividend, existing = [], initialMode = 'upload', onClose }) {
   const t = useFx();
   const isMobile = useMediaQuery('(max-width:768px)');
   const editing = !!dividend;
-  const [mode, setMode] = useState(editing ? 'manual' : 'upload');
+  // An existing dividend opens on its receipt; Edit swaps it for the form.
+  const [mode, setMode] = useState(editing ? 'view' : initialMode);
+  const waiting = useUpcomingDividends().data?.length ?? 0;
+  const upcomingLabel = (
+    <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.6 }}>
+      Upcoming
+      {waiting > 0 && (
+        <Box component="span" aria-label={`${waiting} waiting`} sx={{ minWidth: 18, height: 18, px: 0.5, borderRadius: 999, bgcolor: t.warn, color: '#fff',
+          fontSize: '0.64rem', fontWeight: 750, display: 'inline-grid', placeItems: 'center', lineHeight: 1 }}>{waiting}</Box>
+      )}
+    </Box>
+  );
 
   return (
-    <Dialog open onClose={onClose} fullWidth maxWidth={mode === 'upload' ? 'sm' : 'xs'}
+    <Dialog open onClose={onClose} fullWidth maxWidth={mode === 'manual' || mode === 'view' ? 'xs' : 'sm'}
       slotProps={{ paper: { sx: { borderRadius: '24px', bgcolor: t.surface, backgroundImage: 'none', p: 0, m: isMobile ? 1.25 : 4, width: isMobile ? 'calc(100% - 20px)' : undefined } } }}>
       <DialogContent sx={{ p: isMobile ? 2 : 2.5 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.75 }}>
-          <Typography sx={{ fontSize: '1.02rem', fontWeight: 750, flex: 1 }}>{editing ? 'Dividend' : 'Add dividends'}</Typography>
-          <IconButton size="small" aria-label="Close" onClick={onClose}><CloseRounded fontSize="small" /></IconButton>
-        </Box>
-        {!editing && (
-          <Box sx={{ mb: 2 }}>
-            <Seg label="How to add" value={mode} onChange={setMode} options={[{ value: 'upload', label: 'Upload report' }, { value: 'manual', label: 'Enter manually' }]} />
+        {mode === 'view' ? <DividendReceipt d={dividend} onEdit={() => setMode('manual')} onClose={onClose} /> : (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.75 }}>
+            <Typography sx={{ fontSize: '1.02rem', fontWeight: 750, flex: 1 }}>{editing ? 'Edit dividend' : 'Add dividends'}</Typography>
+            <IconButton size="small" aria-label="Close" onClick={onClose}><CloseRounded fontSize="small" /></IconButton>
           </Box>
         )}
-        {mode === 'upload' ? <DividendUpload existing={existing} onClose={onClose} /> : <ManualForm dividend={dividend} onDone={onClose} />}
+        {!editing && (
+          <Box sx={{ mb: 2 }}>
+            <Seg label="How to add" value={mode} onChange={setMode}
+              options={[
+                { value: 'upload', label: isMobile ? 'Upload' : 'Upload report', title: 'Upload your CDC dividend report' },
+                { value: 'manual', label: isMobile ? 'By hand' : 'Enter manually', title: 'Enter a dividend you received' },
+                { value: 'upcoming', label: upcomingLabel, title: 'Dividends PSX announced on your stocks' },
+              ]} />
+          </Box>
+        )}
+        {mode === 'upload' && <DividendUpload existing={existing} onClose={onClose} />}
+        {mode === 'manual' && <ManualForm dividend={dividend} onDone={onClose} />}
+        {mode === 'upcoming' && <UpcomingDividends />}
       </DialogContent>
     </Dialog>
   );
@@ -155,5 +181,73 @@ function ManualForm({ dividend, onDone }) {
         </ButtonBase>
       </Box>
     </Box>
+  );
+}
+
+const TYPE = { interim: 'Interim cash dividend', final: 'Final cash dividend', special: 'Special cash dividend' };
+const FILER_LABEL = { filer: 'Filer (active taxpayer)', non_filer: 'Non-filer' };
+
+/**
+ * The formal receipt of one dividend (owner, 2026-11-26): what was declared on your shares, what was withheld, what
+ * reached you, and the CDC warrant details. A dividend entered by hand shows its warrant as awaiting the CDC report;
+ * uploading the report fills it in (dividends_save) and the receipt then shows it.
+ */
+function DividendReceipt({ d, onEdit, onClose }) {
+  const t = useFx();
+  const slip = useRef(null);
+  const showSnackbar = useAppStore((s) => s.showSnackbar);
+  const showConfirm = useAppStore((s) => s.showConfirm);
+  const del = useDeleteDividend();
+  const shares = num(d.shares);
+  const gross = num(d.gross_amount);
+  const tax = num(d.tax_amount);
+  const jh = num(d.jh_tax_amount);
+  const zakat = num(d.zakat_amount);
+  const dps = d.dps !== null && d.dps !== undefined && d.dps !== '' ? num(d.dps) : (shares > 0 ? gross / shares : null);
+  const rate = gross > 0 ? Math.round(((tax + jh) / gross) * 1000) / 10 : null;
+  const fromReport = !!d.warrant_no;
+  const awaiting = <Box component="span" sx={{ color: t.muted, fontFamily: 'inherit', fontWeight: 500 }}>Awaiting CDC report</Box>;
+
+  const download = async () => {
+    if (!slip.current) return;
+    try {
+      await downloadReceipt(slip.current, `dividend-${d.symbol}-${d.payment_date}.png`, t.surface, t.muted);
+    } catch {
+      showSnackbar('Could not create the receipt', 'error');
+    }
+  };
+  const askDelete = () => showConfirm('Delete this dividend?', `The ${d.symbol} dividend paid ${fmtDate(d.payment_date)} is removed permanently. This cannot be undone.`,
+    () => del.mutate(d.id, {
+      onSuccess: () => { showSnackbar('Dividend deleted', 'success'); onClose(); },
+      onError: dbErrorHandler(showSnackbar, 'Could not delete the dividend'),
+    }));
+
+  return (
+    <>
+      <ReceiptToolbar onDelete={askDelete} onDownload={download} onEdit={onEdit} onClose={onClose} busy={del.isPending} />
+      <Receipt boxRef={slip}
+        label="Dividend received (net)"
+        tone="pos"
+        amount={`+${formatCurrency(num(d.net_amount), 2)}`}
+        subject={{ logo: <StockLogo symbol={d.symbol} size="sm" />, title: d.symbol, sub: getStockName(d.symbol, d.company_name) }}
+        rows={[
+          ['Payment date', receiptDate(d.payment_date)],
+          ['Dividend', TYPE[d.dividend_type] ?? 'Cash dividend'],
+          ['Shares held', shares.toLocaleString('en-US', { maximumFractionDigits: 4 })],
+          ['Dividend per share', dps === null ? null : formatCurrency(dps, Math.abs(dps * 100 - Math.round(dps * 100)) > 1e-6 ? 4 : 2)],
+          ['Gross dividend', formatCurrency(gross, 2)],
+          [`Tax withheld${rate !== null ? ` (${rate}%)` : ''}`, `− ${formatCurrency(tax, 2)}`],
+          ['Joint holder tax', jh > 0 ? `− ${formatCurrency(jh, 2)}` : null],
+          ['Zakat', zakat > 0 ? `− ${formatCurrency(zakat, 2)}` : null],
+          ['Net received', formatCurrency(num(d.net_amount), 2)],
+          ['Filer status', FILER_LABEL[d.filer_status] ?? null],
+          ['Issue date', d.issue_date ? receiptDate(d.issue_date) : null],
+          ['Warrant no.', d.warrant_no || awaiting],
+          ['CDC account', d.account_ref || (fromReport ? null : awaiting)],
+          ['Recorded from', fromReport ? (d.source === 'statement' ? 'CDC dividend report' : 'Entered by hand, confirmed by CDC report') : 'Entered by hand'],
+          ['Note', d.notes?.trim() || null],
+        ]}
+        reference={d.warrant_no || String(d.id).slice(0, 8).toUpperCase()} />
+    </>
   );
 }

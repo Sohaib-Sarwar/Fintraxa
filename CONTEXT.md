@@ -87,7 +87,7 @@ Postgres (pg_cron)
 - **psx-stocks:** `PSXSection`, `Dashboard` (+ `BenchmarkChart` vs KSE-100), `SharesPage` (board + watchlist
   `favorite_stocks`), `StockTransactions` / `TradeDialog` (live quote, auto fee) / `TradeEditor` /
   `TradeImportDialog` (AKD/KTrade PDFs), `Dividends` / `DividendTransactions` / `DividendDialog` /
-  `DividendUpload` (CDC PDF), `Analytics` + `GainPanels` (Realized / Unrealized cards) + `NccplReport`
+  `DividendUpload` (CDC PDF: New / Completes a hand entry / Already saved, then an Added · Updated summary), `UpcomingDividends` (tab inside the Add dividends dialog), `Analytics` + `GainPanels` (Realized / Unrealized cards) + `NccplReport`
   (NCCPL-style CGT statement, direct A4 PDF), `Research` + `Tools` (static March 2026 data in
   `src/data/psxResearch.js`, not live), `StockDetailsDialog`, `importKit`, `BrokerLogo`.
 - **settings:** `SettingsDialog` (profile, tax, accounts, categories, prices, xyro, security),
@@ -149,7 +149,7 @@ read market data), `market/refreshPrices.js` (streaming), `mf/statementUpload.js
 - Private schemas (no client access): `mf_private` (ledger logic), `snapshot_private.dirty` (user → recompute-from date),
   `market_private` (`psx_summary_days`, `snapshot_requests`, held_symbols/held_funds), `fx_private.login_attempts`.
 
-**Client RPCs:** `delete_category`, `upcoming_dividend_approve` / `upcoming_dividend_decide`, `dividends_save` (merge-aware dividend insert: fills missing fields of an existing row, never a second amount), `market_feed_health`, `mf_approve_staged`, `mf_edit_staged`, `mf_set_review_status`,
+**Client RPCs:** `delete_category`, `upcoming_dividend_approve` / `upcoming_dividend_decide`, `dividends_save` (merge-aware dividend insert: fills missing fields of an existing row, never a second amount; returns counts + `results` [{id, action added|completed|skipped}] per row; the apps classify report rows with the same rules first — `dividendMatches` in `lib/psx/dividends.js`), `market_feed_health`, `mf_approve_staged`, `mf_edit_staged`, `mf_set_review_status`,
 `mf_record_manual_entry`, `mf_edit_entry`, `mf_delete_entry`, `mf_delete_import`, `sync_passive_postings`, `username_available`.
 Service-only: `snapshot_work/done`, `psx_backfill_work/save`, `market_refresh_targets/save`, `dividend_scan_symbols`, `dividends_upcoming_sync`, `dividend_docs_unread/mark`, `username_login_*`, `admin_*`.
 
@@ -192,7 +192,8 @@ base schema (`20250301…`, `20260927…baseline_live_schema`), MF ledger (`2026
 history (`20261107140000`), PSX dividends/confirmations (`20261108120000/130000`), finance passive/savings
 (`20261108140000/150000`), profiles + username login (`20261108160000`), daily snapshots (`20261108170000`),
 index benchmark (`20261109100000`), delete_category (`20261109101000`), backfill + feed health (`20261109110000`),
-price precision (`20261109120000`), market refresh (`20261110120000`, `…160000` AMC + schedule), mobile prefs + releases (`20261113120000`).
+price precision (`20261109120000`), market refresh (`20261110120000`, `…160000` AMC + schedule), mobile prefs + releases (`20261113120000`),
+dividends merge / upcoming (`20261122…`), report completion + scan counts (`20261126120000`), `dividends_save` results (`20261126130000`).
 `sql/` files are superseded — do not run.
 
 ## 9. Market data
@@ -209,7 +210,7 @@ price precision (`20261109120000`), market refresh (`20261110120000`, `…160000
   mobile tap/long-press `ui/PriceStampSheet.tsx`. After a refresh, `lib/market/refreshSummary.js` gives the formal report
   (updated with price/date/source; not updated with the reason) — web Settings › Market prices card + snackbar, mobile Me sheet + toast.
 - Feed health notice: `market_feed_health()` + `lib/market/health.js` + `MarketDataNotice`.
-- Upcoming dividends (`lib/psx/upcomingDividends.js` wording, `useUpcomingDividends.js`; web PSX › Dividends panel `UpcomingDividends.jsx`;
+- Upcoming dividends (`lib/psx/upcomingDividends.js` wording incl. `checkSummary` for Check now, `useUpcomingDividends.js`; web PSX › Dividends › Add dividends › Upcoming tab `UpcomingDividends.jsx`, count badge on the Add button;
   phone Dividend payments › calendar icon → `upcoming-dividends` → `upcoming-dividend/[id]`): nightly + "Check now". Only held stocks (held now or traded in 120 days).
   Entitlement (T+1 since 9 Feb 2026): ex-date = last PSX business day before book closure starts; last cum day = the business day
   before it (`market_private.psx_prev_business_day`, weekends + PSX no-file days); shares = trades up to the last cum day. Rs/share =
@@ -313,6 +314,8 @@ category glyphs map MUI names → MaterialIcons (`src/ui/categoryIcons.ts`, test
 ## Change log
 
 Newest first. One line per change: date, commit (or "data"), what and why. Data fixes name the user only by role.
+
+- 2026-11-26 — Dividends: CDC report now completes dividends entered by hand (client report: warrant no. etc. never filled in, web + phone). Cause: the review screens flagged a hand entry of the same payment as "possible duplicate" and left it UNTICKED (phone: excluded), so `dividends_save` never received it; only rows whose hand date differed from CDC's slipped through. Fix: `dividendMatches` / `describeFills` (`src/lib/psx/dividends.js`) mirror the server rules (same warrant ±7 days; else one side without warrant, ±7 days, net or gross within max(Rs 1, 2%); rows applied in order) → New (ticked) / Completes your entry (ticked, says what it adds; amount kept) / Already saved (locked); finish screens list Added and Updated (with the details filled) on web (`DividendUpload` `SavedSummary`) and phone (`upload.tsx`). `dividendDuplicates` now returns 'saved' | 'complete'. Migrations APPLIED: `20261126120000_dividend_report_completion` (completion also fills DPS = gross ÷ shares; `dividends_upcoming_sync` returns `waiting` + `recorded`), `20261126130000_dividend_save_results` (`results` per row). Phone add-by-hand (`features/dividends/addDividend.ts`) used a direct insert — a hand entry after the report duplicated it — now `dividends_save`, and its finish screen says Added / Already on file — updated / Already saved. Check now (web + phone) says what is waiting (`checkSummary`), not PSX's raw announcement count ("8 announced" while all were recorded). Web: Upcoming moved into Add dividends as a tab (inline confirm view, no stacked dialog) with a count badge on the button and tab; dividends open a formal receipt (`DividendReceipt` in `DividendDialog`: payment date, type, shares, DPS, gross, tax (rate), JH tax/zakat if any, net, filer status, issue date, warrant no., CDC account — "Awaiting CDC report" until uploaded — source, note; Download/Edit/Delete); web query now loads `dividend_type`, `dps`. Phone receipts QA (`ui/Receipt.tsx` + transaction / stock-trade / fund-entry / dividend): rows wrap ≤ 2 lines and scroll inside the card instead of overflowing, names wrap, amount shrinks to fit, one date format, no "Recorded" timestamps / source chatter / duplicate rows; fund receipts show CGT/load from ledger components; dividend receipts show CDC details only when present (`account_ref` now loaded). doc-intake vendor copy re-synced (parser unchanged; redeploy optional). Data (owner's account): the 26 Nov CDC report applied through `dividends_save` — 2 hand entries completed (warrant, account, issue date, DPS), 2 already complete, nothing added. Tests: `dividends.test.mjs` (+ completion scenarios), `dividends-db.test.mjs` (+ completion, re-upload, hand-after-report, results), new `upcoming-wording.test.mjs`.
 
 - 2026-11-22 — Phone polish (owner): Me › Refresh my prices shows a filling ring and four step rows (turning arc → tick; amber tick when partial; `RefreshProgress.tsx`, no running commentary), then a short report (no bar/timestamp; short reasons `short`, `sourceShort` from refreshSummary.js). Price details sheet (`PriceStampSheet`): logo, big price, Price date / Fetched / Source rows (structured fields from priceStamp.js). Dividend payments: Upcoming moved to its own page `upcoming-dividends` (Check now in the header, expected total, one row each with its next step), opened by a calendar icon in the summary card (dot when any wait); approve screen `upcoming-dividend/[id]` fits one screen (expected + one gross/tax line, two key dates, received amount + date).
 

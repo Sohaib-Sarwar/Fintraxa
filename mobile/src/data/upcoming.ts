@@ -3,7 +3,7 @@
  * (src/lib/psx/useUpcomingDividends.js); wording from @core/psx/upcomingDividends.js.
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { describeUpcoming as describeJs, sortUpcoming as sortJs, UPCOMING_SELECT } from '@core/psx/upcomingDividends.js';
+import { checkSummary as checkSummaryJs, describeUpcoming as describeJs, sortUpcoming as sortJs, UPCOMING_SELECT } from '@core/psx/upcomingDividends.js';
 import { supabase } from '@/lib/supabase';
 import { useUid } from './queries';
 
@@ -24,6 +24,9 @@ export type UpcomingView = {
 type Loose = unknown;
 export const describeUpcoming = describeJs as Loose as (u: Upcoming) => UpcomingView;
 const sortUpcoming = sortJs as Loose as (rows: Upcoming[]) => Upcoming[];
+export type ScanResult = { found?: unknown[]; sync?: { matched?: number; waiting?: number; recorded?: number } };
+/** What "Check now" says: dividends still waiting for the user, never PSX's raw announcement count (shared with the web). */
+export const checkSummary = checkSummaryJs as Loose as (scan: ScanResult | null | undefined, waiting?: number | null) => { tone: 'success' | 'info'; title: string; text: string };
 
 export const UPCOMING_KEY = 'upcoming-dividends';
 
@@ -75,8 +78,8 @@ export function useCheckDividendsNow() {
     mutationFn: async () => {
       const { data, error } = await supabase.functions.invoke('dividends-scan', { body: {} });
       if (error) throw error;
-      return data as { found?: unknown[]; sync?: { matched?: number } };
+      return data as ScanResult;
     },
-    onSuccess: () => { after(); },
+    onSuccess: async () => { await after(); },
   });
 }

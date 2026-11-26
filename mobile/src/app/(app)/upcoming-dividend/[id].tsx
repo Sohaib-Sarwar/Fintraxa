@@ -78,7 +78,7 @@ export default function UpcomingDividend() {
     try {
       const r = await approve.mutateAsync({ id: u.id, paymentDate: dateVal, net: n });
       haptic.success();
-      toast(r?.added ? `Rs ${group(n, 2)} added` : 'Already on file', { title: `${u.symbol} approved` });
+      toast(r?.added ? `Rs ${group(n, 2)} added to your dividends` : 'It was already in your dividends, so it was linked, not added again', { title: `${u.symbol} confirmed` });
       close();
     } catch (e) { haptic.error(); setError(friendlyError(e)); }
   };

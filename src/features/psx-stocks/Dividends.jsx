@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Box, Typography, Skeleton, Button, IconButton, Tooltip, useMediaQuery } from '@mui/material';
+import { Box, Typography, Skeleton, Button, IconButton, Tooltip, Badge, useMediaQuery } from '@mui/material';
 import { AddRounded, ReceiptLongRounded } from '@mui/icons-material';
 import { formatCurrency } from '../../lib/formatters';
 import { useDividends } from '../../lib/psx/useDividends';
@@ -9,7 +9,7 @@ import { useFx, PageHeader, Panel, PanelHeader, SummaryCard, AllocationDonut, Ea
 import StockLogo from '../../components/StockLogo';
 import DividendDialog from './DividendDialog';
 import DividendTransactions from './DividendTransactions';
-import UpcomingDividends from './UpcomingDividends';
+import { useUpcomingDividends } from '../../lib/psx/useUpcomingDividends';
 
 /** Cash dividends: what came in for the selected range, month by month, and from which stocks. */
 export default function Dividends() {
@@ -20,7 +20,9 @@ export default function Dividends() {
   // Yearly view spans the whole history: one fiscal year alone would be a single point.
   const { summary: allTime } = useDividends();
   const [view, setView] = useState('month');
-  const [dialog, setDialog] = useState(null); // null | { dividend: row | null }
+  const [dialog, setDialog] = useState(null); // null | { dividend: row | null, mode? }
+  // Announced dividends waiting for the user live in Add dividends › Upcoming; the button carries their count.
+  const waiting = useUpcomingDividends().data?.length ?? 0;
   const [ledger, setLedger] = useState(false);
 
   const stocks = useMemo(() => (s ? [...s.bySymbol.values()].sort((a, b) => b.net - a.net) : []), [s]);
@@ -36,17 +38,23 @@ export default function Dividends() {
           </IconButton>
         </Tooltip>
       )}
-      <Button variant="contained" disableElevation startIcon={<AddRounded />} onClick={() => setDialog({ dividend: null })}
-        sx={{ borderRadius: 999, minHeight: 34, py: 0.5, px: 2, fontWeight: 650 }}>
-        {isMobile ? 'Add' : 'Add dividends'}
-      </Button>
+      <Tooltip title={waiting ? `${waiting} upcoming dividend${waiting === 1 ? '' : 's'} to confirm` : ''} arrow disableHoverListener={!waiting}>
+        <Badge badgeContent={waiting} invisible={!waiting} overlap="rectangular"
+          sx={{ '& .MuiBadge-badge': { bgcolor: t.warn, color: '#fff', fontWeight: 750, fontSize: '0.64rem', minWidth: 18, height: 18, top: 3, right: 6, border: `2px solid ${t.bg}` } }}>
+          <Button variant="contained" disableElevation startIcon={<AddRounded />} onClick={() => setDialog({ dividend: null, mode: waiting ? 'upcoming' : 'upload' })}
+            aria-label={waiting ? `Add dividends, ${waiting} upcoming to confirm` : 'Add dividends'}
+            sx={{ borderRadius: 999, minHeight: 34, py: 0.5, px: 2, fontWeight: 650 }}>
+            {isMobile ? 'Add' : 'Add dividends'}
+          </Button>
+        </Badge>
+      </Tooltip>
     </Box>
   );
   const header = <PageHeader title="Dividends" actions={actions} />;
   const overlays = (
     <>
       {ledger && <DividendTransactions onClose={() => setLedger(false)} />}
-      {dialog && <DividendDialog dividend={dialog.dividend} existing={all} onClose={() => setDialog(null)} />}
+      {dialog && <DividendDialog dividend={dialog.dividend} initialMode={dialog.mode} existing={all} onClose={() => setDialog(null)} />}
     </>
   );
 
@@ -64,7 +72,6 @@ export default function Dividends() {
     return (
       <Box>
         {header}
-        <UpcomingDividends />
         <Panel sx={{ alignItems: 'center', textAlign: 'center', py: 7 }}>
           <Typography sx={{ fontSize: '1.05rem', fontWeight: 700, mb: 0.5 }}>No dividends recorded yet</Typography>
           <Typography sx={{ fontSize: '0.84rem', color: t.muted, mb: 2.5, maxWidth: 420 }}>
@@ -84,7 +91,6 @@ export default function Dividends() {
   return (
     <FitPage>
       {header}
-      <UpcomingDividends />
 
       <SummaryCard
         label="Dividends received"

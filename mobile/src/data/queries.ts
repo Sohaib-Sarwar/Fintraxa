@@ -152,7 +152,7 @@ export function useCloses(symbols: string[]) {
   });
 }
 
-const DIV_COLS = 'id, symbol, company_name, payment_date, issue_date, warrant_no, filer_status, dividend_type, dps::text, shares::text, gross_amount::text, tax_amount::text, jh_tax_amount::text, zakat_amount::text, net_amount::text, source, notes, created_at';
+const DIV_COLS = 'id, symbol, company_name, payment_date, issue_date, warrant_no, account_ref, filer_status, dividend_type, dps::text, shares::text, gross_amount::text, tax_amount::text, jh_tax_amount::text, zakat_amount::text, net_amount::text, source, notes, created_at';
 /** The user's savings accounts, active first (archived ones still label old profit entries). */
 export function useSavingsAccounts() {
   const uid = useUid();

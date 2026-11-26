@@ -10,7 +10,7 @@ import {
   approveAllOpen, approveStaged, fetchStaged, findImport, importFund, OPEN_STAGED, pickPdf, readFile, recognise, saveDividends, saveTrades, uploadFile, UploadError,
   type DividendLine, type IntakeResult, type Picked, type StagedRow, type TradeLine,
 } from '@/features/upload/upload';
-import { dividendDuplicates, dividendKey, duplicateStatus, oversoldRefs } from '@/data/engines';
+import { describeFills, dividendKey, dividendMatches, duplicateStatus, oversoldRefs, type DividendMatch } from '@/data/engines';
 import { friendlyError } from '@/data/mutations';
 import { useDividends, useTrades, useUid } from '@/data/queries';
 import type { Dividend, Trade } from '@/data/types';
@@ -22,7 +22,7 @@ import { toast } from '@/ui/feedback';
 import { Field } from '@/ui/Field';
 import { useHidden } from '@/ui/Figures';
 import {
-  AlertTriangle, ArrowDownLeft, ArrowUpRight, Check, ChevronDown, ChevronRight, CircleCheck, CirclePlus, CopyCheck, FileUp, History, LockKeyhole,
+  AlertTriangle, ArrowDownLeft, ArrowUpRight, Check, ChevronDown, ChevronRight, CircleCheck, CirclePlus, CopyCheck, FileUp, History, LockKeyhole, Pencil,
 } from '@/ui/icons';
 import { AmcLogo, BrokerLogo, StockLogo } from '@/ui/Logos';
 import { Button, CircleButton, Gap } from '@/ui/primitives';
@@ -32,7 +32,8 @@ import { useTheme } from '@/ui/theme';
 import { accentOnDarkText, alpha, dark, font, space } from '@/ui/tokens';
 
 type Phase = 'pick' | 'work' | 'password' | 'review' | 'saving' | 'done' | 'error';
-type Match = 'new' | 'saved' | 'check';
+type Match = 'new' | 'saved' | 'check' | 'complete';
+type SavedResult = { added: number; skipped: number; completed?: number; addedRows?: DividendLine[]; updated?: { row: DividendLine; m: DividendMatch }[] };
 type Ident = { kind: DocKind; source: { code: string; name: string }; items: string[]; pages?: number };
 type FundOutcome = { importId: string; rows: StagedRow[]; repeat: string | null };
 
@@ -92,9 +93,9 @@ function Head({ icon, title, n, open, onToggle }: { icon: ReactNode; title: stri
  * amount; a tick when it can be chosen; an icon (no coloured text) when it needs a look: ⚠ looks like a hand entry,
  * ! sells more than held.
  */
-function Row({ logo, inflow, title, figures, amount, flag, on, onPress, locked, first }: {
+function Row({ logo, inflow, title, figures, amount, flag, on, onPress, locked, first, lines = 1 }: {
   logo: ReactNode; inflow: boolean | null; title: string; figures: string; amount: string; flag?: 'check' | 'oversold' | null;
-  on?: boolean; onPress?: () => void; locked?: boolean; first: boolean;
+  on?: boolean; onPress?: () => void; locked?: boolean; first: boolean; lines?: number;
 }) {
   return (
     <Pressable onPress={onPress} disabled={!onPress || locked} accessibilityRole={onPress ? 'checkbox' : undefined}
@@ -109,7 +110,7 @@ function Row({ logo, inflow, title, figures, amount, flag, on, onPress, locked, 
       </View>
       <View style={{ flex: 1, gap: 2 }}>
         <Text style={styles.rowTitle} numberOfLines={1}>{title}</Text>
-        <Text style={styles.figures} numberOfLines={1}>{figures}</Text>
+        <Text style={styles.figures} numberOfLines={lines}>{figures}</Text>
       </View>
       <View style={styles.rowEnd}>
         <Text style={styles.amt} numberOfLines={1}>{amount}</Text>
@@ -150,7 +151,7 @@ export default function Upload() {
   const [password, setPassword] = useState('');
   const [pwError, setPwError] = useState<string | null>(null);
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
-  const [saved, setSaved] = useState<{ added: number; skipped: number } | null>(null);
+  const [saved, setSaved] = useState<SavedResult | null>(null);
   const [fund, setFund] = useState<FundOutcome | null>(null);
   const [approving, setApproving] = useState(false);
   const [showSaved, setShowSaved] = useState(false);
@@ -255,12 +256,13 @@ export default function Upload() {
       step('fifo', 'done', '—');
       const have = dividends.data ?? (await dividends.refetch()).data ?? [];
       setExistingDivs(have);
-      const st = dividendDuplicates(r.rows, have);
-      for (const [k, v] of Object.entries(st)) if (v) ex.add(k);
+      // Same rules as the server: a dividend typed by hand is completed by its report row (ticked), never added twice.
+      const st = Object.values(dividendMatches(r.rows, have));
       step('dupes', 'active', null);
       await wait(400);
-      const savedN = Object.values(st).filter((v) => v === 'saved').length;
-      step('dupes', savedN ? 'warn' : 'done', savedN ? `${savedN} of ${n} saved` : 'None');
+      const savedN = st.filter((v) => v.status === 'saved').length;
+      const fillN = st.filter((v) => v.status === 'complete').length;
+      step('dupes', savedN === n ? 'warn' : 'done', savedN || fillN ? [fillN && `${fillN} to update`, savedN && `${savedN} saved`].filter(Boolean).join(' · ') : 'None');
     }
     setExcluded(ex);
     setShowSaved(false);
@@ -302,11 +304,19 @@ export default function Upload() {
         setSaved(r);
         toast(r.added ? `${plural(r.added, 'trade')} saved` : 'Everything here was already saved', { tone: r.added ? 'success' : 'info' });
       } else if (result.kind === 'dividends') {
-        const r = await saveDividends(uid, result.rows.filter((d) => !excluded.has(dividendKey(d))));
-        ['stock-dividends', 'snapshots'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
-        setSaved(r);
-        toast(r.added ? `${plural(r.added, 'dividend')} saved${r.completed ? `, ${r.completed} completed` : ''}`
-          : r.completed ? `${plural(r.completed, 'dividend')} already on file, completed with the report's details` : 'Everything here was already saved',
+        const dm = dividendMatches(result.rows, existingDivs); // the same classification the review showed
+        const st = (d: DividendLine) => dm[dividendKey(d)]?.status ?? 'new';
+        const send = result.rows.filter((d) => !excluded.has(dividendKey(d)) && st(d) !== 'saved');
+        const r = await saveDividends(uid, send);
+        ['stock-dividends', 'snapshots', 'upcoming-dividends'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
+        setSaved({
+          ...r, skipped: r.skipped + result.rows.filter((d) => st(d) === 'saved').length,
+          addedRows: send.filter((d) => st(d) !== 'complete'),
+          updated: send.filter((d) => st(d) === 'complete').map((d) => ({ row: d, m: dm[dividendKey(d)] })),
+        });
+        toast(r.added && r.completed ? `${plural(r.added, 'dividend')} added, ${r.completed} updated`
+          : r.added ? `${plural(r.added, 'dividend')} added`
+            : r.completed ? `${plural(r.completed, 'dividend')} updated with the report’s details` : 'Everything here was already saved',
         { tone: r.added || r.completed ? 'success' : 'info' });
       }
       haptic.success();
@@ -335,20 +345,21 @@ export default function Upload() {
     }
   };
 
-  /** New / Saved (already on file — locked) / Check (looks like a hand entry), against the saved list used above. */
+  /** Dividend rows vs dividends on file, by the server's own rules (new / complete a hand entry / already saved). */
+  const divMatch = useMemo(() => (result?.kind === 'dividends' ? dividendMatches(result.rows, existingDivs) : {}), [result, existingDivs]);
+  /** New / Saved (already on file — locked) / Check (trade that looks like a hand entry) / Complete (dividend to update). */
   const matches = useMemo(() => {
     const out: Record<string, Match> = {};
     if (result?.kind === 'trades') {
       const st = duplicateStatus(result.confirmations, existingTrades);
       for (const c of result.confirmations) for (const t of c.trades) out[t.source_ref] = st[t.source_ref] === 'recorded' ? 'saved' : st[t.source_ref] === 'similar' ? 'check' : 'new';
     } else if (result?.kind === 'dividends') {
-      const st = dividendDuplicates(result.rows, existingDivs);
-      for (const d of result.rows) { const k = dividendKey(d); out[k] = st[k] === 'saved' ? 'saved' : st[k] ? 'check' : 'new'; }
+      for (const d of result.rows) { const k = dividendKey(d); out[k] = divMatch[k]?.status ?? 'new'; }
     }
     return out;
-  }, [result, existingTrades, existingDivs]);
+  }, [result, existingTrades, divMatch]);
   const counts = useMemo(() => {
-    const c: Record<Match, number> = { new: 0, saved: 0, check: 0 };
+    const c: Record<Match, number> = { new: 0, saved: 0, check: 0, complete: 0 };
     for (const m of Object.values(matches)) c[m] += 1;
     return c;
   }, [matches]);
@@ -488,19 +499,52 @@ export default function Upload() {
     );
   }
 
-  // ── Trades / dividends saved ──
+  // ── Trades / dividends saved: what was added, what was updated (and with what), what was already there ──
   if (phase === 'done' && saved) {
+    const divs = result?.kind === 'dividends';
+    const completed = saved.completed ?? 0;
+    const title = divs && saved.added && completed ? `${plural(saved.added, 'dividend')} added, ${completed} updated`
+      : divs && !saved.added && completed ? `${plural(completed, 'dividend')} updated`
+        : saved.added ? `${plural(saved.added, divs ? 'dividend' : 'trade')} added` : 'Nothing new to add';
+    const sub = divs
+      ? [saved.added ? 'New dividends now count in your passive income.' : '', completed ? 'Updated ones keep their amounts and now carry the report’s details.' : '',
+        !saved.added && !completed ? 'Every dividend in this report is already saved.' : ''].filter(Boolean).join(' ')
+      : saved.added ? 'Your shares and profit are up to date.' : 'Every trade in this file is already saved.';
     return (
       <Screen back title="Done" right={history}>
         <BlackGlass liquid style={styles.done}>
           <Animated.View entering={ZoomIn.duration(300).easing(EASE)} style={[styles.doneBadge, { backgroundColor: p.accentOnDark }]}>
             <CircleCheck size={38} color={p.accentOnDarkInk} strokeWidth={2} />
           </Animated.View>
-          <Text style={styles.doneTitle}>{plural(saved.added, result?.kind === 'dividends' ? 'dividend' : 'trade')} added</Text>
-          {saved.skipped ? <View style={styles.inline}><CopyCheck size={14} color={GLASS_INK2} /><Text style={styles.small}>{saved.skipped} already saved</Text></View> : null}
+          <Text style={styles.doneTitle}>{title}</Text>
+          <Text style={styles.doneSub}>{sub}</Text>
+          {saved.skipped ? <View style={styles.inline}><CopyCheck size={14} color={GLASS_INK2} /><Text style={styles.small}>{saved.skipped} already saved, left as they were</Text></View> : null}
         </BlackGlass>
+        {divs && saved.addedRows?.length && saved.added ? (
+          <Animated.View entering={FadeInDown.duration(260).easing(EASE)}>
+            <BlackGlass liquid style={styles.panel}>
+              <Head icon={<CirclePlus size={15} color={GLASS_INK} />} title="Added" n={saved.added} />
+              {saved.addedRows.map((d, i) => (
+                <Row key={dividendKey(d)} first={i === 0} logo={<StockLogo symbol={d.symbol} size={36} />} inflow
+                  title={`${d.symbol} · ${shortDate(d.payment_date)}`} figures={`${units(d.shares)} sh · gross ${rs(d.gross_amount)}`} amount={rs(d.net_amount)} />
+              ))}
+            </BlackGlass>
+          </Animated.View>
+        ) : null}
+        {divs && saved.updated?.length && completed ? (
+          <Animated.View entering={FadeInDown.duration(260).delay(80).easing(EASE)}>
+            <BlackGlass liquid style={styles.panel}>
+              <Head icon={<Pencil size={14} color={GLASS_INK} />} title="Updated" n={completed} />
+              {saved.updated.map(({ row: d, m }, i) => (
+                <Row key={dividendKey(d)} first={i === 0} logo={<StockLogo symbol={d.symbol} size={36} />} inflow={null} lines={2}
+                  title={`${d.symbol} · ${shortDate(m?.target?.payment_date ?? d.payment_date)}`}
+                  figures={`${describeFills(m?.fills).replace(/^./, (c) => c.toUpperCase())} added`} amount="" />
+              ))}
+            </BlackGlass>
+          </Animated.View>
+        ) : null}
         <Gap h={space.lg} />
-        <Button label={result?.kind === 'dividends' ? 'See passive income' : 'See shares'} onPress={() => router.replace(result?.kind === 'dividends' ? '/passive' : '/invest')} />
+        <Button label={divs ? 'See dividends' : 'See shares'} onPress={() => (divs ? router.replace({ pathname: '/passive-entries', params: { source: 'dividends' } }) : router.replace('/invest'))} />
         <Gap h={space.md} />
         <Button label="Upload another" kind="secondary" onPress={reset} />
       </Screen>
@@ -527,11 +571,15 @@ export default function Upload() {
       return r.rows.map((d: DividendLine, i) => {
         const k = dividendKey(d);
         const m = matches[k] ?? 'new';
+        const dm = divMatch[k];
         return {
           key: k, match: m,
-          row: <Row key={k} first={first(i)} logo={<StockLogo symbol={d.symbol} size={36} />} inflow
-            title={d.symbol} figures={`${shortDate(d.payment_date)} · ${units(d.shares)} sh · tax ${rs(Number(d.tax_amount) + Number(d.jh_tax_amount ?? 0))}`}
-            amount={rs(d.net_amount)} flag={m === 'check' ? 'check' : null}
+          row: <Row key={k} first={first(i)} logo={<StockLogo symbol={d.symbol} size={36} />} inflow={m === 'complete' ? null : true}
+            title={`${d.symbol} · ${shortDate(d.payment_date)}`}
+            figures={m === 'complete' ? `Adds ${describeFills(dm?.fills)} to your ${shortDate(dm?.target?.payment_date ?? d.payment_date)} entry`
+              : `${units(d.shares)} sh · tax ${rs(Number(d.tax_amount) + Number(d.jh_tax_amount ?? 0))}${d.warrant_no ? ` · W ${d.warrant_no}` : ''}`}
+            lines={m === 'complete' ? 2 : 1}
+            amount={m === 'complete' ? 'Update' : rs(d.net_amount)}
             on={!excluded.has(k)} locked={m === 'saved'} onPress={m === 'saved' ? undefined : () => toggle(k)} />,
         };
       });
@@ -539,8 +587,12 @@ export default function Upload() {
     return [];
   };
   const all = build(() => false);
-  const toAdd = all.filter((x) => x.match !== 'saved');
+  const toAdd = all.filter((x) => x.match !== 'saved' && x.match !== 'complete');
+  const toUpdate = all.filter((x) => x.match === 'complete');
   const have = all.filter((x) => x.match === 'saved');
+  const chosenUpdate = toUpdate.filter((x) => !excluded.has(x.key)).length;
+  const chosenAdd = chosen - chosenUpdate;
+  const isDiv = r.kind === 'dividends';
   const allNewOn = toAdd.filter((x) => x.match === 'new').every((x) => !excluded.has(x.key));
   return (
     <Screen back title="Confirm" right={history}>
@@ -549,14 +601,23 @@ export default function Upload() {
       <BlackGlass liquid style={styles.stats}>
         <Stat icon={<CirclePlus size={16} color={GLASS_INK} />} n={counts.new} label="New" />
         <Stat icon={<CopyCheck size={16} color={GLASS_INK2} />} n={counts.saved} label="Saved" />
-        <Stat icon={<AlertTriangle size={15} color={dark.warn} />} n={counts.check + oversold.size} label="Check" tint={counts.check + oversold.size ? dark.warn : undefined} />
+        {isDiv
+          ? <Stat icon={<Pencil size={15} color={GLASS_INK} />} n={counts.complete} label="Update" />
+          : <Stat icon={<AlertTriangle size={15} color={dark.warn} />} n={counts.check + oversold.size} label="Check" tint={counts.check + oversold.size ? dark.warn : undefined} />}
       </BlackGlass>
+
+      {toAdd.length || toUpdate.length ? null : (
+        <BlackGlass liquid style={[styles.notice, { marginTop: space.md }]}>
+          <CopyCheck size={18} color={GLASS_INK} />
+          <Text style={[styles.rowTitle, { flex: 1 }]}>Everything here is already saved.</Text>
+        </BlackGlass>
+      )}
 
       {toAdd.length ? (
         <Animated.View entering={FadeInDown.duration(260).easing(EASE)}>
           <BlackGlass liquid style={styles.panel}>
             <View style={styles.headRow}>
-              <Head icon={<CirclePlus size={15} color={GLASS_INK} />} title="To add" n={chosen} />
+              <Head icon={<CirclePlus size={15} color={GLASS_INK} />} title="To add" n={chosenAdd} />
               {counts.new > 1 ? (
                 <Pressable onPress={() => { haptic.tick(); setExcluded((s) => { const n = new Set(s); for (const x of toAdd) if (x.match === 'new') { if (allNewOn) n.add(x.key); else n.delete(x.key); } return n; }); }}
                   hitSlop={8} accessibilityRole="button" accessibilityLabel={allNewOn ? 'Clear all' : 'Select all new'}>
@@ -567,26 +628,32 @@ export default function Upload() {
             {toAdd.map((x) => x.row)}
           </BlackGlass>
         </Animated.View>
-      ) : (
-        <BlackGlass liquid style={[styles.notice, { marginTop: space.md }]}>
-          <CopyCheck size={18} color={GLASS_INK} />
-          <Text style={[styles.rowTitle, { flex: 1 }]}>Everything here is already saved.</Text>
-        </BlackGlass>
-      )}
+      ) : null}
+
+      {toUpdate.length ? (
+        <Animated.View entering={FadeInDown.duration(260).easing(EASE)}>
+          <BlackGlass liquid style={styles.panel}>
+            <Head icon={<Pencil size={14} color={GLASS_INK} />} title="To update" n={chosenUpdate} />
+            <Text style={[styles.small, styles.panelNote]}>Already in your dividends. Only the missing details are filled in; the amount is not added again.</Text>
+            {toUpdate.map((x) => x.row)}
+          </BlackGlass>
+        </Animated.View>
+      ) : null}
 
       {have.length ? (
         <BlackGlass liquid style={styles.panel}>
-          <Head icon={<CopyCheck size={15} color={GLASS_INK2} />} title="Already saved" n={have.length} open={showSaved || !toAdd.length}
-            onToggle={toAdd.length ? () => { haptic.tick(); setShowSaved((v) => !v); } : undefined} />
-          {showSaved || !toAdd.length ? have.map((x) => x.row) : null}
+          <Head icon={<CopyCheck size={15} color={GLASS_INK2} />} title="Already saved" n={have.length} open={showSaved || !(toAdd.length || toUpdate.length)}
+            onToggle={toAdd.length || toUpdate.length ? () => { haptic.tick(); setShowSaved((v) => !v); } : undefined} />
+          {showSaved || !(toAdd.length || toUpdate.length) ? have.map((x) => x.row) : null}
         </BlackGlass>
       ) : null}
 
       <Gap h={space.xl} />
-      {toAdd.length ? (
+      {toAdd.length || toUpdate.length ? (
         <View style={styles.actions}>
           <Button label="Cancel" kind="secondary" style={{ flex: 1 }} onPress={() => router.back()} disabled={phase === 'saving'} />
-          <Button label={phase === 'saving' ? 'Saving…' : `Add ${chosen}`} style={{ flex: 2 }} loading={phase === 'saving'} disabled={phase === 'saving' || chosen === 0} onPress={save} />
+          <Button label={phase === 'saving' ? 'Saving…' : !chosen ? 'Nothing chosen' : [chosenAdd && `Add ${chosenAdd}`, chosenUpdate && `Update ${chosenUpdate}`].filter(Boolean).join(' · ')}
+            style={{ flex: 2 }} loading={phase === 'saving'} disabled={phase === 'saving' || chosen === 0} onPress={save} />
         </View>
       ) : <Button label="Done" kind="secondary" onPress={() => router.back()} />}
     </Screen>
@@ -599,6 +666,8 @@ const styles = StyleSheet.create({
   dropIcon: { width: 60, height: 60, borderRadius: 30, alignItems: 'center', justifyContent: 'center', marginBottom: space.xs },
   dropTitle: { color: GLASS_INK, fontFamily: font.bold, fontSize: 19 },
   small: { color: GLASS_INK2, fontFamily: font.regular, fontSize: 12 },
+  panelNote: { paddingHorizontal: space.xs, marginTop: -2, marginBottom: space.xs, lineHeight: 17 },
+  doneSub: { color: GLASS_INK2, fontFamily: font.regular, fontSize: 13, textAlign: 'center', lineHeight: 19, paddingHorizontal: space.md },
   sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.xl, marginBottom: space.sm, marginHorizontal: 4 },
   privacy: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: space.lg },
   cdc: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.1)' },

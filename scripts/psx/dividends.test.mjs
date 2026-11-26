@@ -211,13 +211,62 @@ test('report: the reading that reconciles with the printed totals is used', asyn
   assert.equal(r2.rows.length, 1, 'falls back to the text reading when lines give nothing');
 });
 
-test('duplicates: same warrant is saved; same stock, date and amount without that warrant is possible', async () => {
+test('duplicates: same warrant fully on file is saved; a hand entry of the same payment is completed, not re-added', async () => {
   const { dividendDuplicates } = await import('../../src/lib/psx/dividends.js');
   const rows = parseDividendStatement(A).rows; // ABCD 2026-08-05 w7001, XYZ 2026-08-14 w88, PQ.R 2026-09-02 w9001234
+  const abcd = rows.find((r) => r.symbol === 'ABCD');
   const existing = [
-    { symbol: 'ABCD', payment_date: '2026-08-05', warrant_no: '7001', gross_amount: '40.00', net_amount: '28.00' },
-    { symbol: 'XYZ', payment_date: '2026-08-14', warrant_no: null, gross_amount: '7.50', net_amount: '5.25' },
-    { symbol: 'PQ.R', payment_date: '2026-09-02', warrant_no: null, gross_amount: '1.00', net_amount: '1.00' },
+    { ...abcd, id: 'a' }, // the report row itself, saved earlier
+    { symbol: 'XYZ', payment_date: '2026-08-14', warrant_no: null, gross_amount: '7.50', net_amount: '5.25', filer_status: 'non_filer' },
+    { symbol: 'PQ.R', payment_date: '2026-09-02', warrant_no: null, gross_amount: '1.00', net_amount: '1.00' }, // other amount
   ];
-  assert.deepEqual(dividendDuplicates(rows, existing), { 'ABCD|2026-08-05|7001': 'saved', 'XYZ|2026-08-14|88': 'possible' });
+  assert.deepEqual(dividendDuplicates(rows, existing), { 'ABCD|2026-08-05|7001': 'saved', 'XYZ|2026-08-14|88': 'complete' });
+});
+
+test('CDC report completes dividends added by hand (owner, 2026-11-26): same day, a few days apart, re-upload, batches', async () => {
+  const { dividendMatches, describeFills } = await import('../../src/lib/psx/dividends.js');
+  const cdc = (symbol, pay, issue, warrant, gross, tax, net) => ({
+    symbol, payment_date: pay, issue_date: issue, warrant_no: warrant, account_ref: '11111-222222', company_name: `${symbol} LIMITED`,
+    filer_status: 'filer', filer_status_raw: 'Filer', shares: '2', gross_amount: gross, tax_amount: tax, jh_tax_amount: '0.00', zakat_amount: '0.00', net_amount: net,
+  });
+  const hand = (id, symbol, pay, gross, net, extra = {}) => ({ id, symbol, payment_date: pay, warrant_no: null, issue_date: null, account_ref: null,
+    company_name: null, filer_status: 'filer', filer_status_raw: null, gross_amount: gross, net_amount: net, ...extra });
+
+  // Typed by hand on the payment day without the CDC details → the report row completes it (was unticked before).
+  let m = dividendMatches([cdc('AAA', '2026-11-14', '2026-11-10', '4756345', '16.00', '2.00', '14.00')], [hand('h1', 'AAA', '2026-11-14', '16.00', '14.00')]);
+  assert.equal(m['AAA|2026-11-14|4756345'].status, 'complete');
+  assert.equal(m['AAA|2026-11-14|4756345'].target.id, 'h1');
+  assert.deepEqual(m['AAA|2026-11-14|4756345'].fills, ['warrant_no', 'issue_date', 'account_ref', 'company_name', 'filer_status_raw']);
+  assert.equal(describeFills(m['AAA|2026-11-14|4756345'].fills), 'warrant no., issue date, CDC account and company name');
+
+  // Typed with the day the money arrived (a day later than CDC's payment date) → still the same payment.
+  m = dividendMatches([cdc('BBB', '2026-11-19', '2026-11-18', '26029354', '5.00', '1.00', '4.00')], [hand('h2', 'BBB', '2026-11-20', '5.00', '4.00')]);
+  assert.equal(m['BBB|2026-11-19|26029354'].status, 'complete');
+  // The issue date is only filled when it is not after the date on file.
+  m = dividendMatches([cdc('BBB', '2026-11-19', '2026-11-18', '26029354', '5.00', '1.00', '4.00')], [hand('h3', 'BBB', '2026-11-17', '5.00', '4.00')]);
+  assert.ok(!m['BBB|2026-11-19|26029354'].fills.includes('issue_date'));
+
+  // Re-uploading the same report after completion: the warrant is on file under the owner's own date → saved, locked.
+  const done = { ...hand('h2', 'BBB', '2026-11-20', '5.00', '4.00'), warrant_no: '26029354', issue_date: '2026-11-18', account_ref: '11111-222222', company_name: 'BBB LIMITED', filer_status_raw: 'Filer' };
+  m = dividendMatches([cdc('BBB', '2026-11-19', '2026-11-18', '26029354', '5.00', '1.00', '4.00')], [done]);
+  assert.equal(m['BBB|2026-11-19|26029354'].status, 'saved');
+
+  // Amount far off, another stock, or more than a week apart → new.
+  m = dividendMatches([cdc('CCC', '2026-11-21', '2026-11-17', '61094295', '500.00', '75.00', '425.00')], [
+    hand('x1', 'CCC', '2026-11-21', '50.00', '42.50'), hand('x2', 'DDD', '2026-11-21', '500.00', '425.00'), hand('x3', 'CCC', '2026-11-30', '500.00', '425.00')]);
+  assert.equal(m['CCC|2026-11-21|61094295'].status, 'new');
+
+  // Within Rs 1 / 2%: the hand entry used the expected net; CDC withheld a little more.
+  m = dividendMatches([cdc('EEE', '2026-11-21', '2026-11-17', '777', '5.00', '1.00', '4.00')], [hand('e1', 'EEE', '2026-11-21', '5.00', '4.25')]);
+  assert.equal(m['EEE|2026-11-21|777'].status, 'complete');
+
+  // Two report rows of the same stock and amount (two CDC accounts) and one hand entry: the first completes it,
+  // the second is a new dividend — never both on one row.
+  m = dividendMatches([cdc('FFF', '2026-11-21', '2026-11-17', '1', '5.00', '1.00', '4.00'), cdc('FFF', '2026-11-21', '2026-11-17', '2', '5.00', '1.00', '4.00')],
+    [hand('f1', 'FFF', '2026-11-21', '5.00', '4.00')]);
+  assert.deepEqual([m['FFF|2026-11-21|1'].status, m['FFF|2026-11-21|2'].status], ['complete', 'new']);
+
+  // A dividend already from a report (has its warrant) never takes another warrant's row.
+  m = dividendMatches([cdc('GGG', '2026-11-21', '2026-11-17', '99', '5.00', '1.00', '4.00')], [{ ...hand('g1', 'GGG', '2026-11-21', '5.00', '4.00'), warrant_no: '98' }]);
+  assert.equal(m['GGG|2026-11-21|99'].status, 'new');
 });
