@@ -12,6 +12,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { File } from 'expo-file-system';
 import { toTradeRows } from '@/data/engines';
 import { sha256Hex } from './sha256';
+import { holdSession } from '@/lib/activity';
 import { supabase } from '@/lib/supabase';
 
 export const MAX_BYTES = 10 * 1024 * 1024;
@@ -41,7 +42,8 @@ export type IntakeResult =
 export class UploadError extends Error {}
 
 export async function pickPdf(): Promise<Picked | null> {
-  const r = await DocumentPicker.getDocumentAsync({ type: ['application/pdf'], copyToCacheDirectory: true, multiple: false });
+  // The system file picker is not "leaving the app" (auto-lock): held while it is open.
+  const r = await holdSession(() => DocumentPicker.getDocumentAsync({ type: ['application/pdf'], copyToCacheDirectory: true, multiple: false }));
   if (r.canceled || !r.assets?.length) return null;
   const a = r.assets[0];
   return { uri: a.uri, name: a.name ?? 'document.pdf', size: a.size ?? 0 };

@@ -21,7 +21,7 @@ import { authMessage, signIn, signUp, useAuth } from '@/lib/auth';
 import { bioLogin, bioLoginHint, canOfferBioLogin } from '@/lib/bioLogin';
 import { haptic } from '@/lib/haptics';
 import { GlassSheet } from '@/ui/GlassSheet';
-import { Check, ChevronUp, Eye, EyeOff, Mail, User, X } from '@/ui/icons';
+import { Check, ChevronUp, Eye, EyeOff, Lock, Mail, User, X } from '@/ui/icons';
 import { SheetFrame } from '@/ui/SheetFrame';
 import { Text } from '@/ui/Text';
 import { font, space } from '@/ui/tokens';
@@ -70,18 +70,22 @@ function Line({ value, onChangeText, placeholder, icon, error, secure, inputRef,
   );
 }
 
-/** Frosted notification at the top (the web's GlassNotice): a check, a title, one line; closes itself. */
-function Notice({ notice, onClose }: { notice: { title: string; text: string } | null; onClose: () => void }) {
+type NoticeMsg = { title: string; text: string; session?: boolean };
+/**
+ * Frosted notification at the top (the web's GlassNotice): an icon, a title, one line; closes itself. Session notices
+ * (why you were signed out) show a lock and stay longer, so the reason is actually read.
+ */
+function Notice({ notice, onClose }: { notice: NoticeMsg | null; onClose: () => void }) {
   useEffect(() => {
     if (!notice) return undefined;
-    const t = setTimeout(onClose, 6000);
+    const t = setTimeout(onClose, notice.session ? 12000 : 6000);
     return () => clearTimeout(t);
   }, [notice, onClose]);
   if (!notice) return null;
   return (
     <Animated.View entering={FadeInDown.duration(320).easing(EASE)} exiting={FadeOutUp.duration(220)} style={styles.notice} accessibilityLiveRegion="polite">
       <LinearGradient colors={['rgba(255,255,255,0.16)', 'rgba(255,255,255,0.06)']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
-      <View style={styles.noticeIcon}><Check size={18} color={INK} strokeWidth={2.6} /></View>
+      <View style={styles.noticeIcon}>{notice.session ? <Lock size={17} color={INK} strokeWidth={2.4} /> : <Check size={18} color={INK} strokeWidth={2.6} />}</View>
       <View style={{ flex: 1 }}>
         <Text style={styles.noticeTitle}>{notice.title}</Text>
         <Text style={styles.noticeText}>{notice.text}</Text>
@@ -106,18 +110,25 @@ export function AuthScreen({ initial = 'in' }: { initial?: Mode }) {
   const [errors, setErrors] = useState<Errors>({});
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState<{ title: string; text: string } | null>(() => {
+  const [notice, setNotice] = useState<NoticeMsg | null>(() => {
     const n = useAuth.getState().notice;
-    return n ? { title: 'Signed out', text: n } : null;
+    return n ? { ...n, session: true } : null;
   });
   const [bioHint, setBioHint] = useState<string | null>(null);
   const [bioOffer, setBioOffer] = useState(false);
   const [bioSheet, setBioSheet] = useState(false);
   const pwRef = useRef<ComponentRef<typeof TextInput>>(null);
-  const authNotice = useAuth((s) => s.notice);
 
   useEffect(() => { bioLoginHint().then(setBioHint); canOfferBioLogin().then(setBioOffer); }, []);
-  useEffect(() => { if (authNotice) useAuth.getState().setNotice(null); }, [authNotice]);
+  // Shown once: read at mount (above) and consumed; one that arrives while this screen is up is shown too.
+  useEffect(() => {
+    if (useAuth.getState().notice) useAuth.getState().setNotice(null);
+    return useAuth.subscribe((st) => {
+      if (!st.notice) return;
+      setNotice({ ...st.notice, session: true });
+      useAuth.getState().setNotice(null);
+    });
+  }, []);
   // "Use password" on the lock screen → the password box, even when this screen was already mounted.
   useEffect(() => {
     if (useAuth.getState().wantPassword) useAuth.setState({ wantPassword: false }); // consumed by the initial state

@@ -15,6 +15,7 @@ import { useAppStore } from '../../store/appStore';
 import { BrandLockup } from '../FintraxaLogo';
 import SettingsDialog from '../../features/settings/SettingsDialog';
 import XyroLauncher from '../../features/xyro/XyroLauncher';
+import SessionTimeoutDialog from '../SessionTimeoutDialog';
 import { useProfile, useAvatarUrl } from '../../lib/profile/useProfile';
 import PullToRefresh from '../PullToRefresh';
 import SubNav from '../SubNav';
@@ -575,6 +576,8 @@ export default function AppLayout() {
       {/* ─── Profile Panel ─── */}
       {profileOpen && <SettingsDialog open onClose={() => setProfileOpen(false)} initialSection={typeof profileOpen === 'string' ? profileOpen : 'profile'} />}
       <XyroLauncher />
+      {/* Idle warning + automatic sign-out (lib/session/useSessionGuard.js). */}
+      <SessionTimeoutDialog />
     </Box>
   );
 }

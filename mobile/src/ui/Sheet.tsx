@@ -3,6 +3,7 @@
  * screen does), on a backdrop tap, or by dragging the handle down. RN Modal + Reanimated + Gesture Handler
  * (all in Expo Go). The drag runs as a UI-thread worklet; only the "close" decision hops to JS.
  */
+import { markActive } from '@/lib/activity';
 import { useEffect, useState, type ReactNode } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { GestureDetector, GestureHandlerRootView, usePanGesture } from 'react-native-gesture-handler';
@@ -65,7 +66,8 @@ export function Sheet({ open, onClose, title, children, maxHeight = 0.9, scroll 
   const Body = scroll ? ScrollView : View;
   return (
     <Modal visible transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={onClose}>
-      <GestureHandlerRootView style={styles.fill}>
+      {/* A Modal is its own window on Android: touches here never reach the root view, so report them (auto-lock). */}
+      <GestureHandlerRootView style={styles.fill} onTouchStart={markActive}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.fill}>
           <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: p.scrim }, backdropStyle]}>
             <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close" />

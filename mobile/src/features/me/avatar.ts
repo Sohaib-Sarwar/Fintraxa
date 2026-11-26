@@ -3,6 +3,7 @@
  * each time (no stale caches), point profiles.avatar_path at it, remove the previous file — the web's rules
  * (src/lib/profile/useProfile.js).
  */
+import { holdSession } from '@/lib/activity';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { File } from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
@@ -18,7 +19,7 @@ export function useAvatarUpload() {
   const profile = useProfile();
   return useMutation({
     mutationFn: async (): Promise<boolean> => {
-      const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: 'images', allowsEditing: true, aspect: [1, 1], quality: 0.7 });
+      const r = await holdSession(() => ImagePicker.launchImageLibraryAsync({ mediaTypes: 'images', allowsEditing: true, aspect: [1, 1], quality: 0.7 }));
       if (r.canceled || !r.assets?.length) return false;
       const a = r.assets[0];
       // Web build: the picker returns a blob/data URI and expo-file-system has no web File — read it with fetch.

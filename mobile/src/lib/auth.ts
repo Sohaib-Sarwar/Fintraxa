@@ -6,6 +6,7 @@
  */
 import type { Session, User } from '@supabase/supabase-js';
 import { create } from 'zustand';
+import { signOutNotice } from '@core/session/policy.js';
 import { env } from './env';
 import { claimCache, forgetCache } from './queryClient';
 import { useApp } from './store';
@@ -18,10 +19,10 @@ type AuthState = {
   user: User | null;
   locked: boolean;
   /** Why the user landed on the sign-in screen, when it wasn't their choice. */
-  notice: string | null;
+  notice: { title: string; text: string } | null;
   /** "Use password" on the lock screen: the sign-in screen opens straight on the password box. */
   wantPassword: boolean;
-  setNotice: (n: string | null) => void;
+  setNotice: (n: { title: string; text: string } | null) => void;
   setLocked: (l: boolean) => void;
 };
 
@@ -37,11 +38,18 @@ export const useAuth = create<AuthState>((set) => ({
 }));
 
 let subscribed = false;
+/** True while this app is signing out on purpose — any other SIGNED_OUT means the server ended the session. */
+let signingOut = false;
 /** Called once the vault is open: reads the stored session and follows changes. */
 export async function startAuth() {
   if (!subscribed) {
     subscribed = true;
-    supabase.auth.onAuthStateChange((_event, session) => { publish(session).catch(() => {}); });
+    supabase.auth.onAuthStateChange((event, session) => {
+      // The refresh token was revoked or expired on the server (signed out of all devices elsewhere, password
+      // changed, session removed): say so on the sign-in screen instead of dropping the user there silently.
+      if (event === 'SIGNED_OUT' && !signingOut && useAuth.getState().session) useAuth.setState({ notice: signOutNotice('revoked') });
+      publish(session).catch(() => {});
+    });
   }
   const { data } = await supabase.auth.getSession();
   await publish(data.session);
@@ -105,14 +113,19 @@ export async function sendReset(email: string) {
 }
 
 /**
- * Sign out: revoke on the server when possible, then wipe the session — a normal sign-out, not "forget this device"
- * (owner, 2026-11-15): the encrypted cache and this user's local marks stay, so signing back in paints at once. They
- * are wiped the moment a different account signs in (`publish` → `claimCache`), or from Android's Settings › Apps ›
- * Fintraxa › Storage › Clear storage. `keepData: false` is the explicit wipe.
+ * Sign out of THIS device: revoke this session on the server when possible, then wipe it here — a normal sign-out,
+ * not "forget this device" (owner, 2026-11-15): the encrypted cache and this user's local marks stay, so signing back
+ * in paints at once. They are wiped the moment a different account signs in (`publish` → `claimCache`), or from
+ * Android's Settings › Apps › Fintraxa › Storage › Clear storage. `keepData: false` is the explicit wipe.
+ *
+ * `scope: 'local'` (2026-11-26): supabase-js defaults to 'global', which revoked the user's sessions on every device —
+ * the phone closing or timing out signed them out of the web app mid-use. `everywhere` is the explicit "Sign out of
+ * all devices".
  */
-export async function signOut({ keepData = true }: { keepData?: boolean } = {}) {
+export async function signOut({ keepData = true, everywhere = false }: { keepData?: boolean; everywhere?: boolean } = {}) {
   const uid = useAuth.getState().user?.id;
-  const { error } = await supabase.auth.signOut().catch((e) => ({ error: e }));
+  signingOut = true;
+  const { error } = await supabase.auth.signOut({ scope: everywhere ? 'global' : 'local' }).catch((e) => ({ error: e }));
   await wipeStoredSession();
   if (!keepData) {
     await forgetCache();
@@ -123,19 +136,38 @@ export async function signOut({ keepData = true }: { keepData?: boolean } = {}) 
     useApp.getState().set({ biometricEnabled: false, biometricUser: null });
   }
   useAuth.setState({ session: null, user: null, locked: false });
+  signingOut = false;
   if (error) console.warn('[auth] server sign-out failed; local session removed');
+}
+
+/** Sign out of every device and browser (Me › Security). */
+export async function signOutEverywhere() {
+  await signOut({ everywhere: true });
+  useAuth.setState({ notice: signOutNotice('everywhere') });
+}
+
+/**
+ * End the session for a reason the user didn't choose (idle, 12-hour limit): the notice is set FIRST, so the sign-in
+ * screen that mounts when the session clears already has it.
+ */
+export async function endSession(reason: 'idle' | 'away' | 'expired', minutes?: number) {
+  if (!useAuth.getState().session) return;
+  useAuth.setState({ notice: signOutNotice(reason, { minutes }) });
+  await signOut();
 }
 
 /**
  * Auto-lock (owner, 2026-11-15): with fingerprint unlock on, lock (fingerprint to come back); with it off there is
  * nothing to unlock with, so sign out (the sign-in landing; the APK's fingerprint sign-in still makes that quick).
+ * Idle and away say why, with the real time (it used to say "a minute" whatever the setting); closing doesn't.
  */
-export async function autoLock(reason: 'idle' | 'closed') {
+export async function autoLock(reason: 'idle' | 'away' | 'closed') {
   if (!useAuth.getState().session || useAuth.getState().locked) return;
   if (useApp.getState().biometricEnabled) { lockNow(); return; }
+  const minutes = useApp.getState().autoLockMinutes;
+  if (reason === 'idle') { await endSession('idle', Math.max(1, minutes)); return; }
+  if (reason === 'away') { await endSession('away', minutes); return; }
   await signOut();
-  // Closing the app is meant to sign out (owner): no card about it. Idle time out still says why.
-  if (reason === 'idle') useAuth.getState().setNotice('Signed out after a minute without activity.');
 }
 
 export function lockNow() {
