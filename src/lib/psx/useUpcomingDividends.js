@@ -7,7 +7,7 @@ import { supabase } from '../supabase';
 import { useAuthStore } from '../../store/authStore';
 import { useAppStore } from '../../store/appStore';
 import { dbErrorHandler } from '../dbErrors';
-import { UPCOMING_SELECT, sortUpcoming } from './upcomingDividends';
+import { UPCOMING_SELECT, checkSummary, sortUpcoming } from './upcomingDividends';
 
 export const UPCOMING_KEY = 'upcoming-dividends';
 
@@ -46,7 +46,8 @@ export function useApproveUpcoming() {
     },
     onSuccess: (r) => {
       refresh();
-      showSnackbar(r?.added ? 'Dividend approved and added to your dividends' : 'Dividend approved — it was already on file, so nothing was added twice', 'success');
+      showSnackbar(r?.added ? 'Dividend confirmed and added to your dividends and income.'
+        : 'Dividend confirmed. It was already in your dividends, so it was linked, not added again.', 'success');
     },
     onError: dbErrorHandler(showSnackbar, 'Could not approve the dividend'),
   });
@@ -76,10 +77,10 @@ export function useCheckDividendsNow() {
       if (error) throw error;
       return data;
     },
-    onSuccess: (r) => {
-      refresh();
-      const n = r?.found?.length ?? 0;
-      showSnackbar(n ? `Checked PSX: ${n} cash dividend${n === 1 ? '' : 's'} announced on your stocks; ${r?.sync?.matched ? `${r.sync.matched} already on file. ` : ''}See the list.` : 'Checked PSX: no new cash dividends on your stocks.', 'success');
+    onSuccess: async (r) => {
+      await refresh();
+      const s = checkSummary(r);
+      showSnackbar(`${s.title}. ${s.text}`, s.tone);
     },
     onError: () => showSnackbar('The dividend check did not finish. It also runs every night on its own.', 'error'),
   });

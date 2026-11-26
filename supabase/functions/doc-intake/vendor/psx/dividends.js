@@ -320,27 +320,85 @@ export function validateDividend(f, today = new Date().toISOString().slice(0, 10
   return null;
 }
 
+// ── Report rows vs dividends on file (mirror of the SQL function public.dividends_save) ──────────────
+const DAY_MS = 86_400_000;
+const dayGap = (a, b) => Math.abs(Date.parse(`${a}T00:00:00Z`) - Date.parse(`${b}T00:00:00Z`)) / DAY_MS;
+const blank = (v) => v === null || v === undefined || String(v).trim() === '';
+const txt = (v) => (blank(v) ? null : String(v).trim());
+/** Server rule: |on file − incoming| ≤ max(Rs 1, 2% of incoming). */
+const nearAmount = (onFile, incoming) => !blank(onFile) && !blank(incoming)
+  && Math.abs(Number(onFile) - Number(incoming)) <= Math.max(1, Math.abs(Number(incoming)) * 0.02);
+
+/** Readable names of the details a report row adds to a dividend on file (what the user is told). */
+export const FILL_LABELS = { warrant_no: 'warrant no.', account_ref: 'CDC account', issue_date: 'issue date', filer_status: 'filer status', company_name: 'company name' };
+
+/** Which empty details of `onFile` the incoming row would fill (same rules and order as dividends_save). */
+function fillsFor(onFile, r) {
+  const fills = [];
+  if (blank(onFile.warrant_no) && txt(r.warrant_no)) fills.push('warrant_no');
+  const issue = txt(r.issue_date);
+  if (blank(onFile.issue_date) && issue && issue <= onFile.payment_date) fills.push('issue_date');
+  if (blank(onFile.account_ref) && txt(r.account_ref)) fills.push('account_ref');
+  if (blank(onFile.company_name) && txt(r.company_name)) fills.push('company_name');
+  if ((onFile.filer_status ?? 'unknown') === 'unknown' && ['filer', 'non_filer'].includes(r.filer_status)) fills.push('filer_status');
+  if (blank(onFile.filer_status_raw) && txt(r.filer_status_raw)) fills.push('filer_status_raw');
+  if (blank(onFile.dividend_type) && txt(r.dividend_type)) fills.push('dividend_type');
+  if (blank(onFile.dps) && txt(r.dps)) fills.push('dps');
+  return fills;
+}
+
 /**
- * Parsed rows vs dividends on file → per dividendKey:
- *   'saved'    the same warrant is already saved (cannot be added again)
- *   'possible' same stock and payment date and the same gross or net, saved
- *              without this warrant (usually entered by hand)
+ * Report (or hand-entered) rows vs dividends on file → per dividendKey, what saving will do:
+ *   { status: 'new' }                        added as a new dividend
+ *   { status: 'complete', target, fills }    the same payment is already on file (usually typed by hand without the
+ *                                            CDC details): its empty fields are filled, the amount is NOT added again
+ *   { status: 'saved', target }              already on file with everything this row has: nothing to do
+ * Matching is exactly the server's (public.dividends_save), so what the review shows is what happens:
+ *   a) same stock and warrant no., paid within 7 days of each other;
+ *   b) else same stock, paid within 7 days, net or gross within max(Rs 1, 2%), and one side without a warrant
+ *      (closest date first, then closest net).
+ * Rows are applied in order, as the server does, so one dividend on file is completed by one report row only.
+ */
+export function dividendMatches(rows, existing) {
+  const pool = (existing ?? []).map((x) => ({ ...x, symbol: String(x.symbol ?? '').toUpperCase() }));
+  const out = {};
+  for (const r of rows ?? []) {
+    const key = dividendKey(r);
+    const sym = String(r.symbol ?? '').trim().toUpperCase();
+    const w = txt(r.warrant_no);
+    const near = pool.filter((d) => d.symbol === sym && dayGap(d.payment_date, r.payment_date) <= 7);
+    const byDate = (a, b) => dayGap(a.payment_date, r.payment_date) - dayGap(b.payment_date, r.payment_date);
+    let target = w ? near.filter((d) => txt(d.warrant_no) === w).sort(byDate)[0] : null;
+    if (!target) {
+      target = near
+        .filter((d) => (!w || blank(d.warrant_no)) && (nearAmount(d.net_amount, r.net_amount) || nearAmount(d.gross_amount, r.gross_amount)))
+        .sort((a, b) => byDate(a, b) || Math.abs(Number(a.net_amount) - Number(r.net_amount ?? a.net_amount)) - Math.abs(Number(b.net_amount) - Number(r.net_amount ?? b.net_amount)))[0];
+    }
+    if (!target) {
+      out[key] = { status: 'new' };
+      pool.push({ ...r, symbol: sym, filer_status: r.filer_status || 'unknown' });
+      continue;
+    }
+    const fills = fillsFor(target, r);
+    out[key] = fills.length ? { status: 'complete', target: { ...target }, fills } : { status: 'saved', target: { ...target } };
+    for (const f of fills) target[f] = r[f]; // later rows see the completed copy, as in the server's loop
+  }
+  return out;
+}
+
+/** "warrant no., CDC account and issue date" — the user-facing list of what a completion adds. */
+export function describeFills(fills) {
+  const names = [...new Set((fills ?? []).map((f) => FILL_LABELS[f]).filter(Boolean))];
+  if (!names.length) return 'the report’s details';
+  return names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+}
+
+/**
+ * Short form of dividendMatches → per dividendKey: 'saved' | 'complete' (absent = new). Kept for callers that only
+ * need the status.
  */
 export function dividendDuplicates(rows, existing) {
-  const keys = new Set(existing.map(dividendKey));
-  const byDay = new Map();
-  for (const x of existing) {
-    const k = `${x.symbol}|${x.payment_date}`;
-    if (!byDay.has(k)) byDay.set(k, []);
-    byDay.get(k).push(x);
-  }
-  const same = (a, b) => Math.abs(Number(a) - Number(b)) < 0.005;
   const out = {};
-  for (const r of rows) {
-    const key = dividendKey(r);
-    if (keys.has(key)) { out[key] = 'saved'; continue; }
-    const day = byDay.get(`${r.symbol}|${r.payment_date}`) ?? [];
-    if (day.some((x) => (x.warrant_no ?? null) !== (r.warrant_no ?? null) && (same(x.gross_amount, r.gross_amount) || same(x.net_amount, r.net_amount)))) out[key] = 'possible';
-  }
+  for (const [k, m] of Object.entries(dividendMatches(rows, existing))) if (m.status !== 'new') out[k] = m.status;
   return out;
 }

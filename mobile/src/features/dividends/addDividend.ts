@@ -73,6 +73,9 @@ export function checkDividend(d: DividendDraft, today: string): string | null {
   return null;
 }
 
+/** What saving did: a new dividend, an existing one completed with these details, or nothing (already saved). */
+export type DividendOutcome = 'added' | 'completed' | 'skipped';
+
 export function useAddDividend() {
   const qc = useQueryClient();
   return useMutation({
@@ -93,13 +96,18 @@ export function useAddDividend() {
         filer_status: rate === WHT_FILER ? 'filer' : rate === WHT_NON_FILER ? 'non_filer' : 'unknown',
         source: 'manual',
       };
-      const { data, error } = await supabase.from('stock_dividends').insert(row).select('id').single();
+      // Through dividends_save like the web (owner, 2026-11-26): the same payment already on file — e.g. from a CDC
+      // report uploaded earlier — is completed, never added a second time. A direct insert used to duplicate it.
+      const { data, error } = await supabase.rpc('dividends_save', { p_rows: [row] });
       if (error) throw error;
-      return { id: (data as { id: string }).id, ...a };
+      const res = (data as { results?: { id: string | null; action: DividendOutcome }[] } | null)?.results?.[0];
+      if (!res?.id) throw new Error('The dividend could not be saved');
+      return { id: res.id, outcome: res.action, ...a };
     },
-    onSuccess: () => {
-      ['stock-dividends', 'snapshots'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
-      toast('Dividend added');
+    onSuccess: (r) => {
+      ['stock-dividends', 'snapshots', 'upcoming-dividends'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
+      toast(r.outcome === 'added' ? 'Dividend added' : r.outcome === 'completed' ? 'Already on file — its details were updated' : 'Already saved, nothing changed',
+        { tone: r.outcome === 'added' || r.outcome === 'completed' ? 'success' : 'info' });
     },
   });
 }

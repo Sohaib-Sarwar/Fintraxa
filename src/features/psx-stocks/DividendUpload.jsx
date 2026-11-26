@@ -1,11 +1,11 @@
 import { useMemo, useRef, useState } from 'react';
 import { Box, Typography, ButtonBase, InputBase, Checkbox, Tooltip } from '@mui/material';
-import { CheckCircleRounded, ErrorOutlineRounded } from '@mui/icons-material';
+import { CheckCircleRounded, ErrorOutlineRounded, AddCircleOutlineRounded, EditNoteRounded, LibraryAddCheckRounded } from '@mui/icons-material';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { dbErrorHandler } from '../../lib/dbErrors';
 import { useAppStore } from '../../store/appStore';
 import { formatCurrency, formatNumber } from '../../lib/formatters';
-import { parseDividendStatement, parseDividendReport, dividendDuplicates, dividendKey } from '../../lib/psx/dividends';
+import { parseDividendStatement, parseDividendReport, dividendMatches, dividendKey, describeFills } from '../../lib/psx/dividends';
 import { useSaveDividends } from '../../lib/psx/useDividends';
 import { readPdf, PdfError } from '../../lib/psx/pdfText';
 import { atLeast, initSteps, setStep, jobId } from '../../lib/psx/importSteps';
@@ -75,13 +75,13 @@ export default function DividendUpload({ existing, onClose }) {
 
       current = 'dupes';
       step('dupes', { status: 'active' });
-      const dup = await atLeast(async () => dividendDuplicates(parsed.rows, existing));
-      const saved = Object.values(dup).filter((v) => v === 'saved').length;
-      const possible = Object.values(dup).filter((v) => v === 'possible').length;
-      const fresh = parsed.rows.length - saved - possible;
+      const dup = Object.values(await atLeast(async () => dividendMatches(parsed.rows, existing)));
+      const saved = dup.filter((v) => v.status === 'saved').length;
+      const complete = dup.filter((v) => v.status === 'complete').length;
+      const fresh = parsed.rows.length - saved - complete;
       step('dupes', {
         status: saved === parsed.rows.length ? 'warn' : 'done',
-        detail: saved || possible ? [`${fresh} new`, saved && `${saved} already saved`, possible && `${possible} possible duplicate${possible === 1 ? '' : 's'}`].filter(Boolean).join(', ') : 'All new',
+        detail: saved || complete ? [fresh && `${fresh} new`, complete && `${complete} to complete`, saved && `${saved} already saved`].filter(Boolean).join(', ') : 'All new',
       });
       patch(id, (j) => ({ ...j, result: parsed }));
       return true;
@@ -107,33 +107,34 @@ export default function DividendUpload({ existing, onClose }) {
 
   const pasted = useMemo(() => (pasteMode && text.trim() ? parseDividendStatement(text) : null), [pasteMode, text]);
   const data = useMemo(() => merge([...jobs.map((j) => j.result).filter(Boolean), ...(pasted ? [pasted] : [])]), [jobs, pasted]);
-  const dup = useMemo(() => dividendDuplicates(data.rows, existing), [data.rows, existing]);
-  const isSaved = (r) => dup[dividendKey(r)] === 'saved';
-  // A likely hand-entered copy starts unticked; everything new starts ticked; saved warrants are locked.
-  const selected = (r) => !isSaved(r) && (picked[dividendKey(r)] ?? dup[dividendKey(r)] !== 'possible');
+  // What saving will do per row, by the server's own rules (dividends_save): new, complete an entry on file, or nothing.
+  const dup = useMemo(() => dividendMatches(data.rows, existing), [data.rows, existing]);
+  const statusOf = (r) => dup[dividendKey(r)]?.status ?? 'new';
+  const isSaved = (r) => statusOf(r) === 'saved';
+  // New rows and completions start ticked (a completion can never add an amount twice); saved ones are locked.
+  const selected = (r) => !isSaved(r) && (picked[dividendKey(r)] ?? true);
   const chosen = data.rows.filter(selected);
-  const sum = (k) => chosen.reduce((s, r) => s + Number(r[k]), 0);
+  const chosenNew = chosen.filter((r) => statusOf(r) === 'new');
+  const chosenComplete = chosen.filter((r) => statusOf(r) === 'complete');
+  const sum = (k) => chosenNew.reduce((s, r) => s + Number(r[k]), 0);
   const symbols = [...new Set(chosen.map((r) => r.symbol))];
   const working = jobs.some((j) => !j.error && !j.result);
   const allMatch = data.statements.length > 0 && data.statements.every((s) => s.matches !== false);
 
   const submit = () => save.mutate(chosen, {
-    onSuccess: (r) => { setResult({ ...r, symbols }); setPhase('done'); },
+    onSuccess: (r) => {
+      setResult({
+        ...r,
+        addedRows: chosenNew,
+        completedRows: chosenComplete.map((x) => ({ row: x, match: dup[dividendKey(x)] })),
+        savedCount: data.rows.filter(isSaved).length,
+      });
+      setPhase('done');
+    },
     onError: dbErrorHandler(showSnackbar, 'Could not save the dividends'),
   });
 
-  if (phase === 'done' && result) {
-    return (
-      <DoneMark title={result.added ? `${result.added} dividend${result.added === 1 ? '' : 's'} added` : 'Nothing new to add'}
-        sub={[
-          result.completed ? `${result.completed} already on file ${result.completed === 1 ? 'was' : 'were'} completed with the report's details (warrant, filer status…), not added again.` : '',
-          result.skipped ? `${result.skipped} ${result.skipped === 1 ? 'was' : 'were'} already saved and skipped.` : '',
-        ].filter(Boolean).join(' ') || 'Dividends, the PSX dashboard and Analytics are up to date.'}
-        onDone={onClose}>
-        {result.symbols.slice(0, 10).map((s) => <Tooltip key={s} title={s} arrow><Box component="span"><StockLogo symbol={s} size="md" /></Box></Tooltip>)}
-      </DoneMark>
-    );
-  }
+  if (phase === 'done' && result) return <SavedSummary result={result} onDone={onClose} />;
 
   return (
     <Box>
@@ -172,7 +173,7 @@ export default function DividendUpload({ existing, onClose }) {
           {pasteMode && text.trim() && !data.rows.length && (
             <Typography sx={{ fontSize: '0.76rem', color: t.neg, mb: 1 }}>No dividend rows found. Copy the whole table, including the dates and amounts.</Typography>
           )}
-          {data.rows.length > 0 && <Review data={data} chosen={chosen} symbols={symbols} allMatch={allMatch} isSaved={isSaved} selected={selected} dup={dup}
+          {data.rows.length > 0 && <Review data={data} chosenNew={chosenNew} symbols={symbols} allMatch={allMatch} selected={selected} dup={dup}
             onToggle={(r, v) => setPicked((p) => ({ ...p, [dividendKey(r)]: v }))} sum={sum} />}
         </Box>
       )}
@@ -188,7 +189,7 @@ export default function DividendUpload({ existing, onClose }) {
           ) : (
             <ButtonBase onClick={submit} disabled={!chosen.length || save.isPending}
               sx={{ height: 40, px: 2.5, borderRadius: 999, bgcolor: t.inv, color: t.invInk, fontSize: '0.8rem', fontWeight: 650, fontFamily: 'inherit', opacity: !chosen.length || save.isPending ? 0.45 : 1 }}>
-              {save.isPending ? 'Saving…' : chosen.length ? `Approve ${chosen.length} dividend${chosen.length === 1 ? '' : 's'}` : 'Nothing new to save'}
+              {save.isPending ? 'Saving…' : saveLabel(chosenNew.length, chosenComplete.length)}
             </ButtonBase>
           )}
         </Box>
@@ -197,24 +198,73 @@ export default function DividendUpload({ existing, onClose }) {
   );
 }
 
-function Review({ data, chosen, symbols, allMatch, isSaved, selected, dup, onToggle, sum }) {
+const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+/** "Add 2 · Update 1": the button says exactly what Save does. */
+function saveLabel(add, update) {
+  if (!add && !update) return 'Nothing to save';
+  return [add && `Add ${add}`, update && `Update ${update}`].filter(Boolean).join(' · ');
+}
+
+/** A heading inside the review / summary list: icon, title, count, one plain line. */
+function GroupHead({ icon, title, n, note }) {
+  const t = useFx();
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, px: 1.25, pt: 1.1, pb: 0.75, bgcolor: t.surface2, borderBottom: `1px solid ${t.hairline}` }}>
+      <Box sx={{ color: t.ink2, display: 'flex', mt: '1px' }}>{icon}</Box>
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Typography sx={{ fontSize: '0.78rem', fontWeight: 750 }}>{title} <Box component="span" sx={{ color: t.muted, fontWeight: 600 }}>· {n}</Box></Typography>
+        {note && <Typography sx={{ fontSize: '0.66rem', color: t.muted, lineHeight: 1.4 }}>{note}</Typography>}
+      </Box>
+    </Box>
+  );
+}
+
+/** One report row: (tick), logo, symbol + date, one detail line, net. */
+function Line({ r, sub, check = null, amount = true, dim = false }) {
+  const t = useFx();
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.25, py: 0.9, borderBottom: `1px solid ${t.hairline}`, '&:last-child': { borderBottom: 0 }, opacity: dim ? 0.55 : 1 }}>
+      {check}
+      <StockLogo symbol={r.symbol} size="sm" />
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Typography noWrap sx={{ fontSize: '0.78rem', fontWeight: 650 }}>{r.symbol} <Box component="span" sx={{ fontWeight: 400, color: t.muted }}>{fmtDate(r.payment_date)}</Box></Typography>
+        <Typography sx={{ fontSize: '0.66rem', color: t.muted, lineHeight: 1.35, overflowWrap: 'anywhere' }}>{sub}</Typography>
+      </Box>
+      {amount && <Typography data-numeric sx={{ fontFamily: FONT_NUM, fontSize: '0.8rem', fontWeight: 650, color: t.pos, whiteSpace: 'nowrap' }}>+{money(r.net_amount)}</Typography>}
+    </Box>
+  );
+}
+
+const newSub = (r) => `${formatNumber(Number(r.shares), 0)} shares · gross ${money(r.gross_amount)} · tax ${money(Number(r.tax_amount) + Number(r.jh_tax_amount ?? 0))}${r.warrant_no ? ` · warrant ${r.warrant_no}` : ''}`;
+const completeSub = (m) => `Adds ${describeFills(m?.fills)} to your entry of ${fmtDate(m?.target?.payment_date)}. Your amount ${money(m?.target?.net_amount)} stays.`;
+const cap = (s) => s.replace(/^./, (c) => c.toUpperCase());
+
+function Review({ data, chosenNew, symbols, allMatch, selected, dup, onToggle, sum }) {
   const t = useFx();
   const reduce = useReducedMotion();
+  const by = (st) => data.rows.filter((r) => (dup[dividendKey(r)]?.status ?? 'new') === st);
+  const fresh = by('new'); const complete = by('complete'); const saved = by('saved');
+  const check = (r) => (
+    <Checkbox size="small" checked={selected(r)} onChange={(e) => onToggle(r, e.target.checked)}
+      inputProps={{ 'aria-label': `Include ${r.symbol} dividend of ${fmtDate(r.payment_date)}` }} sx={{ p: 0.25 }} />
+  );
   return (
     <motion.div initial={reduce ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }}>
-      {/* The stocks paying out, front and centre */}
       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', p: 2, borderRadius: '18px', bgcolor: t.surface2, border: `1px solid ${t.hairline}`, mb: 1.5 }}>
         <Box sx={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: 0.75, maxWidth: 420 }}>
-          {symbols.slice(0, 12).map((s, i) => (
-            <motion.span key={s} initial={reduce ? false : { scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: reduce ? 0 : i * 0.035, type: 'spring', stiffness: 420, damping: 24 }}>
-              <Tooltip title={s} arrow><Box component="span"><StockLogo symbol={s} size="md" /></Box></Tooltip>
-            </motion.span>
-          ))}
+          {symbols.slice(0, 12).map((s) => <Tooltip key={s} title={s} arrow><Box component="span"><StockLogo symbol={s} size="md" /></Box></Tooltip>)}
           {symbols.length > 12 && <Box sx={{ alignSelf: 'center', fontSize: '0.72rem', color: t.muted }}>+{symbols.length - 12}</Box>}
         </Box>
-        <Typography data-numeric sx={{ fontFamily: FONT_NUM, fontSize: '1.5rem', fontWeight: 650, letterSpacing: '-0.04em', mt: 1.25, color: t.pos }}>+{money(sum('net_amount'))}</Typography>
+        <Typography data-numeric sx={{ fontFamily: FONT_NUM, fontSize: '1.5rem', fontWeight: 650, letterSpacing: '-0.04em', mt: 1.25, color: chosenNew.length ? t.pos : t.ink }}>
+          {chosenNew.length ? `+${money(sum('net_amount'))}` : money(0)}
+        </Typography>
         <Typography sx={{ fontSize: '0.72rem', color: t.muted }}>
-          net from {chosen.length} warrant{chosen.length === 1 ? '' : 's'} across {symbols.length} stock{symbols.length === 1 ? '' : 's'}; gross {money(sum('gross_amount'))}, tax {money(sum('tax_amount'))}
+          {chosenNew.length
+            ? `net from ${plural(chosenNew.length, 'new dividend')}; gross ${money(sum('gross_amount'))}, tax ${money(sum('tax_amount'))}`
+            : 'No new income: this report only completes or repeats what is on file'}
+        </Typography>
+        <Typography sx={{ fontSize: '0.72rem', color: t.ink2, fontWeight: 650, mt: 0.5 }}>
+          {[fresh.length && `${fresh.length} new`, complete.length && `${complete.length} to complete`, saved.length && `${saved.length} already saved`].filter(Boolean).join(' · ')}
         </Typography>
         <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.6, mt: 1, px: 1.25, py: 0.4, borderRadius: 999, bgcolor: allMatch ? t.posSoft : t.negSoft }}>
           {allMatch ? <CheckCircleRounded sx={{ fontSize: 15, color: t.pos }} /> : <ErrorOutlineRounded sx={{ fontSize: 15, color: t.neg }} />}
@@ -223,29 +273,66 @@ function Review({ data, chosen, symbols, allMatch, isSaved, selected, dup, onTog
           </Typography>
         </Box>
       </Box>
-      {data.warnings.filter((w) => !/repeated row/.test(w)).map((w) => <Typography key={w} sx={{ fontSize: '0.7rem', color: '#b5761a', mb: 0.5 }}>{w}</Typography>)}
+      {data.warnings.filter((w) => !/repeated row/.test(w)).map((w) => <Typography key={w} sx={{ fontSize: '0.7rem', color: t.warn, mb: 0.5 }}>{w}</Typography>)}
 
       <Box sx={{ border: `1px solid ${t.border}`, borderRadius: '16px', overflow: 'hidden' }}>
-        {data.rows.map((r) => {
-          const saved = isSaved(r);
-          const possible = dup[dividendKey(r)] === 'possible';
-          const on = selected(r);
-          return (
-            <Box key={dividendKey(r)} sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.25, py: 0.9, borderBottom: `1px solid ${t.hairline}`, '&:last-of-type': { borderBottom: 0 }, opacity: on ? 1 : 0.5 }}>
-              <Checkbox size="small" checked={on} disabled={saved} onChange={(e) => onToggle(r, e.target.checked)} inputProps={{ 'aria-label': `Add ${r.symbol} dividend of ${r.payment_date}` }} sx={{ p: 0.25 }} />
-              <StockLogo symbol={r.symbol} size="sm" />
-              <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Typography noWrap sx={{ fontSize: '0.78rem', fontWeight: 650 }}>{r.symbol} <Box component="span" sx={{ fontWeight: 400, color: t.muted }}>{fmtDate(r.payment_date)}</Box></Typography>
-                <Typography noWrap sx={{ fontSize: '0.64rem', color: t.muted }}>
-                  {formatNumber(Number(r.shares), 0)} shares, gross {money(r.gross_amount)}, tax {money(r.tax_amount)}{r.warrant_no ? `, warrant ${r.warrant_no}` : ''}{saved ? ', already saved' : ''}
-                </Typography>
-                {possible && <Typography noWrap sx={{ fontSize: '0.64rem', color: '#b5761a' }}>Looks like a {r.symbol} dividend you already entered for this date. Tick to add it anyway.</Typography>}
-              </Box>
-              <Typography data-numeric sx={{ fontFamily: FONT_NUM, fontSize: '0.8rem', fontWeight: 650, color: t.pos }}>+{money(r.net_amount)}</Typography>
-            </Box>
-          );
-        })}
+        {fresh.length > 0 && (
+          <Box>
+            <GroupHead icon={<AddCircleOutlineRounded sx={{ fontSize: 17 }} />} title="New dividends" n={fresh.length} note="Added to your dividends and passive income." />
+            {fresh.map((r) => <Line key={dividendKey(r)} r={r} sub={newSub(r)} check={check(r)} dim={!selected(r)} />)}
+          </Box>
+        )}
+        {complete.length > 0 && (
+          <Box sx={{ borderTop: fresh.length ? `1px solid ${t.border}` : 0 }}>
+            <GroupHead icon={<EditNoteRounded sx={{ fontSize: 17 }} />} title="Completes dividends you entered" n={complete.length}
+              note="Already counted. Only the missing details are filled in; the amount is never added twice." />
+            {complete.map((r) => <Line key={dividendKey(r)} r={r} sub={completeSub(dup[dividendKey(r)])} check={check(r)} amount={false} dim={!selected(r)} />)}
+          </Box>
+        )}
+        {saved.length > 0 && (
+          <Box sx={{ borderTop: fresh.length || complete.length ? `1px solid ${t.border}` : 0 }}>
+            <GroupHead icon={<LibraryAddCheckRounded sx={{ fontSize: 17 }} />} title="Already saved" n={saved.length} note="On file with every detail in this report." />
+            {saved.map((r) => <Line key={dividendKey(r)} r={r} sub={r.warrant_no ? `Warrant ${r.warrant_no}` : 'Recorded earlier'} amount={false} dim />)}
+          </Box>
+        )}
       </Box>
     </motion.div>
+  );
+}
+
+/** After saving: what was added, what was updated (and with what), what was already there. */
+function SavedSummary({ result, onDone }) {
+  const t = useFx();
+  const { added = 0, completed = 0, addedRows = [], completedRows = [] } = result;
+  const already = (result.skipped ?? 0) + (result.savedCount ?? 0);
+  const title = added && completed ? `${plural(added, 'dividend')} added, ${completed} updated`
+    : added ? `${plural(added, 'dividend')} added`
+      : completed ? `${plural(completed, 'dividend')} updated` : 'Nothing new to add';
+  const sub = added || completed
+    ? [added && 'New dividends now count in your income.', completed && 'Updated ones keep their amounts and now carry the report’s details.'].filter(Boolean).join(' ')
+    : 'Every dividend in this report is already saved with its details.';
+  return (
+    <DoneMark title={title} sub={sub} onDone={onDone}>
+      <Box sx={{ width: '100%', maxWidth: 460, textAlign: 'left', border: `1px solid ${t.border}`, borderRadius: '16px', overflow: 'hidden' }}>
+        {added > 0 && (
+          <Box>
+            <GroupHead icon={<AddCircleOutlineRounded sx={{ fontSize: 17 }} />} title="Added" n={added} />
+            {addedRows.map((r) => <Line key={dividendKey(r)} r={r} sub={newSub(r)} />)}
+          </Box>
+        )}
+        {completed > 0 && (
+          <Box sx={{ borderTop: added ? `1px solid ${t.border}` : 0 }}>
+            <GroupHead icon={<EditNoteRounded sx={{ fontSize: 17 }} />} title="Updated" n={completed} />
+            {completedRows.map(({ row, match }) => <Line key={dividendKey(row)} r={row} amount={false}
+              sub={`${cap(describeFills(match?.fills))} added to your entry of ${fmtDate(match?.target?.payment_date)}.`} />)}
+          </Box>
+        )}
+        {already > 0 && (
+          <Box sx={{ borderTop: added || completed ? `1px solid ${t.border}` : 0 }}>
+            <GroupHead icon={<LibraryAddCheckRounded sx={{ fontSize: 17 }} />} title="Already saved" n={already} note="Left as they were." />
+          </Box>
+        )}
+      </Box>
+    </DoneMark>
   );
 }

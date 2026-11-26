@@ -8,13 +8,12 @@ import { assetRows as assetRowsJs, valueSeries as valueSeriesJs } from '@core/sn
 import { analyzePassive as analyzePassiveJs, passiveEvents as passiveEventsJs, savingsTax as savingsTaxJs, SOURCE_LABEL as SOURCE_LABEL_JS } from '@core/finance/passive.js';
 import { bankName as bankNameJs, PSX_BANKS as PSX_BANKS_JS } from '@core/finance/banks.js';
 import { duplicateStatus as duplicateStatusJs, oversoldRefs as oversoldRefsJs, toTradeRows as toTradeRowsJs } from '@core/psx/confirmations.js';
-import { dividendDuplicates as dividendDuplicatesJs, dividendKey as dividendKeyJs } from '@core/psx/dividends.js';
+import { describeFills as describeFillsJs, dividendDuplicates as dividendDuplicatesJs, dividendKey as dividendKeyJs, dividendMatches as dividendMatchesJs, summarizeDividends as summarizeDividendsJs } from '@core/psx/dividends.js';
 import { analyzeFunds as analyzeFundsJs } from '@core/mf/profit.js';
 import { fetchedShort as fetchedShortJs, fundStamp as fundStampJs, stockStamp as stockStampJs } from '@core/market/priceStamp.js';
 import { refreshSummary as refreshSummaryJs, updatedLine as updatedLineJs, updatedSub as updatedSubJs } from '@core/market/refreshSummary.js';
 import { analyzeStocks as analyzeStocksJs, normSymbol as normSymbolJs } from '@core/psx/portfolio.js';
 import { nccplPeriod as nccplPeriodJs, nccplReport as nccplReportJs, taxYearLabel as taxYearLabelJs, taxYearOf as taxYearOfJs } from '@core/psx/nccpl.js';
-import { summarizeDividends as summarizeDividendsJs } from '@core/psx/dividends.js';
 import { preferNewerPrices as preferNewerPricesJs } from '@core/psx/livePrices.js';
 import { staleFeeds as staleFeedsJs } from '@core/market/health.js';
 import { getStockSector as getStockSectorJs } from '@core/psxSectors.js';
@@ -94,7 +93,12 @@ export const duplicateStatus = duplicateStatusJs as Loose as (confirmations: unk
 /** FIFO holdings check (the web's TradeImportDialog): imported sales that sell more than the recorded holdings on that date. */
 export const oversoldRefs = oversoldRefsJs as Loose as (confirmations: unknown[], isSelected: (ref: string) => boolean, existing: unknown[]) => Set<string>;
 export const toTradeRows = toTradeRowsJs as Loose as (c: unknown, trades: unknown[]) => Record<string, unknown>[];
-export const dividendDuplicates = dividendDuplicatesJs as Loose as (rows: unknown[], existing: unknown[]) => Record<string, 'saved' | 'possible'>;
+export const dividendDuplicates = dividendDuplicatesJs as Loose as (rows: unknown[], existing: unknown[]) => Record<string, 'saved' | 'complete'>;
+/** What saving a report row will do (the server's dividends_save rules): new, complete a dividend on file, or nothing. */
+export type DividendMatch = { status: 'new' | 'saved' | 'complete'; target?: { id?: string; payment_date: string; net_amount: string }; fills?: string[] };
+export const dividendMatches = dividendMatchesJs as Loose as (rows: unknown[], existing: unknown[]) => Record<string, DividendMatch>;
+/** "warrant no., CDC account and issue date" */
+export const describeFills = describeFillsJs as Loose as (fills?: string[]) => string;
 export const dividendKey = dividendKeyJs as (x: { symbol: string; payment_date: string; warrant_no?: string | null }) => string;
 
 /** One point of the web ValueChart (src/lib/snapshots/series.js valueSeries): a period's close. */

@@ -1,41 +1,60 @@
 /**
  * A formal receipt on black Apple glass (owner, 2026-11-14: "click to see the formal invoice like web"), shared by
- * income / expense, fund entries and stock trades: icon or logo, title, the amount big (signed, green for money in),
- * a status line, a dashed tear line, then every detail as label / value rows, and a short reference at the foot.
+ * income / expense, fund entries, stock trades and dividends: icon or logo, title, the amount big (signed, green for
+ * money in), one status line, a dashed tear line, then the financial details as label / value rows, and a short
+ * reference at the foot.
  * `fill` (owner, 2026-11-15: "cover the available space, no scrolling"): the card takes the whole space it is given
- * and spreads its rows evenly down it, a little tighter, so a full receipt reads on one screen.
+ * and spreads its rows evenly down it. On a short screen or with large system fonts the rows scroll inside the card
+ * instead of overflowing it (owner, 2026-11-26: receipts overflowed).
+ * Rows: a long label or value wraps to two lines at most, never past the card; `strong` marks the total.
  */
 import type { ReactNode } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { BlackGlass, GLASS_INK, GLASS_INK2, GLASS_LINE } from './BlackGlass';
 import { Text } from './Text';
 import { dark, font, space } from './tokens';
 
-export type ReceiptRow = { label: string; value: string };
+export type ReceiptRow = { label: string; value: string; strong?: boolean };
+
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** "14 Nov 2026": the one date format on every receipt (a slip's format, no weekday). */
+export function receiptDate(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const [y, m, d] = iso.slice(0, 10).split('-').map(Number);
+  if (!y || !m || !d) return iso;
+  return `${d} ${MON[m - 1]} ${y}`;
+}
 
 export function Receipt({ icon, title, subtitle, amount, positive, status, rows, reference, fill = false }: {
   icon: ReactNode; title: string; subtitle?: string; amount: string; positive?: boolean; status?: string; rows: ReceiptRow[]; reference?: string; fill?: boolean;
 }) {
-  const list = rows.map((r, i) => (
-    <View key={r.label} style={[styles.row, fill && styles.rowFill, i > 0 && styles.rowSep]}>
-      <Text style={styles.label}>{r.label}</Text>
-      <Text style={styles.value} numberOfLines={fill ? 2 : 3}>{r.value}</Text>
+  const shown = rows.filter((r) => r.value !== '' && r.value !== null && r.value !== undefined);
+  const list = shown.map((r, i) => (
+    <View key={r.label} style={[styles.row, fill && styles.rowFill, i > 0 && styles.rowSep, r.strong && styles.rowStrong]}
+      accessible accessibilityLabel={`${r.label}: ${r.value}`}>
+      <Text style={[styles.label, r.strong && styles.labelStrong]} numberOfLines={2}>{r.label}</Text>
+      <Text style={[styles.value, r.strong && styles.valueStrong]} numberOfLines={2}>{r.value}</Text>
     </View>
   ));
   return (
     <BlackGlass style={[styles.card, fill && styles.cardFill]}>
       <View style={[styles.top, fill && { gap: 4 }]}>
         {icon}
-        <Text style={styles.title} numberOfLines={2}>{title}</Text>
-        {subtitle ? <Text style={styles.small} numberOfLines={1}>{subtitle}</Text> : null}
-        <Text style={[styles.amount, { color: positive ? dark.pos : GLASS_INK }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{amount}</Text>
-        {status ? <View style={styles.status}><Text style={styles.statusText}>{status}</Text></View> : null}
+        <Text style={styles.title} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.8}>{title}</Text>
+        {subtitle ? <Text style={styles.subtitle} numberOfLines={2}>{subtitle}</Text> : null}
+        <Text style={[styles.amount, { color: positive ? dark.pos : GLASS_INK }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>{amount}</Text>
+        {status ? <View style={styles.status}><Text style={styles.statusText} numberOfLines={1}>{status}</Text></View> : null}
       </View>
       <View style={[styles.tear, fill && { marginVertical: space.md }]}>
         {Array.from({ length: 28 }, (_, i) => <View key={i} style={styles.dash} />)}
       </View>
-      {fill ? <View style={styles.rowsFill}>{list}</View> : list}
-      {reference ? <Text style={[styles.small, styles.ref, fill && { marginTop: space.sm }]}>Ref · {reference}</Text> : null}
+      {fill ? (
+        <ScrollView style={styles.rowsScroll} contentContainerStyle={styles.rowsFill} showsVerticalScrollIndicator={false} bounces={false} overScrollMode="never">
+          {list}
+        </ScrollView>
+      ) : list}
+      {reference ? <Text style={[styles.small, styles.ref, fill && { marginTop: space.sm }]} numberOfLines={1}>Ref · {reference}</Text> : null}
     </BlackGlass>
   );
 }
@@ -43,19 +62,24 @@ export function Receipt({ icon, title, subtitle, amount, positive, status, rows,
 const styles = StyleSheet.create({
   card: { paddingVertical: space.xl },
   cardFill: { flex: 1, paddingVertical: space.lg },
-  rowsFill: { flex: 1, justifyContent: 'space-evenly' },
-  rowFill: { minHeight: 0, paddingVertical: 4, flexShrink: 1 },
+  rowsScroll: { flex: 1 },
+  rowsFill: { flexGrow: 1, justifyContent: 'space-evenly' },
+  rowFill: { minHeight: 40, paddingVertical: 4 },
   top: { alignItems: 'center', gap: 6 },
-  title: { color: GLASS_INK, fontFamily: font.bold, fontSize: 17, lineHeight: 22, textAlign: 'center', marginTop: 4 },
+  title: { color: GLASS_INK, fontFamily: font.bold, fontSize: 17, lineHeight: 22, textAlign: 'center', marginTop: 4, maxWidth: '100%' },
+  subtitle: { color: GLASS_INK2, fontFamily: font.regular, fontSize: 12, lineHeight: 16, textAlign: 'center', maxWidth: '92%' },
   small: { color: GLASS_INK2, fontFamily: font.regular, fontSize: 12 },
-  amount: { fontFamily: font.numHeavy, fontSize: 34, lineHeight: 41, letterSpacing: -0.8, marginTop: 6 },
-  status: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.08)' },
+  amount: { fontFamily: font.numHeavy, fontSize: 34, lineHeight: 41, letterSpacing: -0.8, marginTop: 6, maxWidth: '100%' },
+  status: { maxWidth: '100%', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.08)' },
   statusText: { color: GLASS_INK2, fontFamily: font.semibold, fontSize: 11.5 },
   tear: { flexDirection: 'row', justifyContent: 'space-between', marginVertical: space.lg, overflow: 'hidden' },
   dash: { width: 6, height: 1.5, borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.16)' },
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: space.lg, minHeight: 44, paddingVertical: 6 },
+  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: space.md, minHeight: 44, paddingVertical: 6 },
   rowSep: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: GLASS_LINE },
-  label: { color: GLASS_INK2, fontFamily: font.medium, fontSize: 13 },
-  value: { flexShrink: 1, color: GLASS_INK, fontFamily: font.semibold, fontSize: 13.5, textAlign: 'right' },
+  rowStrong: { borderTopColor: 'rgba(255,255,255,0.18)' },
+  label: { flexShrink: 1, maxWidth: '50%', color: GLASS_INK2, fontFamily: font.medium, fontSize: 13, lineHeight: 17 },
+  labelStrong: { color: GLASS_INK, fontFamily: font.semibold },
+  value: { flex: 1, color: GLASS_INK, fontFamily: font.semibold, fontSize: 13.5, lineHeight: 18, textAlign: 'right' },
+  valueStrong: { fontFamily: font.numBold, fontSize: 15, lineHeight: 20 },
   ref: { textAlign: 'center', marginTop: space.lg },
 });

@@ -64,6 +64,32 @@ export function describeUpcoming(u, now = Date.now()) {
   };
 }
 
+/**
+ * What "Check now" tells the user (owner, 2026-11-26: "it said 8 dividends announced but nothing is upcoming — I have
+ * already added them; notifications should make sense"). Counts only what is still waiting for the user; PSX's
+ * announcements that are already recorded are mentioned as such, never as new.
+ * @param scan     the dividends-scan response ({ sync: { waiting, recorded, … } })
+ * @param waiting  the pending list's length after the refetch (used when an older server gives no `waiting`)
+ * @returns {{ tone: 'success'|'info', title: string, text: string }}
+ */
+export function checkSummary(scan, waiting = null) {
+  const s = scan?.sync ?? {};
+  const n = Number.isFinite(s.waiting) ? s.waiting : Number(waiting ?? 0);
+  const done = Number.isFinite(s.recorded) ? s.recorded : 0;
+  const plural = (k, one, many) => `${k} ${k === 1 ? one : many}`;
+  if (n > 0) {
+    return {
+      tone: 'success',
+      title: plural(n, 'dividend to confirm', 'dividends to confirm'),
+      text: `${plural(n, 'dividend', 'dividends')} announced on your stocks ${n === 1 ? 'is' : 'are'} waiting for you to confirm when paid.${done ? ` ${done} recent ${done === 1 ? 'one is' : 'ones are'} already recorded.` : ''}`,
+    };
+  }
+  if (done > 0) {
+    return { tone: 'info', title: 'You’re up to date', text: `No dividends waiting. The ${plural(done, 'recent dividend', 'recent dividends')} announced on your stocks ${done === 1 ? 'is' : 'are'} already recorded.` };
+  }
+  return { tone: 'info', title: 'You’re up to date', text: 'No cash dividends announced on your stocks right now. PSX is checked every night.' };
+}
+
 /** Newest-first order that puts what needs action first: due, then qualified, then hold-to-qualify. */
 export function sortUpcoming(rows) {
   const rank = { due: 0, entitled: 1, hold: 2 };
