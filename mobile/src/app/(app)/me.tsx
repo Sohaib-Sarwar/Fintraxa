@@ -12,7 +12,8 @@ import { useAvatarUpload, useSaveProfile, validateProfile } from '@/features/me/
 import { RefreshProgress, nextProgress, startProgress, type Progress } from '@/features/me/RefreshProgress';
 import { RefreshReport } from '@/features/me/RefreshReport';
 import { designOf } from '@/features/today/cardDesigns';
-import { authMessage, firstName, lockNow, signIn, signOut, useAuth } from '@/lib/auth';
+import { holdSession } from '@/lib/activity';
+import { authMessage, firstName, lockNow, signIn, signOut, signOutEverywhere, useAuth } from '@/lib/auth';
 import { bioLoginHint, clearBioLogin, saveBioLogin } from '@/lib/bioLogin';
 import { appVersion, env, isExpoGo } from '@/lib/env';
 import { haptic } from '@/lib/haptics';
@@ -86,7 +87,7 @@ export default function Me() {
   const app = useApp();
   const savePrefs = useSavePrefs();
   const [bioOk, setBioOk] = useState(false);
-  const [sheet, setSheet] = useState<'lock' | 'signout' | 'custom' | 'refresh' | 'profile' | 'biologin' | null>(null);
+  const [sheet, setSheet] = useState<'lock' | 'signout' | 'everywhere' | 'custom' | 'refresh' | 'profile' | 'biologin' | null>(null);
   const avatar = useAvatarUrl(profile.data?.avatar_path);
   const upload = useAvatarUpload();
   const saveProfile = useSaveProfile();
@@ -271,13 +272,14 @@ export default function Me() {
             <Row icon={Timer} title="Auto-lock" value={lockLabel} onPress={() => setSheet('lock')} />
             <Row icon={AppWindow} title="Hide in recent apps" toggle={app.hideInRecents} onToggle={(v) => app.set({ hideInRecents: v })} />
             {app.biometricEnabled ? <Row icon={Lock} title="Lock now" onPress={() => { haptic.light(); lockNow(); }} /> : null}
+            <Row icon={LogOut} title="Sign out of all devices" onPress={() => setSheet('everywhere')} />
           </Section>
 
           <Section title="More">
             <Row first icon={EyeOff} title="Hide amounts" toggle={app.hideAmounts} onToggle={(v) => app.set({ hideAmounts: v })} />
             <Row icon={Vibrate} title="Haptics" toggle={app.haptics} onToggle={(v) => app.set({ haptics: v })} />
             <Row icon={RefreshCw} title="Refresh my prices" onPress={runRefresh} />
-            <Row icon={Globe} title="Open on the web" onPress={() => Linking.openURL(`${env.webApp}/home`)} />
+            <Row icon={Globe} title="Open on the web" onPress={() => holdSession(() => Linking.openURL(`${env.webApp}/home`))} />
             <Row icon={Activity} title="Version" value={`${appVersion}${!isExpoGo && Application.nativeBuildVersion ? ` (${Application.nativeBuildVersion})` : isExpoGo ? ' · Expo Go' : ''}`} />
           </Section>
 
@@ -333,7 +335,10 @@ export default function Me() {
       ) : null}
 
       {sheet === 'lock' ? (
-        <GlassSheet blurTarget={target} smoky title="Auto-lock" onClose={() => setSheet(null)} maxHeight={0.6}>
+        <GlassSheet blurTarget={target} smoky title="Auto-lock" onClose={() => setSheet(null)} maxHeight={0.7}>
+          <Text style={[styles.small, { paddingHorizontal: space.xs, marginBottom: space.sm, lineHeight: 18 }]}>
+            {app.biometricEnabled ? 'Locks' : 'Signs you out'} after this long away from the app or without a touch (at least a minute while it is open), with a 30-second warning first. Sessions also end 12 hours after you sign in.
+          </Text>
           {LOCK_OPTIONS.map((o, i) => (
             <Pressable key={o.v} onPress={() => { app.set({ autoLockMinutes: o.v }); savePrefs.mutate({ auto_lock_minutes: o.v }); setSheet(null); }} accessibilityRole="radio"
               accessibilityState={{ checked: o.v === app.autoLockMinutes }} style={[styles.option, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: GLASS_LINE }]}>
@@ -350,7 +355,7 @@ export default function Me() {
           <View style={styles.outHead}>
             <View style={styles.outIcon}><LogOut size={22} color={GLASS_INK} strokeWidth={1.9} /></View>
             <Text style={styles.outTitle}>Sign out?</Text>
-            <Text style={styles.small}>Your data stays on this phone for next time.</Text>
+            <Text style={styles.small}>Only this {Platform.OS === 'web' ? 'browser' : 'phone'}. Your data stays here for next time.</Text>
           </View>
           <View style={styles.sheetActions}>
             <Pressable onPress={() => setSheet(null)} accessibilityRole="button" style={({ pressed }) => [styles.glassBtn, { opacity: pressed ? 0.75 : 1 }]}>
@@ -359,6 +364,25 @@ export default function Me() {
             <Pressable onPress={async () => { haptic.light(); setSheet(null); await signOut(); router.replace('/welcome'); }} accessibilityRole="button"
               style={({ pressed }) => [styles.glassBtn, { opacity: pressed ? 0.75 : 1 }]}>
               <Text style={[styles.glassBtnText, { color: dark.neg }]}>Sign out</Text>
+            </Pressable>
+          </View>
+        </GlassSheet>
+      ) : null}
+
+      {sheet === 'everywhere' ? (
+        <GlassSheet blurTarget={target} smoky onClose={() => setSheet(null)} maxHeight={0.55}>
+          <View style={styles.outHead}>
+            <View style={styles.outIcon}><LogOut size={22} color={GLASS_INK} strokeWidth={1.9} /></View>
+            <Text style={styles.outTitle}>Sign out of all devices?</Text>
+            <Text style={[styles.small, { textAlign: 'center', lineHeight: 18 }]}>Ends every session — this phone, other phones and every browser. Use it if a device was lost or shared.</Text>
+          </View>
+          <View style={styles.sheetActions}>
+            <Pressable onPress={() => setSheet(null)} accessibilityRole="button" style={({ pressed }) => [styles.glassBtn, { opacity: pressed ? 0.75 : 1 }]}>
+              <Text style={styles.glassBtnText}>Cancel</Text>
+            </Pressable>
+            <Pressable onPress={async () => { haptic.light(); setSheet(null); await signOutEverywhere(); router.replace('/welcome'); }} accessibilityRole="button"
+              style={({ pressed }) => [styles.glassBtn, { opacity: pressed ? 0.75 : 1 }]}>
+              <Text style={[styles.glassBtnText, { color: dark.neg }]}>Sign out all</Text>
             </Pressable>
           </View>
         </GlassSheet>

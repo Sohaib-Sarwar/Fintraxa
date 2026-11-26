@@ -14,6 +14,7 @@
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
+import { holdSession } from './activity';
 import { keyFromHex, keyToHex, newKey, type Key } from './crypto';
 import { isExpoGo } from './env';
 import { forgetPasskey, hasPasskey, passkeyAvailable, registerPasskey, verifyPasskey } from './webPasskey';
@@ -87,9 +88,9 @@ export async function biometricsAvailable(): Promise<boolean> {
 
 /** System biometric prompt only (no key involved) — used to confirm sensitive actions. */
 export async function confirmWithBiometrics(message = 'Confirm it’s you'): Promise<boolean> {
-  if (Platform.OS === 'web') return (await verifyPasskey()) === 'ok';
+  if (Platform.OS === 'web') return (await holdSession(() => verifyPasskey())) === 'ok';
   try {
-    const r = await LocalAuthentication.authenticateAsync({ ...PROMPT, promptMessage: message, cancelLabel: 'Cancel' });
+    const r = await holdSession(() => LocalAuthentication.authenticateAsync({ ...PROMPT, promptMessage: message, cancelLabel: 'Cancel' }));
     return r.success;
   } catch {
     return false;
@@ -148,10 +149,11 @@ export async function openVault({ biometric }: { biometric: boolean }): Promise<
  */
 export async function enableBiometricKey(): Promise<boolean> {
   if (!current || !(await biometricsAvailable())) return false;
-  if (Platform.OS === 'web') return registerPasskey();
+  if (Platform.OS === 'web') return holdSession(() => registerPasskey());
   if (biometricMode === 'gate') return confirmWithBiometrics('Turn on fingerprint unlock');
   try {
-    await SecureStore.setItemAsync(BOUND_ID, await keyToHex(current), { requireAuthentication: true, authenticationPrompt: 'Turn on fingerprint unlock' });
+    const hex = await keyToHex(current);
+    await holdSession(() => SecureStore.setItemAsync(BOUND_ID, hex, { requireAuthentication: true, authenticationPrompt: 'Turn on fingerprint unlock' }));
     await store.del(PLAIN_ID);
     return true;
   } catch {

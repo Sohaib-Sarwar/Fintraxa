@@ -19,6 +19,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { LockScreen } from '@/features/session/LockScreen';
 import { SignInCurtain, useCurtain } from '@/features/session/SignInCurtain';
 import { useOtaUpdates } from '@/lib/otaUpdates';
+import { IdleWarning } from '@/features/session/IdleWarning';
 import { markActive, useSession } from '@/features/session/useSession';
 import { useAuth } from '@/lib/auth';
 import { isExpoGo } from '@/lib/env';
@@ -111,12 +112,14 @@ function Root({ fontsReady }: { fontsReady: boolean }) {
   return (
     <View style={{ flex: 1, backgroundColor: p.bg }}>
       <StatusBar style={p.mode === 'dark' ? 'light' : 'dark'} />
-      {/* Any touch counts as activity for auto-lock (useSession.ts). */}
+      {/* Any touch counts as activity for auto-lock (useSession.ts; web: the whole document, lib/activity.ts). */}
       <View style={{ flex: 1 }} onTouchStart={markActive} importantForAccessibility={locked ? 'no-hide-descendants' : 'auto'} accessibilityElementsHidden={locked}>
         <Navigator onSettled={setSettled} />
       </View>
       {/* Sign-in → Home: the landing's loader until Home is ready, then an unlock-style reveal. */}
       <SignInCurtain />
+      {/* "Still there?" before an idle lock / sign-out (useSession.ts). */}
+      <IdleWarning />
       {locked ? <View style={StyleSheet.absoluteFill}><LockScreen /></View> : null}
       <ToastHost />
     </View>

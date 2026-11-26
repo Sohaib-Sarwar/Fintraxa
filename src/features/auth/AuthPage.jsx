@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useSyncExternalStore } from 'react';
 import { Box, Button, Typography, Alert, CircularProgress, IconButton, InputBase, useMediaQuery } from '@mui/material';
 import { User, Eye, EyeOff, Mail, Download, Share, X, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { useAuthStore } from '../../store/authStore';
+import { useAuthStore, peekSignOutNotice, clearSignOutReason } from '../../store/authStore';
 
 /* Backdrop: one of several night, sea, space and leaf photos (Unsplash, free
    to use), picked at random on each visit: see ./backdrops.js and
@@ -83,7 +83,10 @@ export default function AuthPage() {
   const [resetting, setResetting] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState(null); // { title, text } shown as a glass notification
+  // { title, text, session? } shown as a glass notification; opens with why the user was signed out, if it wasn't
+  // their choice (idle, 12-hour limit, ended on the server).
+  const [success, setSuccess] = useState(() => peekSignOutNotice());
+  useEffect(() => { clearSignOutReason(); }, []);
   // The browser's install offer, caught at page load (lib/installPrompt.js).
   const deferredPrompt = useSyncExternalStore(onInstallEvent, getInstallEvent, () => null);
   const [installDismissed, setInstallDismissed] = useState(false);
@@ -349,7 +352,7 @@ function GlassNotice({ notice, onClose }) {
   useEffect(() => {
     if (!notice) return undefined;
     clearTimeout(timer.current);
-    timer.current = setTimeout(onClose, 6000);
+    timer.current = setTimeout(onClose, notice.session ? 12000 : 6000);
     return () => clearTimeout(timer.current);
   }, [notice, onClose]);
   return (

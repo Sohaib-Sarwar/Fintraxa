@@ -1,3 +1,4 @@
+import { holdSession } from '@/lib/activity';
 import * as Application from 'expo-application';
 import { Download, X } from '@/ui/icons';
 import { useState } from 'react';
@@ -22,7 +23,7 @@ export function UpdateBanner() {
   return (
     <View style={[styles.banner, { backgroundColor: p.accentSoft, borderColor: p.border }]}>
       <Download size={18} color={p.ink} />
-      <Pressable style={{ flex: 1 }} onPress={() => Linking.openURL(r.apk_url)} accessibilityRole="link" accessibilityLabel={`Download Fintraxa ${r.version_name}`}>
+      <Pressable style={{ flex: 1 }} onPress={() => holdSession(() => Linking.openURL(r.apk_url))} accessibilityRole="link" accessibilityLabel={`Download Fintraxa ${r.version_name}`}>
         <Text variant="bodyStrong">Fintraxa {r.version_name} is available</Text>
         <Text variant="caption" tone="ink2" numberOfLines={2}>{r.notes || 'Tap to download the new version.'}</Text>
       </Pressable>
@@ -44,7 +45,7 @@ export function ForcedUpdate({ release }: { release: Release }) {
         <Text variant="body" tone="ink2">This version can no longer talk to the server safely. Version {release.version_name} fixes that — your data is safe and waiting.</Text>
         {release.notes ? <Text variant="body" tone="ink2">{release.notes}</Text> : null}
       </View>
-      <Button label={`Download ${release.version_name}`} icon={Download} onPress={() => Linking.openURL(release.apk_url)} />
+      <Button label={`Download ${release.version_name}`} icon={Download} onPress={() => holdSession(() => Linking.openURL(release.apk_url))} />
     </View>
   );
 }

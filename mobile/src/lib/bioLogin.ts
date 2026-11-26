@@ -10,6 +10,7 @@
  *
  * Nothing leaves the phone: the fingerprint only unlocks the saved sign-in, which then signs in the normal way.
  */
+import { holdSession } from './activity';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
@@ -40,7 +41,7 @@ export async function saveBioLogin(identifier: string, password: string): Promis
   const value = JSON.stringify({ id: identifier.trim(), pw: password });
   try {
     if (biometricMode === 'bound') {
-      await SecureStore.setItemAsync(LOGIN_ID, value, { requireAuthentication: true, authenticationPrompt: 'Turn on fingerprint sign-in' });
+      await holdSession(() => SecureStore.setItemAsync(LOGIN_ID, value, { requireAuthentication: true, authenticationPrompt: 'Turn on fingerprint sign-in' }));
     } else {
       await SecureStore.setItemAsync(LOGIN_ID, value);
     }

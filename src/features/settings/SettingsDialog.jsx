@@ -58,6 +58,14 @@ export default function SettingsDialog({ open, onClose, initialSection = 'profil
     onClose();
     try { await signOut(); } catch { showSnackbar('Signed out on this device, but the server could not be reached.', 'warning'); }
   };
+  const signOutEverywhere = useAuthStore((s) => s.signOutEverywhere);
+  const showConfirm = useAppStore((s) => s.showConfirm);
+  const handleSignOutEverywhere = () => showConfirm('Sign out of all devices?',
+    'Every session ends: this browser, your phone and any other browser. Use it if a device was lost or shared.',
+    async () => {
+      onClose();
+      try { await signOutEverywhere(); } catch { showSnackbar('Signed out here, but the other devices could not be reached. Try again when online.', 'warning'); }
+    });
 
   const avatar = (size) => (
     <Box sx={{ position: 'relative', width: size, height: size }}>
@@ -131,7 +139,7 @@ export default function SettingsDialog({ open, onClose, initialSection = 'profil
           {section === 'categories' && <CategoriesManager />}
           {section === 'prices' && <MarketPricesSettings />}
           {section === 'xyro' && <XyroSettings />}
-          {section === 'security' && <SecuritySection onSignOut={handleSignOut} />}
+          {section === 'security' && <SecuritySection onSignOut={handleSignOut} onSignOutEverywhere={handleSignOutEverywhere} />}
         </Box>
       </Box>
     </Dialog>
@@ -306,7 +314,7 @@ function TaxSection() {
   );
 }
 
-function SecuritySection({ onSignOut }) {
+function SecuritySection({ onSignOut, onSignOutEverywhere }) {
   const t = useFx();
   const inputSx = useInputSx();
   const showSnackbar = useAppStore((s) => s.showSnackbar);
@@ -360,9 +368,20 @@ function SecuritySection({ onSignOut }) {
           {profile?.username ? `You can sign in as @${profile.username} or with your email. After five wrong passwords, username sign-in pauses for 15 minutes.` : 'Set a username under Profile to sign in with it instead of your email.'}
         </Typography>
       </Box>
-      <ButtonBase onClick={onSignOut} sx={{ justifySelf: 'start', gap: 1, height: 40, px: 2, borderRadius: 999, border: `1px solid ${t.border}`, fontSize: '0.8rem', fontWeight: 650, color: t.neg, fontFamily: 'inherit' }}>
-        <PowerSettingsNewRounded sx={{ fontSize: 17 }} />Sign out of this device
-      </ButtonBase>
+      <Box sx={{ p: 1.75, borderRadius: '16px', border: `1px solid ${t.border}` }}>
+        <Typography sx={{ fontSize: '0.86rem', fontWeight: 700 }}>Sessions</Typography>
+        <Typography sx={{ fontSize: '0.72rem', color: t.muted, mt: 0.25, mb: 1.25 }}>
+          For your security you are signed out after 15 minutes without activity (with a one-minute warning) and 12 hours after signing in. Signing out here never signs out your phone.
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+          <ButtonBase onClick={onSignOut} sx={{ gap: 1, height: 40, px: 2, borderRadius: 999, border: `1px solid ${t.border}`, fontSize: '0.8rem', fontWeight: 650, color: t.neg, fontFamily: 'inherit' }}>
+            <PowerSettingsNewRounded sx={{ fontSize: 17 }} />Sign out of this device
+          </ButtonBase>
+          <ButtonBase onClick={onSignOutEverywhere} sx={{ gap: 1, height: 40, px: 2, borderRadius: 999, border: `1px solid ${t.border}`, fontSize: '0.8rem', fontWeight: 650, color: t.ink, fontFamily: 'inherit' }}>
+            Sign out of all devices
+          </ButtonBase>
+        </Box>
+      </Box>
     </Box>
   );
 }
