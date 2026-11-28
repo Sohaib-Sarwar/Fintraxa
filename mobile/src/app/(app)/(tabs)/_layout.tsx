@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AddMenu, FAB_CENTER_FROM_BOTTOM, FAB_SIZE } from '@/features/nav/AddMenu';
 import { useInvestView, type InvestView } from '@/features/nav/investView';
 import { CardPicker } from '@/features/today/CardPicker';
+import { LiveSheet, useLiveSheet } from '@/features/passive/LiveSheet';
 import { WorthSheet } from '@/features/today/WorthSheet';
 import { useWorthSheet } from '@/features/today/worthSheetStore';
 import { useCardPicker } from '@/features/today/cardPickerStore';
@@ -184,6 +185,7 @@ function useDoubleBackExit() {
     let armedAt = 0;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       if (useWorthSheet.getState().data) { useWorthSheet.getState().close(); return true; }
+      if (useLiveSheet.getState().data) { useLiveSheet.getState().close(); return true; }
       const bar = useTabBarProps.getState().props;
       if (bar && bar.state.routes[bar.state.index]?.name !== 'index') return false; // the navigator goes back to Home
       // Leaving the app signs out (owner, 2026-11-15) — or locks, with fingerprint unlock on — then exits.
@@ -204,6 +206,7 @@ export default function TabsLayout() {
   const p = useTheme();
   const picking = useCardPicker((s) => !!s.card);
   const worthOpen = useWorthSheet((s) => !!s.data);
+  const liveOpen = useLiveSheet((s) => !!s.data);
   // The navigator is the blur target (glass nav, card picker); the nav itself is drawn outside it.
   const target = useRef<ComponentRef<typeof View>>(null);
   return (
@@ -224,6 +227,7 @@ export default function TabsLayout() {
       <TabBar blurTarget={target} />
       {picking ? <CardPicker blurTarget={target} /> : null}
       {worthOpen ? <WorthSheet blurTarget={target} /> : null}
+      {liveOpen ? <LiveSheet blurTarget={target} /> : null}
     </View>
   );
 }

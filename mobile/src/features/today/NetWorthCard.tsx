@@ -39,10 +39,12 @@ function Figure({ value, size, weight, hidden, signed }: { value: number; size: 
 }
 
 /** The card itself; also drawn by the design picker. Type and padding scale with the card's width. */
-export function CardFace({ design, label, value, holders, width, hidden, onPress, onLongPress, aside }: {
+export function CardFace({ design, label, value, holders, width, hidden, onPress, onLongPress, aside, figure }: {
   design: CardDesignId; label: string; value: number; holders: Holder[]; width: number; hidden: boolean; onPress?: () => void; onLongPress?: () => void;
   /** Shown to the right of the big figure (Wallet: the change vs last month). */
   aside?: React.ReactNode;
+  /** Draws the big figure itself at this size (Passive: the live counter repaints only itself, not the card). */
+  figure?: (size: number) => React.ReactNode;
 }) {
   const k = Math.min(1, width / 360);
   const c = designOf(design).ink === 'dark' ? DARK_INK : LIGHT_INK;
@@ -61,7 +63,7 @@ export function CardFace({ design, label, value, holders, width, hidden, onPress
       <View>
         <Text style={[styles.label, sh, { fontSize: 13 * k, color: c.ink2 }]}>{label}</Text>
         <View style={styles.amountRow}>
-          <View style={{ flexShrink: 1 }}><Figure value={value} size={40 * k} weight={font.numHeavy} hidden={hidden} /></View>
+          <View style={{ flexShrink: 1 }}>{figure ? figure(40 * k) : <Figure value={value} size={40 * k} weight={font.numHeavy} hidden={hidden} />}</View>
           <Text style={[styles.pkr, sh, { marginBottom: 8 * k, color: c.ink2 }]}>PKR</Text>
           {aside ? <View style={[styles.aside, { marginBottom: 6 * k }]}>{aside}</View> : null}
         </View>
