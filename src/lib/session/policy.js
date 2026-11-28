@@ -14,7 +14,8 @@
  *    and a clear reason on the sign-in screen.
  *
  * Fintraxa's choices:
- *  - Phone: idle in the app = the Auto-lock setting (min 1 min, default 5) with a 30 s warning; away in the background
+ *  - Phone: idle in the app = the Auto-lock setting (min 1 min, default 5), no countdown window (owner, 2026-11-28);
+ *    away in the background
  *    for the Auto-lock time → lock (fingerprint) or sign out. Screens the app itself opens (file / photo picker,
  *    fingerprint prompt, a link) are not "leaving" for up to 10 min.
  *  - Web (desktop): idle 15 min with a 60 s warning, shared across tabs.
@@ -27,7 +28,7 @@
 export const MINUTE = 60_000;
 /** Overall limit since the user last authenticated (NIST AAL2, rev. 3). */
 export const MAX_SESSION_MS = 12 * 60 * MINUTE;
-/** Phone: warning shown this long before an idle lock / sign-out. */
+/** Phone: no longer used — the phone's "Still there?" window was removed on 2026-11-28 (kept for the tests). */
 export const PHONE_WARN_MS = 30_000;
 /** Web: idle limit and its warning. */
 export const WEB_IDLE_MS = 15 * MINUTE;

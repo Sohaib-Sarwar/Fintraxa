@@ -7,20 +7,15 @@
  * puts the app in the background, but the user hasn't left. `holdSession(fn)` marks that (persisted, so even
  * Android ending the app behind the picker is not treated as closing it) for up to HOLD_MAX_MS.
  */
-import { create } from 'zustand';
 import { HOLD_MAX_MS } from '@core/session/policy.js';
 import { useApp } from './store';
 
 let lastActive = Date.now();
-/** Any touch, key or scroll. Also clears an idle warning on screen. */
+/** Any touch, key or scroll. */
 export function markActive() {
   lastActive = Date.now();
-  if (useIdle.getState().warnUntil !== null) useIdle.setState({ warnUntil: null });
 }
 export const lastActiveAt = () => lastActive;
-
-/** The idle warning ("Still there?"): when the session will lock / end, or null when not warning. */
-export const useIdle = create<{ warnUntil: number | null }>(() => ({ warnUntil: null }));
 
 let holds = 0;
 /** Until when a screen the app opened may keep the user away (0 = none). */

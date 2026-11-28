@@ -51,6 +51,46 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         dark: { image: './assets/splash-icon.png', backgroundColor: '#000000' },
       },
     ],
+    // Home-screen widget "Passive income" (owner, 2026-11-28; src/features/widget). Android redraws it every 30 min
+    // (its shortest period); the app redraws it whenever the figures change. Long-press → Settings to change it.
+    [
+      'react-native-android-widget',
+      {
+        fonts: [
+          './node_modules/@expo-google-fonts/inter/500Medium/Inter_500Medium.ttf',
+          './node_modules/@expo-google-fonts/inter-tight/600SemiBold/InterTight_600SemiBold.ttf',
+          './node_modules/@expo-google-fonts/inter-tight/800ExtraBold/InterTight_800ExtraBold.ttf',
+        ],
+        widgets: [
+          {
+            name: 'PassiveIncome',
+            label: 'Passive income',
+            description: 'What you earn passively today, counted at your average',
+            minWidth: '110dp',
+            minHeight: '40dp',
+            targetCellWidth: 4,
+            targetCellHeight: 2,
+            resizeMode: 'horizontal|vertical',
+            widgetFeatures: 'reconfigurable',
+            updatePeriodMillis: 1800000,
+            previewImage: './assets/widget/preview-wide.png',
+          },
+          {
+            name: 'PassiveIncomeSmall',
+            label: 'Passive income (small)',
+            description: 'Earned today, on a small card',
+            minWidth: '110dp',
+            minHeight: '40dp',
+            targetCellWidth: 2,
+            targetCellHeight: 2,
+            resizeMode: 'horizontal|vertical',
+            widgetFeatures: 'reconfigurable',
+            updatePeriodMillis: 1800000,
+            previewImage: './assets/widget/preview-small.png',
+          },
+        ],
+      },
+    ],
   ],
   // The web build is served from /m of the main site: scripts/build-mobile-web.mjs sets FINTRAXA_WEB_BASE=/m. Only
   // then is baseUrl set, so the native config (and its update fingerprint) stays the same as the installed APK's.
