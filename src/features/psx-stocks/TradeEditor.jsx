@@ -104,7 +104,7 @@ export default function TradeEditor({ trade, onClose }) {
           tone={isBuy ? 'neutral' : 'pos'}
           amount={formatCurrency(total, 2)}
           date={receiptDate(f.date)}
-          subject={{ logo: <StockLogo symbol={trade.symbol} size="sm" />, title: trade.symbol, sub: getStockName(trade.symbol, trade.company_name) }}
+          subject={{ logo: <StockLogo symbol={trade.symbol} size="lg" />, title: trade.symbol, sub: getStockName(trade.symbol, trade.company_name) }}
           rows={[
             ['Shares', formatNumber(qty, qty % 1 ? 2 : 0)],
             ['Price', formatNumber(price, 2)],

@@ -115,13 +115,10 @@ export default function TransactionEditor({ txn, onClose }) {
           tone={income ? 'pos' : 'neutral'}
           amount={`${income ? '+' : '−'}${formatCurrency(shownAmount, 2)}`}
           date={receiptDate(f.date)}
-          subject={account ? { logo: <BankLogo symbol={account.bank_symbol} size="sm" />, title: account.name, sub: account.bank_name } : null}
+          subject={account
+            ? { logo: <BankLogo symbol={account.bank_symbol} size="lg" />, title: account.name, sub: account.bank_name }
+            : { logo: <CategoryBadge icon={cat?.icon} name={cat?.name} size={40} />, title: cat?.name ?? 'Uncategorized' }}
           rows={[
-            ...(account ? [] : [['Category', (
-              <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75 }}>
-                <CategoryBadge icon={cat?.icon} name={cat?.name} size={20} />{cat?.name ?? 'Uncategorized'}
-              </Box>
-            )]]),
             ...(split ? [['Gross profit', formatCurrency(Number(split.gross), 2)], [`Tax ${Math.round(rate * 100)}%`, `−${formatCurrency(Number(split.tax), 2)}`]] : []),
             ['Note', f.notes.trim()],
           ]}

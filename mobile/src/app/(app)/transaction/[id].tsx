@@ -1,15 +1,10 @@
 import Decimal from 'decimal.js';
-import { router, useLocalSearchParams } from 'expo-router';
-import { View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useLocalSearchParams } from 'expo-router';
 import { useTransactions } from '@/data/queries';
 import { money } from '@/lib/format';
-import { EmptyState, Skeleton } from '@/ui/feedback';
 import { useHidden } from '@/ui/Figures';
 import { BankLogo, CategoryIcon } from '@/ui/Logos';
-import { Receipt, receiptDate, type ReceiptRow } from '@/ui/Receipt';
-import { Screen } from '@/ui/Screen';
-import { space } from '@/ui/tokens';
+import { receiptDate, receiptFileName, ReceiptScreen, type ReceiptRow } from '@/ui/Receipt';
 
 const KIND: Record<string, string> = { active: 'Income', passive: 'Passive income', spend: 'Expense', transfer: 'Moved to savings or investments' };
 
@@ -17,17 +12,15 @@ const KIND: Record<string, string> = { active: 'Income', passive: 'Passive incom
  * One income / expense as a formal receipt (black glass), filling the screen with no scrolling (owner, 2026-11-15).
  * Only what a bank slip shows (owner, 2026-11-26): amount, category, date, account, note. Savings profit shows its
  * bank's logo, the account, the gross profit, the tax the bank withheld (and its rate) and the net credited.
- * Edit / Delete live on the list's long-press sheet.
+ * Edit / Delete live on the list's long-press sheet. Download (top right) saves the slip as an image.
  */
 export default function TransactionDetail() {
   const hidden = useHidden();
-  const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const txns = useTransactions();
   const t = txns.data?.find((x) => x.id === id);
 
-  if (!t && txns.isLoading) return <Screen back title="Receipt"><Skeleton height={420} radius={28} /></Screen>;
-  if (!t) return <Screen back title="Receipt"><EmptyState title="Transaction not found" body="It may have been deleted." action="Go back" onAction={() => router.back()} /></Screen>;
+  if (!t) return <ReceiptScreen receipt={null} file="" loading={txns.isLoading} missing={{ title: 'Transaction not found', body: 'It may have been deleted.' }} />;
 
   const rs = (v: string | number) => money(v, { hidden, decimals: 2 });
   const credit = t.type === 'credit';
@@ -52,20 +45,18 @@ export default function TransactionDetail() {
   ];
 
   return (
-    <Screen back title="Receipt" scroll={false}>
-      <View style={{ flex: 1, paddingBottom: insets.bottom + space.md }}>
-        <Receipt
-          fill
-          icon={savings ? <BankLogo symbol={acct!.bank_symbol} size={52} /> : <CategoryIcon icon={t.categories?.icon} size={52} tone="glass" />}
-          title={savings ? acct!.name : category}
-          subtitle={savings ? acct!.bank_name ?? undefined : undefined}
-          amount={`${credit ? '+' : '−'}${rs(t.amount)}`}
-          positive={credit}
-          status={savings ? 'Savings profit' : KIND[t.categories?.kind ?? (credit ? 'active' : 'spend')] ?? (credit ? 'Income' : 'Expense')}
-          rows={rows}
-          reference={t.id.slice(0, 8).toUpperCase()}
-        />
-      </View>
-    </Screen>
+    <ReceiptScreen
+      file={receiptFileName(savings ? acct!.name : category, t.date)}
+      receipt={{
+        icon: savings ? <BankLogo symbol={acct!.bank_symbol} size={48} /> : <CategoryIcon icon={t.categories?.icon} size={48} tone="glass" />,
+        title: savings ? acct!.name : category,
+        subtitle: savings ? acct!.bank_name ?? undefined : undefined,
+        amount: `${credit ? '+' : '−'}${rs(t.amount)}`,
+        positive: credit,
+        status: savings ? 'Savings profit' : KIND[t.categories?.kind ?? (credit ? 'active' : 'spend')] ?? (credit ? 'Income' : 'Expense'),
+        rows,
+        reference: t.id.slice(0, 8).toUpperCase(),
+      }}
+    />
   );
 }

@@ -13,14 +13,12 @@ const SCALE = 3;
  * muted       footer text colour
  */
 export async function downloadReceipt(node, filename, background, muted = '#80858d') {
-  // html2canvas is large and only needed here, so it loads on demand.
-  const { default: html2canvas } = await import('html2canvas');
-  const inner = await html2canvas(node, {
-    scale: SCALE, backgroundColor: background, useCORS: true, logging: false,
-    // html2canvas places letters one by one, so tight negative tracking opens gaps
-    // inside figures ("1 2,024"); the captured copy uses normal tracking.
-    onclone: (doc) => doc.querySelectorAll('[data-numeric]').forEach((el) => { el.style.letterSpacing = 'normal'; }),
-  });
+  // modern-screenshot draws the element with the browser's own renderer (SVG foreignObject), so the image is what
+  // is on screen: html2canvas dropped the status chip (tick and text) and spaced out tracked figures (owner,
+  // 2026-11-28: "download as shown on screen, no bugs"). Loaded on demand; logos are same-origin and inlined.
+  const { domToCanvas } = await import('modern-screenshot');
+  await document.fonts?.ready;
+  const inner = await domToCanvas(node, { scale: SCALE, backgroundColor: background });
   const pad = 28 * SCALE;
   const foot = 30 * SCALE;
   const out = document.createElement('canvas');

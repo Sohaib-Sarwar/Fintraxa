@@ -1,15 +1,10 @@
 import Decimal from 'decimal.js';
-import { router, useLocalSearchParams } from 'expo-router';
-import { View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useLocalSearchParams } from 'expo-router';
 import { useDividends } from '@/data/queries';
 import { money, units } from '@/lib/format';
-import { EmptyState, Skeleton } from '@/ui/feedback';
 import { useHidden } from '@/ui/Figures';
 import { StockLogo } from '@/ui/Logos';
-import { Receipt, receiptDate, type ReceiptRow } from '@/ui/Receipt';
-import { Screen } from '@/ui/Screen';
-import { space } from '@/ui/tokens';
+import { receiptDate, receiptFileName, ReceiptScreen, type ReceiptRow } from '@/ui/Receipt';
 
 const TYPE: Record<string, string> = { interim: 'Interim dividend', final: 'Final dividend', special: 'Special dividend' };
 const FILER: Record<string, string> = { filer: 'Filer', non_filer: 'Non-filer' };
@@ -22,13 +17,11 @@ const FILER: Record<string, string> = { filer: 'Filer', non_filer: 'Non-filer' }
  */
 export default function DividendReceipt() {
   const hidden = useHidden();
-  const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const q = useDividends();
   const d = q.data?.find((x) => x.id === id);
 
-  if (!d && q.isLoading) return <Screen back title="Receipt"><Skeleton height={420} radius={28} /></Screen>;
-  if (!d) return <Screen back title="Receipt"><EmptyState title="Dividend not found" body="It may have been deleted." action="Go back" onAction={() => router.back()} /></Screen>;
+  if (!d) return <ReceiptScreen receipt={null} file="" loading={q.isLoading} missing={{ title: 'Dividend not found', body: 'It may have been deleted.' }} />;
 
   const rs = (v: string | number) => money(v, { hidden, decimals: 2 });
   const gross = new Decimal(d.gross_amount);
@@ -53,20 +46,18 @@ export default function DividendReceipt() {
   ];
 
   return (
-    <Screen back title="Receipt" scroll={false}>
-      <View style={{ flex: 1, paddingBottom: insets.bottom + space.md }}>
-        <Receipt
-          fill
-          icon={<StockLogo symbol={d.symbol} size={48} />}
-          title={d.symbol}
-          subtitle={d.company_name ?? undefined}
-          amount={`+${rs(d.net_amount)}`}
-          positive
-          status={d.dividend_type ? TYPE[d.dividend_type] : 'Cash dividend'}
-          rows={rows}
-          reference={d.id.slice(0, 8).toUpperCase()}
-        />
-      </View>
-    </Screen>
+    <ReceiptScreen
+      file={receiptFileName('dividend', d.symbol, d.payment_date)}
+      receipt={{
+        icon: <StockLogo symbol={d.symbol} size={48} />,
+        title: d.symbol,
+        subtitle: d.company_name ?? undefined,
+        amount: `+${rs(d.net_amount)}`,
+        positive: true,
+        status: d.dividend_type ? TYPE[d.dividend_type] : 'Cash dividend',
+        rows,
+        reference: d.id.slice(0, 8).toUpperCase(),
+      }}
+    />
   );
 }
