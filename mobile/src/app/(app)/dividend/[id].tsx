@@ -47,6 +47,7 @@ export default function DividendReceipt() {
 
   return (
     <ReceiptScreen
+      classic
       file={receiptFileName('dividend', d.symbol, d.payment_date)}
       receipt={{
         icon: <StockLogo symbol={d.symbol} size={48} />,

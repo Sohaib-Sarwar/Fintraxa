@@ -27,9 +27,10 @@ export default function StockTradeReceipt() {
   const price = hidden ? money(0, { hidden }) : money(String(t.price), { decimals: new Decimal(String(t.price)).decimalPlaces() > 2 ? 4 : 2 });
   return (
     <ReceiptScreen
+      classic
       file={receiptFileName(buy ? 'buy' : 'sell', t.symbol, t.date)}
       receipt={{
-        icon: <StockLogo symbol={t.symbol} size={48} />,
+        icon: <StockLogo symbol={t.symbol} size={52} />,
         title: t.symbol,
         subtitle: t.company_name ?? undefined,
         amount: `${buy ? '−' : '+'}${m(total)}`,
