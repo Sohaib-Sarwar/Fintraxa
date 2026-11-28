@@ -32,8 +32,8 @@ import { font, space } from '@/ui/tokens';
 import type { WidgetData } from './earnings';
 import { refreshWidgets } from './native';
 import { renderFor } from './render';
-import { loadAppCard, loadConfig, loadData, saveConfig, type WidgetConfig } from './storage';
-import { WidgetEditor } from './WidgetEditor';
+import { loadAppCard, loadConfig, loadData, resolveCard, saveConfig, type WidgetConfig } from './storage';
+import { GlassBackdrop, WidgetEditor } from './WidgetEditor';
 
 export function WidgetSettingsScreen(props: WidgetConfigurationScreenProps) {
   const [fontsLoaded, fontError] = useFonts({
@@ -99,6 +99,7 @@ function Settings({ widgetInfo, renderWidget, setResult }: WidgetConfigurationSc
 
   return (
     <View style={styles.screen}>
+      <GlassBackdrop card={cfg ? resolveCard(cfg, appCard) : appCard} />
       <View style={[styles.header, { paddingTop: insets.top + space.sm }]}>
         <Pressable onPress={() => finish('cancel')} hitSlop={10} accessibilityRole="button" style={styles.headerBtn}>
           <Text style={styles.cancel}>Cancel</Text>

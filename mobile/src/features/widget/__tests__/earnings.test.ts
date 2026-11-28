@@ -31,9 +31,8 @@ describe('widget earnings (the web passive counter)', () => {
     expect(f.yesterday).toBeCloseTo(f.perSecond * 86400, 6);
     // 23:00 → 07:00 = 8 hours (the web's "a night")
     expect(f.overnight).toBeCloseTo(f.perSecond * 8 * 3600, 6);
-    // this month: 27 days 14.5 hours since 1 Nov
-    expect(f.month).toBeCloseTo(f.perSecond * (27 * 86400 + 14.5 * 3600), 4);
-    expect(f.received).toBe(3000);
+    // This month = what was actually received in November after tax (the Passive tab's figure), not the rate.
+    expect(f.month).toBe(3000);
     expect(f.average).toBe(2600);
   });
 
@@ -63,7 +62,6 @@ describe('widget earnings (the web passive counter)', () => {
     const f = widgetFigures({ events: EVENTS }, { sources: [...ALL], basis: 'fy', sleep: SLEEP, now: local(2026, 12, 1, 0, 0, 0) });
     expect(f.today).toBe(0);
     expect(f.month).toBe(0);
-    expect(f.received).toBe(0);
   });
 
   test('overnight: the last sleep that has started — whole when over, so far while asleep', () => {

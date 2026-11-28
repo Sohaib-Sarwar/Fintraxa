@@ -1,0 +1,16 @@
+// Fintraxa's widget ticker (2026-11-28): the live, flipping "Earned today" number on the home-screen widget.
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'com.fintraxa'
+version = '1.0.0'
+
+android {
+  namespace "expo.modules.fxticker"
+  defaultConfig {
+    versionCode 1
+    versionName "1.0.0"
+  }
+}

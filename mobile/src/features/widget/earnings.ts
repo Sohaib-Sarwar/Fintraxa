@@ -9,9 +9,9 @@
  * computed by the very same engine (src/lib/finance/passive.js), so the widget and the web never disagree. Like the
  * web, a negative average (fund losses larger than the income) counts as nothing earned.
  *
- * Figures at the rate: Today (since 00:00), Overnight (the sleep hours), Yesterday (a full day), This month (since
- * the 1st). Two figures are not at the rate: Received this month (what was actually paid, after tax) and Monthly
- * average (the rate itself, per month).
+ * Figures at the rate: Today (since 00:00), Overnight (the sleep hours), Yesterday (a full day). Not at the rate:
+ * This month = what was actually received this month after tax (owner, 2026-11-28: it must equal the Passive tab's
+ * month figure), and Monthly average (the rate itself, per month).
  */
 import Decimal from 'decimal.js';
 import { analyzePassive, type PassiveEvent, type PassiveSource } from '@/data/engines';
@@ -36,16 +36,15 @@ export type WidgetData = {
 export type RateBasis = 'fy' | '12m' | 'all';
 export const BASIS_NAMES: Record<RateBasis, string> = { fy: 'This tax year', '12m': 'Last 12 months', all: 'All time' };
 
-export type SmallFigure = 'overnight' | 'yesterday' | 'month' | 'received' | 'average';
+export type SmallFigure = 'month' | 'yesterday' | 'overnight' | 'average';
 export const FIGURE_NAMES: Record<SmallFigure, string> = {
-  overnight: 'Overnight', yesterday: 'Yesterday', month: 'This month', received: 'Received', average: 'Monthly avg',
+  month: 'This month', yesterday: 'Yesterday', overnight: 'Overnight', average: 'Monthly avg',
 };
 /** Longer names for the settings screen. */
 export const FIGURE_HELP: Record<SmallFigure, string> = {
   overnight: 'While you slept, at your rate',
   yesterday: 'A full day at your rate',
-  month: 'Since the 1st, at your rate',
-  received: 'Actually paid this month, after tax',
+  month: 'Received since the 1st, after tax (as in Passive)',
   average: 'Your average a month, after tax',
 };
 
@@ -64,7 +63,6 @@ const at = (ms: number, dayOffset: number, hour: number) => {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate() + dayOffset, hour, 0, 0, 0).getTime();
 };
 const startOfDay = (ms: number) => at(ms, 0, 0);
-const startOfMonth = (ms: number) => { const d = new Date(ms); return new Date(d.getFullYear(), d.getMonth(), 1).getTime(); };
 
 /** First day of the averaging period for `today` ('YYYY-MM-DD'). */
 export function basisStart(basis: RateBasis, today: string): string {
@@ -113,8 +111,8 @@ export type WidgetFigures = {
   today: number;
   overnight: number;
   yesterday: number;
+  /** Passive income actually received this month after tax — the Passive tab's "This month" (not the rate). */
   month: number;
-  received: number;
   average: number;
   /** Months the average is taken over (the web's elapsed months). */
   months: number;
@@ -139,8 +137,7 @@ export function widgetFigures(data: Pick<WidgetData, 'events'>, opts: { sources:
     today: earn(now - startOfDay(now)),
     overnight: earn(night.end - night.start),
     yesterday: perSecond * DAY_S,
-    month: earn(now - startOfMonth(now)),
-    received,
+    month: received,
     average: Math.max(0, a.avgPerMonth),
     months: a.elapsedMonths,
     hasIncome: events.length > 0,
