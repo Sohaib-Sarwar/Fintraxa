@@ -21,7 +21,7 @@ import { afterRefresh, refreshMyPrices } from '@/lib/refreshPrices';
 import { useApp, useTracks, type Material, type Tracks } from '@/lib/store';
 import { biometricsAvailable, disableBiometricKey, enableBiometricKey } from '@/lib/vault';
 import { BlackGlass, GLASS_INK, GLASS_INK2, GLASS_LINE } from '@/ui/BlackGlass';
-import { pinWidget, widgetsAvailable } from '@/features/widget/native';
+import { widgetsAvailable } from '@/features/widget/native';
 import { toast } from '@/ui/feedback';
 import { Field } from '@/ui/Field';
 import { GlassSheet } from '@/ui/GlassSheet';
@@ -280,12 +280,7 @@ export default function Me() {
             <Row first icon={EyeOff} title="Hide amounts" toggle={app.hideAmounts} onToggle={(v) => app.set({ hideAmounts: v })} />
             <Row icon={Vibrate} title="Haptics" toggle={app.haptics} onToggle={(v) => app.set({ haptics: v })} />
             <Row icon={RefreshCw} title="Refresh my prices" onPress={runRefresh} />
-            {widgetsAvailable ? (
-              <Row icon={LayoutGrid} title="Add widget to home screen" onPress={() => {
-                haptic.tick();
-                pinWidget().then((ok) => { if (!ok) toast('Long-press your home screen, tap Widgets and choose Fintraxa.', { tone: 'info' }); });
-              }} />
-            ) : null}
+            {widgetsAvailable ? <Row icon={LayoutGrid} title="Home-screen widget" onPress={() => { haptic.tick(); router.push('/widget'); }} /> : null}
             <Row icon={Globe} title="Open on the web" onPress={() => holdSession(() => Linking.openURL(`${env.webApp}/home`))} />
             <Row icon={Activity} title="Version" value={`${appVersion}${!isExpoGo && Application.nativeBuildVersion ? ` (${Application.nativeBuildVersion})` : isExpoGo ? ' · Expo Go' : ''}`} />
           </Section>

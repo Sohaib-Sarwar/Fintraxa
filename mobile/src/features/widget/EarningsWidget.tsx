@@ -1,3 +1,9 @@
+'use no memo';
+// ↑ Required (owner's 2026-11-28 bug: "Save does nothing, widget never added"): react-native-android-widget builds
+// the widget by CALLING these components as plain functions. The React Compiler (on app-wide) rewrites components to
+// use a memo-cache hook, and a hook called outside React throws "Invalid hook call" — every draw failed, so the
+// settings screen never reported success (Android then discards the new widget) and pinned widgets stayed empty.
+// This directive keeps the compiler off this file. A test (widget/__tests__/tree.test.tsx) builds the tree.
 /**
  * The "Passive income" home-screen widget (owner, 2026-11-28). Drawn by react-native-android-widget: these
  * components describe the layout, the library draws it natively — in the widget's background task, in the
@@ -173,5 +179,16 @@ export function EarningsWidget(v: WidgetView) {
       <Background width={w} height={h} card={v.card} />
       {body}
     </OverlapWidget>
+  );
+}
+
+/** Drawn when anything fails, so a widget is never left empty: the card, the name, and a tap opens the app. */
+export function FallbackWidget() {
+  return (
+    <FlexWidget clickAction="OPEN_APP" accessibilityLabel="Open Fintraxa"
+      style={{ width: 'match_parent', height: 'match_parent', borderRadius: RADIUS, backgroundColor: '#0A0A0B', padding: 16, justifyContent: 'center' }}>
+      <TextWidget text="Fintraxa" allowFontScaling={false} style={{ fontFamily: F_BIG, fontSize: 18, color: INK }} />
+      <TextWidget text="Tap to open the app and update." allowFontScaling={false} style={{ fontFamily: F_LABEL, fontSize: 12, color: INK2, marginTop: 4 }} />
+    </FlexWidget>
   );
 }

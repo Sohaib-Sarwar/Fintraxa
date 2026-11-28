@@ -51,8 +51,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         dark: { image: './assets/splash-icon.png', backgroundColor: '#000000' },
       },
     ],
-    // Home-screen widget "Passive income" (owner, 2026-11-28; src/features/widget). Android redraws it every 30 min
-    // (its shortest period); the app redraws it whenever the figures change. Long-press → Settings to change it.
+    // Home-screen widget "Passive income" (owner, 2026-11-28; src/features/widget). Added at once, no setup screen
+    // (reconfigurable|configuration_optional, Android 12+); long-press → Settings, or Me › Home-screen widget, edits it.
+    // Sizes per developer.android.com: targetCell* on Android 12+, minWidth/minHeight the fallback for older ones.
+    // Android redraws it every 30 min (its shortest period); the app redraws it whenever the figures change.
     [
       'react-native-android-widget',
       {
@@ -66,12 +68,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
             name: 'PassiveIncome',
             label: 'Passive income',
             description: 'What you earn passively today, counted at your average',
-            minWidth: '110dp',
-            minHeight: '40dp',
+            minWidth: '250dp',
+            minHeight: '110dp',
             targetCellWidth: 4,
             targetCellHeight: 2,
             resizeMode: 'horizontal|vertical',
-            widgetFeatures: 'reconfigurable',
+            widgetFeatures: 'reconfigurable|configuration_optional',
             updatePeriodMillis: 1800000,
             previewImage: './assets/widget/preview-wide.png',
           },
@@ -84,7 +86,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
             targetCellWidth: 2,
             targetCellHeight: 2,
             resizeMode: 'horizontal|vertical',
-            widgetFeatures: 'reconfigurable',
+            widgetFeatures: 'reconfigurable|configuration_optional',
             updatePeriodMillis: 1800000,
             previewImage: './assets/widget/preview-small.png',
           },
