@@ -1,6 +1,6 @@
 import { addMoney, autoDecimals, changePct, compactNumber, delta, group, MASK, money, pct, share, tone, units } from '../format';
 import { addDays, dayHeading, fyOf, fyRange, lastDayOf, monthRange, shortDate } from '../dates';
-import { utf8Decode, utf8Encode } from '../crypto';
+import { utf8Decode, utf8DecodeJs, utf8Encode, utf8EncodeJs } from '../crypto';
 import { pressKey } from '../amount';
 
 describe('money format (plan §5 rules)', () => {
@@ -77,6 +77,12 @@ describe('dates', () => {
 describe('utf8 (session encryption encoding)', () => {
   test('round-trips ASCII, Urdu and emoji', () => {
     for (const s of ['{"access_token":"x.y.z"}', 'محمد سہیل', 'Rs 1,250 💸', '']) expect(utf8Decode(utf8Encode(s))).toBe(s);
+    // The pure-JS fallbacks (runtimes without TextEncoder/TextDecoder) agree with the native ones byte for byte.
+    const big = `${'{"nav":"10.7191","name":"Meezan’s fund"},'.repeat(5000)}محمد 💸`;
+    for (const s of ['{"access_token":"x.y.z"}', 'محمد سہیل', 'Rs 1,250 💸', '', big]) {
+      expect(Array.from(utf8EncodeJs(s))).toEqual(Array.from(new TextEncoder().encode(s)));
+      expect(utf8DecodeJs(utf8EncodeJs(s))).toBe(s);
+    }
   });
 });
 

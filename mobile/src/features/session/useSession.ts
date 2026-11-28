@@ -18,10 +18,10 @@ import { useEffect, useRef } from 'react';
 import { AppState, Platform } from 'react-native';
 import { authTimeFromToken, onColdStart, onReturn, phoneIdleMs, sessionState } from '@core/session/policy.js';
 import { holdUntil, lastActiveAt, markActive } from '@/lib/activity';
-import { autoLock, endSession, signOut, startAuth, useAuth } from '@/lib/auth';
+import { autoLock, endSession, startAuth, useAuth } from '@/lib/auth';
 import { restartedForUpdate } from '@/lib/otaUpdates';
 import { useApp } from '@/lib/store';
-import { supabase, wipeStoredSession } from '@/lib/supabase';
+import { revokeInBackground, startDiscarding, stopDiscarding, supabase, takeStoredSessions, wipeStoredSession } from '@/lib/supabase';
 import { openVault, resetVault, type OpenResult } from '@/lib/vault';
 
 export type Boot = 'starting' | 'locked' | 'ready';
@@ -110,10 +110,18 @@ export function useSession(): Boot {
     // Android — and closing signs out (owner, 2026-11-15). Signed out BEFORE the stored session is published, so
     // Home never starts loading behind the splash. Not a close: the update restart, Android ending the app behind a
     // picker it opened, and (web) reloading the same tab.
-    Promise.all([openVault({ biometric: false }), restartedForUpdate()]).then(async ([, updating]) => {
-      if (decide(updating) === 'end') await signOut().catch(() => {});
+    // The decision needs no vault, so it is made first. Ending: stored sessions are taken out as they are read
+    // (supabase-js starts signed out, no token refresh, no network) and revoked on the server in the background —
+    // the login page no longer waits for two round trips (owner, 2026-11-28).
+    restartedForUpdate().then(async (updating) => {
+      const end = decide(updating) === 'end';
+      if (end) startDiscarding();
+      await openVault({ biometric: false });
+      const taken = end ? await takeStoredSessions() : [];
       await startAuth();
-    }).catch(() => useAuth.setState({ ready: true }));
+      stopDiscarding();
+      revokeInBackground(taken);
+    }).catch(() => { stopDiscarding(); useAuth.setState({ ready: true }); });
   }, [hydrated]);
 
   // The idle clock starts when a session begins or the app is unlocked — never earlier, so time spent on the

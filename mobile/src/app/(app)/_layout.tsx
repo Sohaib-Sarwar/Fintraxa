@@ -7,7 +7,7 @@ import { useLatestRelease, usePrefs, useUid } from '@/data/queries';
 import { ForcedUpdate } from '@/features/me/UpdateBanner';
 import { RangeSheet } from '@/features/range/RangeSheet';
 import { usePeriodSheet } from '@/features/range/usePeriod';
-import { useWidgetSync } from '@/features/widget/useWidgetSync';
+import { WidgetSync } from '@/features/widget/WidgetSync';
 import { isExpoGo } from '@/lib/env';
 import { ALL_TRACKS, useApp } from '@/lib/store';
 import { useTheme } from '@/ui/theme';
@@ -29,7 +29,6 @@ export default function AppLayout() {
   const uid = useUid();
   const onboarded = useApp((s) => (uid ? !!s.onboarded[uid] : true));
   usePrefsSync(uid);
-  useWidgetSync(uid);
 
   // First sign-in on this phone: ask what to track (then offer fingerprint unlock).
   const sent = useRef(false);
@@ -65,6 +64,7 @@ export default function AppLayout() {
     </Stack>
     </BlurTargetView>
     {periodOpen ? <RangeSheet blurTarget={stackRef} /> : null}
+    <WidgetSync uid={uid} />
     </View>
   );
 }
