@@ -71,7 +71,7 @@ export default function DevUi() {
   const [scrub, setScrub] = useState<Point | null>(null);
   useEffect(() => { if (light !== undefined) useApp.getState().set({ themePref: 'light' }); }, [light]);
   if (!__DEV__) return <Redirect href="/" />;
-  if (receipt) return <ReceiptScreen receipt={SAMPLE_RECEIPTS[receipt] ?? SAMPLE_RECEIPTS.stock} file={`sample-${receipt}.png`} />;
+  if (receipt) return <ReceiptScreen classic={['stock', 'dividend', 'fund'].includes(receipt)} receipt={SAMPLE_RECEIPTS[receipt] ?? SAMPLE_RECEIPTS.stock} file={`sample-${receipt}.png`} />;
   const last = SAMPLE[SAMPLE.length - 1];
 
   return (

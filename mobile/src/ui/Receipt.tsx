@@ -8,6 +8,8 @@
  *   the details as label / value rows, the total marked
  *   reference, and "computer-generated, no signature" like a bank slip.
  * The slip is as tall as its content (no stretching), on a solid face so the saved image matches the screen.
+ * Stock trades, dividends and fund entries keep the earlier black-glass look (`classic`, ClassicReceipt.tsx — owner,
+ * 2026-11-28: "undo the app receipt format for stocks, divs, funds"), with the same Download.
  * `ReceiptScreen` puts it on a screen with a download button at the top right; Download saves exactly this view
  * (with a thin margin in the screen colour) — lib/saveImage.
  */
@@ -15,11 +17,13 @@ import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { haptic } from '@/lib/haptics';
 import { SAVED_TO, saveViewAsImage } from '@/lib/saveImage';
 import { GLASS_INK, GLASS_INK2, GLASS_LINE } from './BlackGlass';
 import { EmptyState, Skeleton, toast } from './feedback';
 import { CircleCheck, Download } from './icons';
+import { ClassicReceipt } from './ClassicReceipt';
 import { CaptureSafe } from './Logos';
 import { CircleButton } from './primitives';
 import { Screen } from './Screen';
@@ -100,10 +104,13 @@ export function Receipt({ icon, title, subtitle, amount, positive, status, rows,
  * A receipt screen: back, "Receipt", a download button at the top right, the slip. Loading and not-found states
  * too, so every receipt behaves the same. `file`: the downloaded image's name (receiptFileName).
  */
-export function ReceiptScreen({ receipt, file, loading, missing }: {
+export function ReceiptScreen({ receipt, file, loading, missing, classic = false }: {
   receipt: ReceiptProps | null; file: string; loading?: boolean; missing?: { title: string; body: string };
+  /** The earlier full-screen black-glass look (stock trades, dividends, fund entries — owner, 2026-11-28). */
+  classic?: boolean;
 }) {
   const p = useTheme();
+  const insets = useSafeAreaInsets();
   const shot = useRef<ComponentRef<typeof View>>(null);
   const [busy, setBusy] = useState(false);
 
@@ -132,6 +139,18 @@ export function ReceiptScreen({ receipt, file, loading, missing }: {
       </Screen>
     );
   }
+  if (classic) {
+    return (
+      <Screen back title="Receipt" right={right} scroll={false}>
+        <View style={{ flex: 1, paddingBottom: insets.bottom + space.md }}>
+          {/* What Download saves: the card as shown, on a thin margin of the screen colour. */}
+          <View ref={shot} collapsable={false} style={[styles.shot, styles.shotFill, { backgroundColor: p.bg }]}>
+            <ClassicReceipt fill {...receipt} />
+          </View>
+        </View>
+      </Screen>
+    );
+  }
   return (
     <Screen back title="Receipt" right={right} bottomSpace={space.lg}>
       {/* What Download saves: the slip on a thin margin of the screen colour. */}
@@ -144,6 +163,7 @@ export function ReceiptScreen({ receipt, file, loading, missing }: {
 
 const styles = StyleSheet.create({
   shot: { marginHorizontal: -space.sm, padding: space.sm },
+  shotFill: { flex: 1 },
   slip: { borderRadius: 24, overflow: 'hidden', borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(255,255,255,0.12)', backgroundColor: '#0E0E10' },
   brand: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: space.lg, paddingVertical: space.md, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: GLASS_LINE },
   mark: { width: 26, height: 26 },

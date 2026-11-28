@@ -64,9 +64,10 @@ export default function FundEntryReceipt() {
 
   return (
     <ReceiptScreen
+      classic
       file={receiptFileName(x.fundName ?? 'fund', type, String(e.trade_date))}
       receipt={{
-        icon: <AmcLogo code={x.amcCode} name={x.amcName} size={48} />,
+        icon: <AmcLogo code={x.amcCode} name={x.amcName} size={52} />,
         title: x.fundName ?? 'Fund',
         subtitle: x.amcName ?? undefined,
         amount: headline ? m(headline.abs()) : `${units(u.abs().toString())} units`,
