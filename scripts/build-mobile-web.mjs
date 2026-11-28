@@ -5,6 +5,9 @@
  *   node scripts/build-mobile-web.mjs
  *
  * 1. `npm ci` in mobile/ (Vercel installs only the root) and `expo export --platform web` into dist/m
+ *    `npm ci` runs whenever mobile/package-lock.json differs from what is installed (a hash stamp in node_modules):
+ *    Vercel restores mobile/node_modules from its build cache, and the old "skip if expo is there" check kept a stale
+ *    tree — the 2026-11-28 deploys failed on a newly added package (react-native-android-widget) for that reason.
  *    (app.config.ts `experiments.baseUrl: '/m'`, so every asset URL starts with /m/).
  * 2. Makes /m an installable app of its own: a manifest (scope + start_url /m, the site's Fintraxa icons), the
  *    iOS/Android meta tags, and a tiny network-only service worker (/m-sw.js) scoped to /m — so the web app's caching worker
@@ -12,6 +15,7 @@
  * Phones are sent from / to /m by the inline script in index.html.
  */
 import { execSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -22,7 +26,15 @@ const out = join(root, 'dist', 'm');
 const run = (cmd, cwd) => execSync(cmd, { cwd, stdio: 'inherit', env: { ...process.env, CI: '1', FINTRAXA_WEB_BASE: '/m' } });
 
 if (!existsSync(join(root, 'dist'))) throw new Error('Run `vite build` first (dist/ is missing).');
-if (!existsSync(join(mobile, 'node_modules', 'expo'))) run('npm ci --no-audit --no-fund', mobile);
+const lockHash = createHash('sha256').update(readFileSync(join(mobile, 'package-lock.json'))).digest('hex');
+const stamp = join(mobile, 'node_modules', '.fintraxa-lock-hash');
+const installed = existsSync(join(mobile, 'node_modules', 'expo')) && existsSync(stamp) && readFileSync(stamp, 'utf8').trim() === lockHash;
+if (installed) {
+  console.log('mobile/node_modules matches package-lock.json (cached)');
+} else {
+  run('npm ci --no-audit --no-fund', mobile);
+  writeFileSync(stamp, lockHash);
+}
 run(`npx expo export --platform web --output-dir "${out}"`, mobile);
 
 const manifest = {
