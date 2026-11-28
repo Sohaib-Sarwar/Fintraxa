@@ -95,9 +95,8 @@ export function PassiveCardPager({ total, holders, events }: { total: number; ho
       month: figs.month, period: 'This tax year', sleep: sleepLabel(SLEEP), sleepHours,
     });
   };
-  // The live card wears the next design along, so the two pages read as two cards.
-  const base = Math.max(0, CARD_DESIGNS.findIndex((d) => d.id === chosen));
-  const designs: CardDesignId[] = [CARD_DESIGNS[base].id, CARD_DESIGNS[(base + 1) % CARD_DESIGNS.length].id];
+  // Both pages wear the card design chosen for the app (owner, 2026-11-28: "same card background as all").
+  const design: CardDesignId = CARD_DESIGNS.some((d) => d.id === chosen) ? chosen : CARD_DESIGNS[0].id;
 
   return (
     <View>
@@ -119,10 +118,10 @@ export function PassiveCardPager({ total, holders, events }: { total: number; ho
             renderItem={({ item }) => (
               <Page index={item} x={x} width={w}>
                 {item === 0 ? (
-                  <CardFace design={designs[0]} label="Passive income" value={total} holders={holders} width={w} hidden={hidden}
+                  <CardFace design={design} label="Passive income" value={total} holders={holders} width={w} hidden={hidden}
                     onLongPress={() => { haptic.light(); open({ label: 'Passive income', value: total, holders: holders.map(({ label, value }) => ({ label, value })) }); }} />
                 ) : (
-                  <CardFace design={designs[1]} label="Earned today" value={0} holders={liveHolders} width={w} hidden={hidden} onPress={explain}
+                  <CardFace design={design} label="Earned today" value={0} holders={liveHolders} width={w} hidden={hidden} onPress={explain}
                     figure={(size) => <LiveFigure rate={rate} size={size} hidden={hidden} />} />
                 )}
               </Page>
