@@ -93,6 +93,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         ],
       },
     ],
+    // The widget's frame (system corner radius, edge to edge) and its live flipping number (modules/fx-ticker).
+    './plugins/withWidgetTicker',
   ],
   // The web build is served from /m of the main site: scripts/build-mobile-web.mjs sets FINTRAXA_WEB_BASE=/m. Only
   // then is baseUrl set, so the native config (and its update fingerprint) stays the same as the installed APK's.

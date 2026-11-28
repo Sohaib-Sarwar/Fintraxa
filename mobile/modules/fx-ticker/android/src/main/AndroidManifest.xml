@@ -1,0 +1,6 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application>
+    <!-- Re-syncs the widget's flipping number about once a minute, only while the phone is awake (RTC, not a wake-up alarm). -->
+    <receiver android:name="expo.modules.fxticker.FxTickReceiver" android:exported="false" />
+  </application>
+</manifest>

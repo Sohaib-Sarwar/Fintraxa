@@ -35,7 +35,7 @@ export const defaultConfig = (): WidgetConfig => ({
   card: 'app',
   sources: [...WIDGET_SOURCES],
   basis: 'fy',
-  figures: ['overnight', 'yesterday', 'month'],
+  figures: ['month', 'yesterday', 'overnight'],
   sleep: SLEEP_PRESETS[1],
   hide: false,
 });
@@ -48,7 +48,7 @@ export function cleanConfig(raw: unknown): WidgetConfig {
   if (!raw || typeof raw !== 'object') return base;
   const r = raw as Partial<WidgetConfig>;
   const sources = Array.isArray(r.sources) ? r.sources.filter((s) => WIDGET_SOURCES.includes(s)) : base.sources;
-  const okFig = ['overnight', 'yesterday', 'month', 'received', 'average'];
+  const okFig = ['month', 'yesterday', 'overnight', 'average'];
   const figures = Array.isArray(r.figures) ? r.figures.filter((f) => okFig.includes(f)).slice(0, MAX_FIGURES) : base.figures;
   const hour = (h: unknown, d: number) => (Number.isInteger(h) && (h as number) >= 0 && (h as number) <= 23 ? (h as number) : d);
   return {
