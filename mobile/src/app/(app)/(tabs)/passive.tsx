@@ -4,11 +4,11 @@ import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { type PassiveMonth, type PassiveSource } from '@/data/engines';
 import { usePassive } from '@/data/portfolio';
+import { PassiveCardPager } from '@/features/passive/PassiveCardPager';
 import { SourceIcon, SHORT_LABEL, VIEW_LABEL, PassiveTip } from '@/features/passive/passiveUi';
 import { RangeButton } from '@/features/range/RangeButton';
 import { CHART_MONTHS, usePeriod } from '@/features/range/usePeriod';
 import { ChartCard } from '@/features/today/ChartCard';
-import { NetWorthCard } from '@/features/today/NetWorthCard';
 import { monthLabel } from '@/lib/dates';
 import { compactNumber } from '@/lib/format';
 import { ErrorState, OfflinePill, Skeleton } from '@/ui/feedback';
@@ -26,13 +26,15 @@ const ORDER: PassiveSource[] = ['mutual_funds', 'savings', 'dividends', 'other']
  * Passive income (owner, 2026-11-14): only the card and the chart, filling the screen like Home. The card shows
  * the period's after-tax total and, compactly, Funds · Savings · Dividends — each opens its own page.
  * Bars = the web's months; holding one shows the web tooltip (total after tax, each source, tax withheld).
+ * Swipe the card left for the live counter (PassiveCardPager: earned today since midnight, last night, yesterday,
+ * this month — 2026-11-28).
  */
 export default function PassiveTab() {
   const hidden = useHidden();
   const period = usePeriod();
   // The hold card here is the month's total and its sources (Funds, Savings, Dividends) — owner, 2026-11-15: keep
   // it like before; who paid is on each source's own page.
-  const { analysis: a, isLoading, refetch } = usePassive(period.upTo);
+  const { analysis: a, events, isLoading, refetch } = usePassive(period.upTo);
   const [selected, setSelected] = useState<string | null>(null);
   const [viewport, setViewport] = useState(0);
   const { height: winH } = useWindowDimensions();
@@ -55,7 +57,7 @@ export default function PassiveTab() {
     <Screen title="Passive income" tabBar onRefresh={refetch} right={<RangeButton />} bottomSpace={BOTTOM_SPACE} onViewport={setViewport}>
       <OfflinePill />
       <View style={{ height: fill }}>
-        <NetWorthCard label="Passive income" value={a.totals.net} holders={holders} />
+        <PassiveCardPager total={a.totals.net} holders={holders} events={events} />
         <View style={styles.chartWrap}>
           <ChartCard<Bar> barTitle={sel ? monthLabel(sel, true) : 'By month'} bars={bars} selected={sel} onSelect={setSelected} hidden={hidden}
             format={(v) => (hidden ? '••••' : `Rs ${compactNumber(v)}`)} renderTip={(b) => <PassiveTip m={b} pick="all" />}
