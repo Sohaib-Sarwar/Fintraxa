@@ -5,9 +5,10 @@
  * Saved: every passive payment (date, source, gross, tax, net) — the same events the Passive income pages use
  * (usePassive → the web's passiveEvents), so the widget's average is the web counter's to the paisa.
  */
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 import { usePassive } from '@/data/portfolio';
+import { useCurtain } from '@/features/session/SignInCurtain';
 import { ALL_TIME_START, todayIso } from '@/lib/dates';
 import { useApp } from '@/lib/store';
 import { fromEvents } from './earnings';
@@ -15,6 +16,25 @@ import { refreshWidgets, widgetsAvailable } from './native';
 import { saveData, saveDefaultCard } from './storage';
 
 const ALL_TIME = { start: ALL_TIME_START, end: todayIso() };
+/** After Home is on screen, wait this long before the widget's work: start-up belongs to Home (2026-11-28). */
+const AFTER_HOME_MS = 4000;
+
+/** Mounts the widget sync only once Home has painted and settled, so it never competes with start-up. */
+export function WidgetSync({ uid }: { uid: string | undefined }) {
+  const homeReady = useCurtain((s) => s.ready);
+  const [go, setGo] = useState(false);
+  useEffect(() => {
+    if (!widgetsAvailable || !homeReady || go) return undefined;
+    const t = setTimeout(() => setGo(true), AFTER_HOME_MS);
+    return () => clearTimeout(t);
+  }, [homeReady, go]);
+  return go ? <Sync uid={uid} /> : null;
+}
+
+function Sync({ uid }: { uid: string | undefined }) {
+  useWidgetSync(uid);
+  return null;
+}
 
 export function useWidgetSync(uid: string | undefined) {
   const { events } = usePassive(ALL_TIME);
