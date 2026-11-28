@@ -13,7 +13,7 @@ import { ALL_TIME_START, todayIso } from '@/lib/dates';
 import { useApp } from '@/lib/store';
 import { fromEvents } from './earnings';
 import { refreshWidgets, widgetsAvailable } from './native';
-import { saveData, saveDefaultCard } from './storage';
+import { saveData, saveAppCard } from './storage';
 
 const ALL_TIME = { start: ALL_TIME_START, end: todayIso() };
 /** After Home is on screen, wait this long before the widget's work: start-up belongs to Home (2026-11-28). */
@@ -50,9 +50,10 @@ export function useWidgetSync(uid: string | undefined) {
     return () => clearTimeout(t);
   }, [uid, events]);
 
+  // The widget follows the app's card ('Same as app'): keep it in step and redraw when it changes.
   useEffect(() => {
     if (!widgetsAvailable) return;
-    saveDefaultCard(card).catch(() => {});
+    saveAppCard(card).then(() => refreshWidgets()).catch(() => {});
   }, [card]);
 
   // Leaving the app redraws the widget, so the home screen shows today's figure right away.

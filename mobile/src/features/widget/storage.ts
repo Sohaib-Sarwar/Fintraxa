@@ -11,11 +11,15 @@ import { CARD_DESIGNS, type CardDesignId } from '@/features/today/cardDesigns';
 import { SLEEP_PRESETS, WIDGET_SOURCES, type RateBasis, type Sleep, type SmallFigure, type WidgetData } from './earnings';
 
 const DATA_KEY = 'fx.widget.data.v1';
-const CFG_KEY = (id: number) => `fx.widget.cfg.${id}`;
+/** One look for every Fintraxa widget on the phone, edited in the app (Me › Home-screen widget) or by long-press. */
+const CFG_KEY = 'fx.widget.cfg.v2';
 const CARD_KEY = 'fx.widget.card';
 
+/** 'app' = whatever card the app itself uses (Home), following changes there. */
+export type WidgetCard = CardDesignId | 'app';
+
 export type WidgetConfig = {
-  card: CardDesignId;
+  card: WidgetCard;
   sources: PassiveSource[];
   basis: RateBasis;
   /** Up to three small figures under the big one, in this order. */
@@ -27,8 +31,8 @@ export type WidgetConfig = {
 
 export const MAX_FIGURES = 3;
 
-export const defaultConfig = (card: CardDesignId = 'obsidian'): WidgetConfig => ({
-  card,
+export const defaultConfig = (): WidgetConfig => ({
+  card: 'app',
   sources: [...WIDGET_SOURCES],
   basis: 'fy',
   figures: ['overnight', 'yesterday', 'month'],
@@ -38,9 +42,9 @@ export const defaultConfig = (card: CardDesignId = 'obsidian'): WidgetConfig => 
 
 const validCard = (id: unknown): id is CardDesignId => CARD_DESIGNS.some((d) => d.id === id);
 
-/** A saved config, repaired against today's options (a removed card design falls back, unknown values dropped). */
-export function cleanConfig(raw: unknown, fallbackCard: CardDesignId): WidgetConfig {
-  const base = defaultConfig(fallbackCard);
+/** A saved config, repaired against today's options (a removed card design follows the app again, unknowns dropped). */
+export function cleanConfig(raw: unknown): WidgetConfig {
+  const base = defaultConfig();
   if (!raw || typeof raw !== 'object') return base;
   const r = raw as Partial<WidgetConfig>;
   const sources = Array.isArray(r.sources) ? r.sources.filter((s) => WIDGET_SOURCES.includes(s)) : base.sources;
@@ -48,7 +52,7 @@ export function cleanConfig(raw: unknown, fallbackCard: CardDesignId): WidgetCon
   const figures = Array.isArray(r.figures) ? r.figures.filter((f) => okFig.includes(f)).slice(0, MAX_FIGURES) : base.figures;
   const hour = (h: unknown, d: number) => (Number.isInteger(h) && (h as number) >= 0 && (h as number) <= 23 ? (h as number) : d);
   return {
-    card: validCard(r.card) ? r.card : base.card,
+    card: validCard(r.card) ? r.card : 'app',
     sources,
     basis: r.basis === 'fy' || r.basis === '12m' || r.basis === 'all' ? r.basis : base.basis,
     figures,
@@ -75,23 +79,23 @@ export async function saveData(d: WidgetData) {
   await AsyncStorage.setItem(DATA_KEY, JSON.stringify(d));
 }
 
-/** The app's chosen card design, the starting card of a new widget. */
-export async function loadDefaultCard(): Promise<CardDesignId> {
+/** The card the app uses now (Home's card design), saved by the app for the widget. */
+export async function loadAppCard(): Promise<CardDesignId> {
   const c = await readJson(CARD_KEY);
   return validCard(c) ? c : 'obsidian';
 }
-export async function saveDefaultCard(id: CardDesignId) {
+export async function saveAppCard(id: CardDesignId) {
   await AsyncStorage.setItem(CARD_KEY, JSON.stringify(id));
 }
 
-export async function loadConfig(widgetId: number): Promise<WidgetConfig> {
-  return cleanConfig(await readJson(CFG_KEY(widgetId)), await loadDefaultCard());
+/** The card to draw for a config. */
+export const resolveCard = (cfg: WidgetConfig, appCard: CardDesignId): CardDesignId => (cfg.card === 'app' ? appCard : cfg.card);
+
+export async function loadConfig(): Promise<WidgetConfig> {
+  return cleanConfig(await readJson(CFG_KEY));
 }
-export async function saveConfig(widgetId: number, cfg: WidgetConfig) {
-  await AsyncStorage.setItem(CFG_KEY(widgetId), JSON.stringify(cfg));
-}
-export async function removeConfig(widgetId: number) {
-  await AsyncStorage.removeItem(CFG_KEY(widgetId)).catch(() => {});
+export async function saveConfig(cfg: WidgetConfig) {
+  await AsyncStorage.setItem(CFG_KEY, JSON.stringify(cfg));
 }
 
 /** "Remove data from this phone": the widget forgets the figures (its settings stay). */
