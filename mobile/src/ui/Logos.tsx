@@ -1,7 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
-import { memo, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { createContext, memo, useContext, useState } from 'react';
+import { Image as PlainImage, StyleSheet, View, type ImageSourcePropType, type ImageStyle } from 'react-native';
 import { env } from '@/lib/env';
 import { muiToGlyph } from './categoryIcons';
 import { Text } from './Text';
@@ -14,6 +14,19 @@ const AMC = {
   nbp: require('../../assets/amc/nbp.webp'),
   ubl: require('../../assets/amc/ubl.webp'),
 } as const;
+
+/**
+ * Inside a view that is saved as an image (receipts), bundled logos are drawn with React Native's Image: expo-image
+ * (Glide) may hold them as hardware bitmaps, which a software capture cannot draw — the logo would be missing from the
+ * saved receipt or the capture would fail. Stock logos are SVG (drawn as vectors) and stay on expo-image.
+ */
+export const CaptureSafe = createContext(false);
+
+function Bundled({ source, style, fit }: { source: number; style: ImageStyle; fit: 'cover' | 'contain' }) {
+  const plain = useContext(CaptureSafe);
+  if (plain) return <PlainImage source={source as ImageSourcePropType} style={style} resizeMode={fit} accessibilityIgnoresInvertColors />;
+  return <Image source={source} style={style} contentFit={fit} accessibilityIgnoresInvertColors />;
+}
 
 /** Letters on a soft tile whose hue comes from the name, so the same company always looks the same. */
 function Initials({ text, size }: { text: string; size: number }) {
@@ -44,7 +57,7 @@ export const BankLogo = memo(function BankLogo({ symbol, size = 40 }: { symbol: 
   if (!own) return <StockLogo symbol={symbol} size={size} />;
   return (
     <View style={[styles.circle, { width: size, height: size, borderRadius: size / 2, backgroundColor: p.surface3 }]}>
-      <Image source={own} style={{ width: size, height: size }} contentFit="cover" accessibilityIgnoresInvertColors />
+      <Bundled source={own} style={{ width: size, height: size }} fit="cover" />
     </View>
   );
 });
@@ -86,7 +99,7 @@ export const BrokerLogo = memo(function BrokerLogo({ code, size = 44 }: { code: 
   if (!b) return <Initials text={code} size={size} />;
   return (
     <View style={[styles.circle, { width: size, height: size, borderRadius: size / 2, backgroundColor: '#FFFFFF', overflow: 'hidden' }]}>
-      <Image source={b.src} style={b.bleed ? { width: size * 1.02, height: size * 1.02 } : { width: size * 0.72, height: size * 0.72 }} contentFit="cover" />
+      <Bundled source={b.src} style={b.bleed ? { width: size * 1.02, height: size * 1.02 } : { width: size * 0.72, height: size * 0.72 }} fit="cover" />
     </View>
   );
 });
@@ -97,7 +110,7 @@ export const AmcLogo = memo(function AmcLogo({ code, name, size = 40 }: { code: 
   if (!src) return <Initials text={name ?? code ?? 'MF'} size={size} />;
   return (
     <View style={[styles.circle, { width: size, height: size, borderRadius: size / 2, backgroundColor: '#FFFFFF', borderColor: p.border, borderWidth: StyleSheet.hairlineWidth }]}>
-      <Image source={src} style={{ width: size * 0.74, height: size * 0.74 }} contentFit="contain" />
+      <Bundled source={src} style={{ width: size * 0.74, height: size * 0.74 }} fit="contain" />
     </View>
   );
 });

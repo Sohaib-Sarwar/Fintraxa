@@ -229,7 +229,7 @@ function DividendReceipt({ d, onEdit, onClose }) {
         label="Dividend received (net)"
         tone="pos"
         amount={`+${formatCurrency(num(d.net_amount), 2)}`}
-        subject={{ logo: <StockLogo symbol={d.symbol} size="sm" />, title: d.symbol, sub: getStockName(d.symbol, d.company_name) }}
+        subject={{ logo: <StockLogo symbol={d.symbol} size="lg" />, title: d.symbol, sub: getStockName(d.symbol, d.company_name) }}
         rows={[
           ['Payment date', receiptDate(d.payment_date)],
           ['Dividend', TYPE[d.dividend_type] ?? 'Cash dividend'],

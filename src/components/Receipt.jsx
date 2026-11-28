@@ -1,20 +1,23 @@
 import { Box, IconButton, Tooltip, Typography } from '@mui/material';
-import { CloseRounded, DeleteOutlineRounded, EditOutlined, FileDownloadOutlined } from '@mui/icons-material';
+import { CheckCircleOutlineRounded, CloseRounded, DeleteOutlineRounded, EditOutlined, FileDownloadOutlined } from '@mui/icons-material';
 import { useFx, FONT_NUM } from './fx';
 
 /**
- * One receipt for every record (income / expense, PSX trade, fund transaction),
- * shaped like a ticket after the "receipts UI" reference: the Fintraxa mark large
- * in the centre, what happened and the amount, a perforation with side notches,
- * then only the details that matter, closed by a scalloped edge.
+ * One receipt for every record (income / expense, savings profit, PSX trade, dividend, fund transaction), laid out
+ * like a bank's transaction slip (owner, 2026-11-28: "see how bank receipts work, add the Fintraxa logo, remove
+ * the extra spaces"; same layout as the phone's):
+ *   brand bar — the Fintraxa mark and name, "RECEIPT"
+ *   what it was — its logo (stock, bank, fund manager or category), name, the amount, a status chip with a tick
+ *   a perforation with side notches
+ *   the details, then the reference and "computer-generated, no signature required".
  *
- * It sits on `cut` (the colour behind it: the dialog's surface) and is drawn in
- * the current theme; Download saves exactly this, on that same colour.
+ * It sits on `cut` (the colour behind it: the dialog's surface) and is drawn in the current theme; Download saves
+ * exactly this, on that same colour (lib/receipt.js).
  *
- * label     what the record is ("Expense", "Buy", "Redemption")
+ * label     the status ("Expense", "Buy", "Redemption")
  * tone      'pos' | 'neg' | 'neutral'  colours the amount
  * amount    already formatted, with its sign
- * subject   { logo, title, sub }  the category, stock or fund, with its logo
+ * subject   { logo, title, sub }  the category, stock, bank account or fund, its logo at ~40 px
  * rows      [[label, value]]  the details; empty values are skipped
  * reference short id printed at the foot
  */
@@ -23,46 +26,57 @@ export default function Receipt({ boxRef, label, tone = 'neutral', amount, date,
   const cut = t.surface;
   const color = tone === 'pos' ? t.pos : tone === 'neg' ? t.neg : t.ink;
   const shown = rows.filter(([, v]) => v !== null && v !== undefined && v !== '');
-  const hole = (side) => ({ position: 'absolute', top: '50%', [side]: -11, width: 22, height: 22, borderRadius: '50%', bgcolor: cut, transform: 'translateY(-50%)' });
+  const hole = (side) => ({ position: 'absolute', top: '50%', [side]: -9, width: 18, height: 18, borderRadius: '50%', bgcolor: cut, transform: 'translateY(-50%)' });
   return (
-    // The padding keeps the scallops inside what Download captures.
-    <Box ref={boxRef} sx={{ bgcolor: cut, p: '2px', pb: '10px' }}>
-      <Box sx={{ position: 'relative', overflow: 'hidden', borderRadius: '22px 22px 0 0', bgcolor: t.surface2, color: t.ink, textAlign: 'center' }}>
-        <Box sx={{ px: 2.5, pt: 3, pb: 2.25 }}>
-          <Box component="img" src="/brand/mark-256.png" alt="Fintraxa" width={88} height={88}
-            sx={{ display: 'block', mx: 'auto', objectFit: 'contain', filter: 'drop-shadow(0 8px 18px rgba(0,0,0,.18))' }} />
-          <Typography sx={{ fontSize: '0.78rem', fontWeight: 650, color: t.ink2, mt: 1.5 }}>{label}</Typography>
-          <Typography data-numeric sx={{ fontFamily: FONT_NUM, fontSize: '2.1rem', fontWeight: 650, letterSpacing: '-0.04em', lineHeight: 1.15, color }}>{amount}</Typography>
+    // The padding is the margin of the saved image, in the colour behind the receipt.
+    <Box ref={boxRef} sx={{ bgcolor: cut, p: '2px' }}>
+      <Box sx={{ position: 'relative', overflow: 'hidden', borderRadius: '20px', bgcolor: t.surface2, border: `1px solid ${t.border}`, color: t.ink }}>
+        {/* Brand bar */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 2, py: 1.25, borderBottom: `1px solid ${t.border}` }}>
+          <Box component="img" src="/brand/mark-256.png" alt="" width={24} height={24} sx={{ display: 'block', objectFit: 'contain' }} />
+          <Typography sx={{ flex: 1, fontSize: '0.95rem', fontWeight: 750, letterSpacing: '-0.01em' }}>Fintraxa</Typography>
+          <Typography sx={{ fontSize: '0.64rem', fontWeight: 700, letterSpacing: '0.12em', color: t.muted }}>RECEIPT</Typography>
+        </Box>
+
+        {/* What it was */}
+        <Box sx={{ px: 2, pt: 2, pb: 1.5, textAlign: 'center' }}>
           {subject && (
-            <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1, mt: 1.5, pl: 0.6, pr: 1.5, py: 0.6, borderRadius: 999, bgcolor: t.surface, border: `1px solid ${t.border}`, maxWidth: '100%' }}>
-              <Box sx={{ display: 'flex', flexShrink: 0 }}>{subject.logo}</Box>
-              <Box sx={{ textAlign: 'left', minWidth: 0 }}>
-                <Typography noWrap sx={{ fontSize: '0.84rem', fontWeight: 700, lineHeight: 1.25 }}>{subject.title}</Typography>
-                {subject.sub && <Typography noWrap sx={{ fontSize: '0.66rem', color: t.muted, lineHeight: 1.25 }}>{subject.sub}</Typography>}
-              </Box>
+            <>
+              <Box sx={{ display: 'flex', justifyContent: 'center' }}>{subject.logo}</Box>
+              <Typography sx={{ fontSize: '0.98rem', fontWeight: 750, mt: 1, lineHeight: 1.3, overflowWrap: 'anywhere' }}>{subject.title}</Typography>
+              {subject.sub && <Typography sx={{ fontSize: '0.74rem', color: t.muted, lineHeight: 1.35 }}>{subject.sub}</Typography>}
+            </>
+          )}
+          <Typography data-numeric sx={{ fontFamily: FONT_NUM, fontSize: '2rem', fontWeight: 750, letterSpacing: '-0.04em', lineHeight: 1.2, color, mt: subject ? 0.75 : 0 }}>{amount}</Typography>
+          {label && (
+            <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.6, mt: 0.75, px: 1.25, py: 0.4, borderRadius: '10px', bgcolor: t.surface, maxWidth: '100%' }}>
+              <CheckCircleOutlineRounded sx={{ fontSize: 15, color: tone === 'pos' ? t.pos : t.muted }} />
+              <Typography noWrap sx={{ fontSize: '0.72rem', fontWeight: 650, color: t.ink2 }}>{label}</Typography>
             </Box>
           )}
         </Box>
 
         {/* Perforation */}
-        <Box sx={{ position: 'relative', height: 22 }}>
+        <Box sx={{ position: 'relative', height: 18 }}>
           <Box sx={hole('left')} />
           <Box sx={hole('right')} />
-          <Box sx={{ position: 'absolute', top: '50%', left: 20, right: 20, borderTop: `2px dashed ${t.border}` }} />
+          <Box sx={{ position: 'absolute', top: '50%', left: 18, right: 18, borderTop: `2px dashed ${t.border}` }} />
         </Box>
 
-        <Box sx={{ px: 2.5, pt: 1, pb: 2.75, textAlign: 'left' }}>
-          {date && <Row k="Date" v={date} t={t} />}
-          {shown.map(([k, v]) => <Row key={k} k={k} v={v} t={t} />)}
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1.25, pt: 1, borderTop: `1px dashed ${t.border}`, fontSize: '0.62rem', color: t.muted }}>
-            <span>Recorded in Fintraxa</span>
-            {reference && <Box component="span" sx={{ fontFamily: FONT_NUM }}>Ref {reference}</Box>}
-          </Box>
+        {/* Details */}
+        <Box sx={{ px: 2, pt: 0.5, pb: 0.5 }}>
+          {date && <Row k="Date" v={date} t={t} first />}
+          {shown.map(([k, v], i) => <Row key={k} k={k} v={v} t={t} first={!date && i === 0} />)}
         </Box>
 
-        {/* Scalloped tear-off edge */}
-        <Box aria-hidden sx={{ position: 'absolute', left: 0, right: 0, bottom: -9, display: 'flex', justifyContent: 'space-around', px: 0.5 }}>
-          {Array.from({ length: 11 }, (_, i) => <Box key={i} sx={{ width: 18, height: 18, borderRadius: '50%', bgcolor: cut }} />)}
+        <Box sx={{ px: 2, pt: 1, pb: 1.5, mt: 0.5, borderTop: `1px dashed ${t.border}` }}>
+          {reference && (
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem' }}>
+              <Box component="span" sx={{ color: t.muted }}>Reference</Box>
+              <Box component="span" sx={{ fontFamily: FONT_NUM, fontWeight: 700, letterSpacing: '0.04em' }}>{reference}</Box>
+            </Box>
+          )}
+          <Typography sx={{ fontSize: '0.64rem', color: t.muted, mt: 0.5 }}>Computer-generated by Fintraxa. No signature required.</Typography>
         </Box>
       </Box>
     </Box>
@@ -70,25 +84,29 @@ export default function Receipt({ boxRef, label, tone = 'neutral', amount, date,
 }
 
 /**
- * Above the receipt: small icon actions (delete, download, edit) and close.
- * Edit opens the form on its own; the receipt is only for reading and saving.
+ * Above the receipt: Delete and Edit on the left; Download and Close at the top right (owner, 2026-11-28: a download
+ * icon at the top right of every receipt). Edit opens the form on its own; the receipt is only for reading and saving.
  */
-export function ReceiptToolbar({ onDelete, onDownload, onEdit, onClose, busy }) {
+export function ReceiptToolbar({ onDelete, onDownload, onEdit, onClose, busy, downloading = false }) {
   const t = useFx();
   const btn = { width: 38, height: 38, border: `1px solid ${t.border}`, color: t.ink };
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1.5 }}>
-      <Tooltip title="Delete" arrow>
-        <span><IconButton aria-label="Delete" onClick={onDelete} disabled={busy} sx={{ ...btn, color: t.neg }}><DeleteOutlineRounded sx={{ fontSize: 19 }} /></IconButton></span>
-      </Tooltip>
-      <Tooltip title="Download receipt" arrow>
-        <IconButton aria-label="Download receipt" onClick={onDownload} sx={btn}><FileDownloadOutlined sx={{ fontSize: 19 }} /></IconButton>
-      </Tooltip>
-      <Tooltip title="Edit" arrow>
-        <IconButton aria-label="Edit" onClick={onEdit} sx={btn}><EditOutlined sx={{ fontSize: 18 }} /></IconButton>
-      </Tooltip>
+      {onDelete && (
+        <Tooltip title="Delete" arrow>
+          <span><IconButton aria-label="Delete" onClick={onDelete} disabled={busy} sx={{ ...btn, color: t.neg }}><DeleteOutlineRounded sx={{ fontSize: 19 }} /></IconButton></span>
+        </Tooltip>
+      )}
+      {onEdit && (
+        <Tooltip title="Edit" arrow>
+          <IconButton aria-label="Edit" onClick={onEdit} sx={btn}><EditOutlined sx={{ fontSize: 18 }} /></IconButton>
+        </Tooltip>
+      )}
       <Box sx={{ flex: 1 }} />
-      <IconButton size="small" aria-label="Close" onClick={onClose}><CloseRounded fontSize="small" /></IconButton>
+      <Tooltip title="Download receipt" arrow>
+        <span><IconButton aria-label="Download receipt" onClick={onDownload} disabled={downloading} sx={btn}><FileDownloadOutlined sx={{ fontSize: 19 }} /></IconButton></span>
+      </Tooltip>
+      <IconButton aria-label="Close" onClick={onClose} sx={btn}><CloseRounded sx={{ fontSize: 18 }} /></IconButton>
     </Box>
   );
 }
@@ -108,11 +126,11 @@ export function EditHeader({ title, sub, logo, onClose }) {
   );
 }
 
-function Row({ k, v, t }) {
+function Row({ k, v, t, first }) {
   return (
-    <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, py: 0.55, fontSize: '0.8rem' }}>
+    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, py: 0.85, fontSize: '0.8rem', borderTop: first ? 0 : `1px solid ${t.border}` }}>
       <Box component="span" sx={{ color: t.muted, flexShrink: 0 }}>{k}</Box>
-      <Box component="span" sx={{ fontFamily: FONT_NUM, fontWeight: 600, textAlign: 'right', minWidth: 0, overflowWrap: 'anywhere' }}>{v}</Box>
+      <Box component="span" sx={{ fontFamily: FONT_NUM, fontWeight: 650, textAlign: 'right', minWidth: 0, overflowWrap: 'anywhere' }}>{v}</Box>
     </Box>
   );
 }

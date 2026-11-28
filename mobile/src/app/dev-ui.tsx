@@ -2,6 +2,7 @@
  * Component gallery (plan M1-T2): every UI building block with SAMPLE figures (not anyone's data), for
  * checking dark/light, font scaling and TalkBack labels. Development builds only — release builds redirect.
  * Open: fintraxa://dev-ui, or /dev-ui on the web dev server. `?light` forces the light palette.
+ * `?receipt=stock|dividend|bank|fund|expense` shows a sample receipt screen (with its working Download).
  */
 import { Redirect, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -15,7 +16,8 @@ import { EmptyState, Skeleton } from '@/ui/feedback';
 import { Delta, HeroFigure, Money, StatRow } from '@/ui/Figures';
 import { Keypad } from '@/ui/Keypad';
 import { ListRow } from '@/ui/ListRow';
-import { AmcLogo, CategoryIcon, StockLogo } from '@/ui/Logos';
+import { AmcLogo, BankLogo, CategoryIcon, StockLogo } from '@/ui/Logos';
+import { ReceiptScreen, type ReceiptProps } from '@/ui/Receipt';
 import { Button, Card, Chip, Divider, Gap, Pill, SectionHeader } from '@/ui/primitives';
 import { Screen } from '@/ui/Screen';
 import { Segmented } from '@/ui/Segmented';
@@ -30,14 +32,46 @@ const SAMPLE: Point[] = Array.from({ length: 90 }, (_, i) => ({
   cost: 1_080_000 + Math.floor(i / 30) * 20_000,
 }));
 
+// Sample receipts (made-up figures) for checking the slip and its download on each kind of logo.
+const SAMPLE_RECEIPTS: Record<string, ReceiptProps> = {
+  stock: {
+    icon: <StockLogo symbol="HBL" size={48} />, title: 'HBL', subtitle: 'Habib Bank Limited', amount: '−Rs 25,312.50', status: 'Buy',
+    rows: [{ label: 'Trade date', value: '14 Nov 2026' }, { label: 'Settlement date', value: '18 Nov 2026' }, { label: 'Shares × price', value: '100 × Rs 252.50' },
+      { label: 'Trade value', value: 'Rs 25,250.00' }, { label: 'Charges', value: '+Rs 62.50' }, { label: 'Net paid', value: 'Rs 25,312.50', strong: true }, { label: 'Broker', value: 'AKD Securities' }],
+    reference: 'A1B2C3D4',
+  },
+  dividend: {
+    icon: <StockLogo symbol="MEBL" size={48} />, title: 'MEBL', subtitle: 'Meezan Bank Limited', amount: '+Rs 1,190.00', positive: true, status: 'Interim dividend',
+    rows: [{ label: 'Payment date', value: '2 Oct 2026' }, { label: 'Shares × per share', value: '200 × Rs 7' }, { label: 'Gross dividend', value: 'Rs 1,400.00' },
+      { label: 'Tax withheld (15%)', value: '−Rs 210.00' }, { label: 'Net received', value: 'Rs 1,190.00', strong: true }, { label: 'Warrant no.', value: '000123' }],
+    reference: 'D1V2D3N4',
+  },
+  bank: {
+    icon: <BankLogo symbol="UBL" size={48} />, title: 'Savings account', subtitle: 'UBL Ameen', amount: '+Rs 4,250.00', positive: true, status: 'Savings profit',
+    rows: [{ label: 'Date', value: '1 Nov 2026' }, { label: 'Category', value: 'Profit on savings' }, { label: 'Gross profit', value: 'Rs 5,000.00' },
+      { label: 'Tax withheld (15%)', value: '−Rs 750.00' }, { label: 'Net credited', value: 'Rs 4,250.00', strong: true }],
+    reference: 'S4V1NG55',
+  },
+  fund: {
+    icon: <AmcLogo code="meezan" name="Al Meezan Investments" size={48} />, title: 'Meezan Cash Fund', subtitle: 'Al Meezan Investments', amount: 'Rs 50,000.00', status: 'Purchase',
+    rows: [{ label: 'Date', value: '10 Nov 2026' }, { label: 'Units × NAV', value: '943.1234 × Rs 53.0158' }, { label: 'Amount', value: 'Rs 50,000.00', strong: true }],
+    reference: 'MF-0098',
+  },
+  expense: {
+    icon: <CategoryIcon icon="Restaurant" size={48} tone="glass" />, title: 'Food & Dining', amount: '−Rs 1,850.00', status: 'Expense',
+    rows: [{ label: 'Date', value: '27 Nov 2026' }, { label: 'Note', value: 'Dinner' }], reference: 'E5X6P7N8',
+  },
+};
+
 export default function DevUi() {
   const p = useTheme();
-  const { light } = useLocalSearchParams<{ light?: string }>();
+  const { light, receipt } = useLocalSearchParams<{ light?: string; receipt?: string }>();
   const [seg, setSeg] = useState<'overview' | 'funds' | 'stocks'>('overview');
   const [amount, setAmount] = useState('1250');
   const [scrub, setScrub] = useState<Point | null>(null);
   useEffect(() => { if (light !== undefined) useApp.getState().set({ themePref: 'light' }); }, [light]);
   if (!__DEV__) return <Redirect href="/" />;
+  if (receipt) return <ReceiptScreen receipt={SAMPLE_RECEIPTS[receipt] ?? SAMPLE_RECEIPTS.stock} file={`sample-${receipt}.png`} />;
   const last = SAMPLE[SAMPLE.length - 1];
 
   return (

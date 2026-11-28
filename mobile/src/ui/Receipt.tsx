@@ -1,85 +1,175 @@
 /**
- * A formal receipt on black Apple glass (owner, 2026-11-14: "click to see the formal invoice like web"), shared by
- * income / expense, fund entries, stock trades and dividends: icon or logo, title, the amount big (signed, green for
- * money in), one status line, a dashed tear line, then the financial details as label / value rows, and a short
- * reference at the foot.
- * `fill` (owner, 2026-11-15: "cover the available space, no scrolling"): the card takes the whole space it is given
- * and spreads its rows evenly down it. On a short screen or with large system fonts the rows scroll inside the card
- * instead of overflowing it (owner, 2026-11-26: receipts overflowed).
- * Rows: a long label or value wraps to two lines at most, never past the card; `strong` marks the total.
+ * The receipt for every record — income / expense, savings profit, stock trades, dividends, fund entries — laid out
+ * like a bank's transaction slip (owner, 2026-11-28: "see how bank receipts work, add the Fintraxa logo, remove the
+ * extra spaces, download as shown on screen"):
+ *   brand bar (Fintraxa mark and name, "Receipt")
+ *   what it was: logo, name, the amount big, a status line with a tick
+ *   a perforation with side notches
+ *   the details as label / value rows, the total marked
+ *   reference, and "computer-generated, no signature" like a bank slip.
+ * The slip is as tall as its content (no stretching), on a solid face so the saved image matches the screen.
+ * `ReceiptScreen` puts it on a screen with a download button at the top right; Download saves exactly this view
+ * (with a thin margin in the screen colour) — lib/saveImage.
  */
-import type { ReactNode } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
-import { BlackGlass, GLASS_INK, GLASS_INK2, GLASS_LINE } from './BlackGlass';
+import { router } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRef, useState, type ComponentRef, type ReactNode } from 'react';
+import { Image, StyleSheet, View } from 'react-native';
+import { haptic } from '@/lib/haptics';
+import { SAVED_TO, saveViewAsImage } from '@/lib/saveImage';
+import { GLASS_INK, GLASS_INK2, GLASS_LINE } from './BlackGlass';
+import { EmptyState, Skeleton, toast } from './feedback';
+import { CircleCheck, Download } from './icons';
+import { CaptureSafe } from './Logos';
+import { CircleButton } from './primitives';
+import { Screen } from './Screen';
 import { Text } from './Text';
+import { useTheme } from './theme';
 import { dark, font, space } from './tokens';
+
+export { receiptDate, receiptFileName } from './receiptFormat';
 
 export type ReceiptRow = { label: string; value: string; strong?: boolean };
 
-const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MARK = require('../../assets/mark.png');
+const NOTCH = 18;
 
-/** "14 Nov 2026": the one date format on every receipt (a slip's format, no weekday). */
-export function receiptDate(iso: string | null | undefined): string {
-  if (!iso) return '—';
-  const [y, m, d] = iso.slice(0, 10).split('-').map(Number);
-  if (!y || !m || !d) return iso;
-  return `${d} ${MON[m - 1]} ${y}`;
+export type ReceiptProps = {
+  icon: ReactNode; title: string; subtitle?: string; amount: string; positive?: boolean; status?: string;
+  rows: ReceiptRow[]; reference?: string;
+};
+
+export function Receipt({ icon, title, subtitle, amount, positive, status, rows, reference }: ReceiptProps) {
+  const p = useTheme();
+  const shown = rows.filter((r) => r.value !== '' && r.value !== null && r.value !== undefined);
+  return (
+    <CaptureSafe.Provider value>
+      <View style={styles.slip}>
+        <LinearGradient colors={['#151517', '#0C0C0D']} start={{ x: 0, y: 0 }} end={{ x: 0.4, y: 1 }} style={StyleSheet.absoluteFill} />
+
+        <View style={styles.brand}>
+          <Image source={MARK} style={styles.mark} resizeMode="contain" accessibilityIgnoresInvertColors />
+          <Text style={styles.brandName}>Fintraxa</Text>
+          <Text style={styles.brandTag}>RECEIPT</Text>
+        </View>
+
+        <View style={styles.hero}>
+          {icon}
+          <Text style={styles.title} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.8}>{title}</Text>
+          {subtitle ? <Text style={styles.subtitle} numberOfLines={2}>{subtitle}</Text> : null}
+          <Text style={[styles.amount, { color: positive ? dark.pos : GLASS_INK }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>{amount}</Text>
+          {status ? (
+            <View style={styles.status}>
+              <CircleCheck size={14} color={positive ? dark.pos : GLASS_INK2} strokeWidth={2.2} />
+              <Text style={styles.statusText} numberOfLines={1}>{status}</Text>
+            </View>
+          ) : null}
+        </View>
+
+        <View style={styles.perforation}>
+          <View style={[styles.notch, { left: -NOTCH / 2, backgroundColor: p.bg }]} />
+          <View style={styles.dashes}>{Array.from({ length: 26 }, (_, i) => <View key={i} style={styles.dash} />)}</View>
+          <View style={[styles.notch, { right: -NOTCH / 2, backgroundColor: p.bg }]} />
+        </View>
+
+        <View style={styles.details}>
+          {shown.map((r, i) => (
+            <View key={r.label} style={[styles.row, i > 0 && styles.rowSep, r.strong && styles.rowStrong]}
+              accessible accessibilityLabel={`${r.label}: ${r.value}`}>
+              <Text style={[styles.label, r.strong && styles.labelStrong]} numberOfLines={2}>{r.label}</Text>
+              <Text style={[styles.value, r.strong && styles.valueStrong]} numberOfLines={2}>{r.value}</Text>
+            </View>
+          ))}
+        </View>
+
+        <View style={styles.foot}>
+          {reference ? (
+            <View style={styles.refRow}>
+              <Text style={styles.footLabel}>Reference</Text>
+              <Text style={styles.ref} selectable>{reference}</Text>
+            </View>
+          ) : null}
+          <Text style={styles.note}>Computer-generated by Fintraxa. No signature required.</Text>
+        </View>
+      </View>
+    </CaptureSafe.Provider>
+  );
 }
 
-export function Receipt({ icon, title, subtitle, amount, positive, status, rows, reference, fill = false }: {
-  icon: ReactNode; title: string; subtitle?: string; amount: string; positive?: boolean; status?: string; rows: ReceiptRow[]; reference?: string; fill?: boolean;
+/**
+ * A receipt screen: back, "Receipt", a download button at the top right, the slip. Loading and not-found states
+ * too, so every receipt behaves the same. `file`: the downloaded image's name (receiptFileName).
+ */
+export function ReceiptScreen({ receipt, file, loading, missing }: {
+  receipt: ReceiptProps | null; file: string; loading?: boolean; missing?: { title: string; body: string };
 }) {
-  const shown = rows.filter((r) => r.value !== '' && r.value !== null && r.value !== undefined);
-  const list = shown.map((r, i) => (
-    <View key={r.label} style={[styles.row, fill && styles.rowFill, i > 0 && styles.rowSep, r.strong && styles.rowStrong]}
-      accessible accessibilityLabel={`${r.label}: ${r.value}`}>
-      <Text style={[styles.label, r.strong && styles.labelStrong]} numberOfLines={2}>{r.label}</Text>
-      <Text style={[styles.value, r.strong && styles.valueStrong]} numberOfLines={2}>{r.value}</Text>
-    </View>
-  ));
+  const p = useTheme();
+  const shot = useRef<ComponentRef<typeof View>>(null);
+  const [busy, setBusy] = useState(false);
+
+  const download = async () => {
+    if (busy || !receipt) return;
+    setBusy(true);
+    try {
+      const r = await saveViewAsImage(shot.current, file);
+      if (r === 'denied') toast('Allow Fintraxa to save photos to download receipts.', { tone: 'info' });
+      else { haptic.success(); toast(`Receipt saved to ${SAVED_TO}`); }
+    } catch (e) {
+      console.warn('[receipt] download failed', e);
+      toast('Could not save the receipt. Try again.', { tone: 'error' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const right = receipt ? <CircleButton icon={Download} label="Download receipt" onPress={download} active={busy} /> : undefined;
+  if (!receipt) {
+    return (
+      <Screen back title="Receipt">
+        {loading ? <Skeleton height={460} radius={24} /> : (
+          <EmptyState title={missing?.title ?? 'Not found'} body={missing?.body ?? 'It may have been deleted.'} action="Go back" onAction={() => router.back()} />
+        )}
+      </Screen>
+    );
+  }
   return (
-    <BlackGlass style={[styles.card, fill && styles.cardFill]}>
-      <View style={[styles.top, fill && { gap: 4 }]}>
-        {icon}
-        <Text style={styles.title} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.8}>{title}</Text>
-        {subtitle ? <Text style={styles.subtitle} numberOfLines={2}>{subtitle}</Text> : null}
-        <Text style={[styles.amount, { color: positive ? dark.pos : GLASS_INK }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>{amount}</Text>
-        {status ? <View style={styles.status}><Text style={styles.statusText} numberOfLines={1}>{status}</Text></View> : null}
+    <Screen back title="Receipt" right={right} bottomSpace={space.lg}>
+      {/* What Download saves: the slip on a thin margin of the screen colour. */}
+      <View ref={shot} collapsable={false} style={[styles.shot, { backgroundColor: p.bg }]}>
+        <Receipt {...receipt} />
       </View>
-      <View style={[styles.tear, fill && { marginVertical: space.md }]}>
-        {Array.from({ length: 28 }, (_, i) => <View key={i} style={styles.dash} />)}
-      </View>
-      {fill ? (
-        <ScrollView style={styles.rowsScroll} contentContainerStyle={styles.rowsFill} showsVerticalScrollIndicator={false} bounces={false} overScrollMode="never">
-          {list}
-        </ScrollView>
-      ) : list}
-      {reference ? <Text style={[styles.small, styles.ref, fill && { marginTop: space.sm }]} numberOfLines={1}>Ref · {reference}</Text> : null}
-    </BlackGlass>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { paddingVertical: space.xl },
-  cardFill: { flex: 1, paddingVertical: space.lg },
-  rowsScroll: { flex: 1 },
-  rowsFill: { flexGrow: 1, justifyContent: 'space-evenly' },
-  rowFill: { minHeight: 40, paddingVertical: 4 },
-  top: { alignItems: 'center', gap: 6 },
-  title: { color: GLASS_INK, fontFamily: font.bold, fontSize: 17, lineHeight: 22, textAlign: 'center', marginTop: 4, maxWidth: '100%' },
+  shot: { marginHorizontal: -space.sm, padding: space.sm },
+  slip: { borderRadius: 24, overflow: 'hidden', borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(255,255,255,0.12)', backgroundColor: '#0E0E10' },
+  brand: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: space.lg, paddingVertical: space.md, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: GLASS_LINE },
+  mark: { width: 26, height: 26 },
+  brandName: { flex: 1, color: GLASS_INK, fontFamily: font.bold, fontSize: 15, letterSpacing: -0.2 },
+  brandTag: { color: GLASS_INK2, fontFamily: font.semibold, fontSize: 11, letterSpacing: 1.2 },
+  hero: { alignItems: 'center', gap: 4, paddingHorizontal: space.lg, paddingTop: space.lg, paddingBottom: space.md },
+  title: { color: GLASS_INK, fontFamily: font.bold, fontSize: 16, lineHeight: 21, textAlign: 'center', marginTop: 6, maxWidth: '100%' },
   subtitle: { color: GLASS_INK2, fontFamily: font.regular, fontSize: 12, lineHeight: 16, textAlign: 'center', maxWidth: '92%' },
-  small: { color: GLASS_INK2, fontFamily: font.regular, fontSize: 12 },
-  amount: { fontFamily: font.numHeavy, fontSize: 34, lineHeight: 41, letterSpacing: -0.8, marginTop: 6, maxWidth: '100%' },
-  status: { maxWidth: '100%', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.08)' },
-  statusText: { color: GLASS_INK2, fontFamily: font.semibold, fontSize: 11.5 },
-  tear: { flexDirection: 'row', justifyContent: 'space-between', marginVertical: space.lg, overflow: 'hidden' },
-  dash: { width: 6, height: 1.5, borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.16)' },
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: space.md, minHeight: 44, paddingVertical: 6 },
+  amount: { fontFamily: font.numHeavy, fontSize: 32, lineHeight: 39, letterSpacing: -0.8, marginTop: 4, maxWidth: '100%' },
+  status: { flexDirection: 'row', alignItems: 'center', gap: 5, maxWidth: '100%', marginTop: 2, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.07)' },
+  statusText: { color: GLASS_INK2, fontFamily: font.semibold, fontSize: 11.5, flexShrink: 1 },
+  perforation: { height: NOTCH, justifyContent: 'center' },
+  notch: { position: 'absolute', top: 0, width: NOTCH, height: NOTCH, borderRadius: NOTCH / 2 },
+  dashes: { flexDirection: 'row', justifyContent: 'space-between', marginHorizontal: NOTCH, overflow: 'hidden' },
+  dash: { width: 6, height: 1.5, borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.18)' },
+  details: { paddingHorizontal: space.lg, paddingTop: space.xs },
+  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: space.md, minHeight: 38, paddingVertical: 7 },
   rowSep: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: GLASS_LINE },
-  rowStrong: { borderTopColor: 'rgba(255,255,255,0.18)' },
+  rowStrong: { borderTopColor: 'rgba(255,255,255,0.2)' },
   label: { flexShrink: 1, maxWidth: '50%', color: GLASS_INK2, fontFamily: font.medium, fontSize: 13, lineHeight: 17 },
   labelStrong: { color: GLASS_INK, fontFamily: font.semibold },
   value: { flex: 1, color: GLASS_INK, fontFamily: font.semibold, fontSize: 13.5, lineHeight: 18, textAlign: 'right' },
   valueStrong: { fontFamily: font.numBold, fontSize: 15, lineHeight: 20 },
-  ref: { textAlign: 'center', marginTop: space.lg },
+  foot: { marginTop: space.sm, paddingHorizontal: space.lg, paddingTop: space.sm, paddingBottom: space.md, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: GLASS_LINE, borderStyle: 'dashed', gap: 4 },
+  refRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  footLabel: { color: GLASS_INK2, fontFamily: font.medium, fontSize: 11.5 },
+  ref: { color: GLASS_INK, fontFamily: font.numBold, fontSize: 12, letterSpacing: 0.6 },
+  note: { color: 'rgba(243,244,242,0.42)', fontFamily: font.regular, fontSize: 10.5, lineHeight: 14 },
 });

@@ -108,7 +108,7 @@ export default function EntryEditor({ entry, onClose }) {
           tone={cashIn ? 'pos' : 'neutral'}
           amount={headline !== null ? `${cashIn ? '+' : ''}${formatCurrency(headline, 2)}` : '—'}
           date={receiptDate(f.trade_date)}
-          subject={{ logo: <AmcLogo code={entry.amcCode} name={entry.amcName} size={28} />, title: entry.fundName ?? 'Fund', sub: entry.amcName ?? AMC_NAME[entry.amcCode] }}
+          subject={{ logo: <AmcLogo code={entry.amcCode} name={entry.amcName} size={40} />, title: entry.fundName ?? 'Fund', sub: entry.amcName ?? AMC_NAME[entry.amcCode] }}
           rows={[
             [isOut ? 'Units out' : 'Units in', hasUnits && units !== null ? formatNumber(units, 4) : null],
             ['Price (NAV)', hasUnits && nav !== null ? formatNumber(nav, 4) : null],

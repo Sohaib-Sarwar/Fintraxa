@@ -1,18 +1,13 @@
 import Decimal from 'decimal.js';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useMemo } from 'react';
-import { View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFundsAnalysis } from '@/data/portfolio';
 import { useLedger } from '@/data/queries';
 import { ALL_TIME_START, todayIso } from '@/lib/dates';
 import { money, units } from '@/lib/format';
-import { EmptyState, Skeleton } from '@/ui/feedback';
 import { useHidden } from '@/ui/Figures';
 import { AmcLogo } from '@/ui/Logos';
-import { Receipt, receiptDate, type ReceiptRow } from '@/ui/Receipt';
-import { Screen } from '@/ui/Screen';
-import { space } from '@/ui/tokens';
+import { receiptDate, receiptFileName, ReceiptScreen, type ReceiptRow } from '@/ui/Receipt';
 
 const ENTRY: Record<string, string> = {
   purchase: 'Purchase', redemption: 'Redemption', switch_in: 'Switch in', switch_out: 'Switch out',
@@ -28,15 +23,13 @@ const OTHER = new Set(['zakat', 'wht', 'transaction_cost', 'charge', 'other_dedu
  */
 export default function FundEntryReceipt() {
   const hidden = useHidden();
-  const insets = useSafeAreaInsets();
   const { id, key } = useLocalSearchParams<{ id: string; key: string }>();
   const range = useMemo(() => ({ start: ALL_TIME_START, end: todayIso() }), []);
   const { analysis, isLoading } = useFundsAnalysis(range);
   const ledger = useLedger();
   const x = analysis?.allPositions.find((pos) => pos.key === key);
   const e = x?.entries.find((r) => String(r.id) === id);
-  if ((!x || !e) && isLoading) return <Screen back title="Receipt"><Skeleton height={420} radius={28} /></Screen>;
-  if (!x || !e) return <Screen back title="Receipt"><EmptyState title="Entry not found" body="It may have been removed." action="Go back" onAction={() => router.back()} /></Screen>;
+  if (!x || !e) return <ReceiptScreen receipt={null} file="" loading={isLoading} missing={{ title: 'Entry not found', body: 'It may have been removed.' }} />;
 
   const m = (v: Decimal) => money(v.toFixed(2), { hidden, decimals: 2 });
   const dec = (v: unknown) => (v === null || v === undefined || v === '' ? null : new Decimal(String(v)));
@@ -70,19 +63,17 @@ export default function FundEntryReceipt() {
   ];
 
   return (
-    <Screen back title="Receipt" scroll={false}>
-      <View style={{ flex: 1, paddingBottom: insets.bottom + space.md }}>
-        <Receipt
-          fill
-          icon={<AmcLogo code={x.amcCode} name={x.amcName} size={52} />}
-          title={x.fundName ?? 'Fund'}
-          subtitle={x.amcName ?? undefined}
-          amount={headline ? m(headline.abs()) : `${units(u.abs().toString())} units`}
-          status={ENTRY[type] ?? String(e.original_label ?? type).replace(/_/g, ' ')}
-          rows={rows}
-          reference={e.external_ref ? String(e.external_ref) : String(e.id).slice(0, 8).toUpperCase()}
-        />
-      </View>
-    </Screen>
+    <ReceiptScreen
+      file={receiptFileName(x.fundName ?? 'fund', type, String(e.trade_date))}
+      receipt={{
+        icon: <AmcLogo code={x.amcCode} name={x.amcName} size={48} />,
+        title: x.fundName ?? 'Fund',
+        subtitle: x.amcName ?? undefined,
+        amount: headline ? m(headline.abs()) : `${units(u.abs().toString())} units`,
+        status: ENTRY[type] ?? String(e.original_label ?? type).replace(/_/g, ' '),
+        rows,
+        reference: e.external_ref ? String(e.external_ref) : String(e.id).slice(0, 8).toUpperCase(),
+      }}
+    />
   );
 }
