@@ -52,7 +52,6 @@ export function WidgetEditor({ cfg, onChange, data, appCard }: {
   const card = resolveCard(cfg, appCard);
   const full = Math.min(width - 2 * space.xl, 420);
   const pw = size === 'medium' ? full : Math.round(full * 0.52);
-  const ph = size === 'medium' ? Math.round(full / 2.05) : pw;
 
   const toggleFigure = (f: SmallFigure) => {
     haptic.tick();
@@ -66,7 +65,7 @@ export function WidgetEditor({ cfg, onChange, data, appCard }: {
   return (
     <View>
       <View style={[styles.preview, { height: Math.round(full * 0.52) + 8 }]}>
-        <WidgetFace data={data} cfg={cfg} card={card} width={pw} height={ph} />
+        <WidgetFace data={data} cfg={cfg} card={card} width={pw} size={size} />
       </View>
       <View style={styles.sizes}>
         <GlassToggle options={[{ value: 'medium', label: 'Medium' }, { value: 'small', label: 'Small' }]} value={size} onChange={setSize} accessibilityLabel="Preview size" />

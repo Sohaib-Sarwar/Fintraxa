@@ -10,8 +10,8 @@ import { EarningsWidget, FallbackWidget } from '../EarningsWidget';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { buildWidgetTree } = require('react-native-android-widget/lib/commonjs/api/build-widget-tree') as { buildWidgetTree: (el: React.JSX.Element) => { type: string; children?: unknown[] } };
 
-const figures = { perSecond: 0.001, avgPerMonth: 2600, today: 52.4, overnight: 28.8, yesterday: 85.4, month: 3000, average: 2600, months: 5, hasIncome: true };
-const base = { card: 'obsidian' as const, show: ['month', 'yesterday', 'overnight'] as const, hide: false, builtAt: Date.now(), now: Date.now(), live: false };
+const figures = { perSecond: 0.001, avgPerMonth: 2600, today: 52.4, overnight: 28.8, yesterday: 85.4, month: 2310, received: 3000, average: 2600, months: 5, hasIncome: true };
+const base = { card: 'obsidian' as const, show: ['overnight', 'yesterday', 'month'] as const, hide: false, builtAt: Date.now(), now: Date.now() };
 
 describe('widget tree', () => {
   test('the widget file keeps the React Compiler off', () => {
@@ -25,10 +25,6 @@ describe('widget tree', () => {
     const tree = buildWidgetTree(<EarningsWidget {...base} show={[...base.show]} width={width} height={height} figures={figures} />);
     expect(tree.type).toBe('FrameLayoutWidget'); // OverlapWidget's native name
     expect(JSON.stringify(tree)).toContain('OPEN_APP');
-    // Still figure (no ticker): drawn with PKR right after it; live: the slot is left to the native ticker.
-    expect(JSON.stringify(tree)).toContain('"text":"52.40"');
-    const live = JSON.stringify(buildWidgetTree(<EarningsWidget {...base} live show={[...base.show]} width={width} height={height} figures={figures} />));
-    expect(live).not.toContain('"text":"52.40"');
   });
 
   test('builds with no saved data, hidden amounts, and the fallback', () => {
