@@ -76,6 +76,8 @@ export type PassiveAnalysis = {
   totals: { gross: number; tax: number; net: number; count: number };
   bySource: Record<PassiveSource, { gross: number; tax: number; net: number; count: number }>;
   months: PassiveMonth[]; avgPerMonth: number; effectiveTaxRate: number | null;
+  /** Months the average is over; the average as rupees a second and per 8-hour night (the web's counter). */
+  elapsedMonths: number; perSecond: number; perNight: number;
   mom: { month: string; net: number; previous: number; changePct: number | null } | null;
   runRate3: { months: number; perMonth: number } | null;
   events: PassiveEvent[];

@@ -3,8 +3,8 @@
  *   prefs hydrated → (fingerprint on? system prompt : silent) → vault open → session read → ready.
  *
  * While signed in:
- *  - Idle in the app for the Auto-lock time (min 1 min, default 5) → a 30-second "Still there?" warning
- *    (features/session/IdleWarning.tsx) → lock (fingerprint) or sign out with the reason. Any touch, key or scroll
+ *  - Idle in the app for the Auto-lock time (min 1 min, default 5) → lock (fingerprint) or sign out with the reason,
+ *    with no countdown window (owner, 2026-11-28: the "Still there?" timer was removed). Any touch, key or scroll
  *    counts (lib/activity.ts) — also inside Modal windows and, on the web build, anywhere in the document.
  *  - Away in the background for the Auto-lock time (0 = at once) → lock / sign out on return. Screens the app opened
  *    itself (file / photo picker, fingerprint prompt, a link) are not "away" for up to 10 min (holdSession).
@@ -16,8 +16,8 @@
  */
 import { useEffect, useRef } from 'react';
 import { AppState, Platform } from 'react-native';
-import { authTimeFromToken, onColdStart, onReturn, PHONE_WARN_MS, phoneIdleMs, sessionState } from '@core/session/policy.js';
-import { holdUntil, lastActiveAt, markActive, useIdle } from '@/lib/activity';
+import { authTimeFromToken, onColdStart, onReturn, phoneIdleMs, sessionState } from '@core/session/policy.js';
+import { holdUntil, lastActiveAt, markActive } from '@/lib/activity';
 import { autoLock, endSession, signOut, startAuth, useAuth } from '@/lib/auth';
 import { restartedForUpdate } from '@/lib/otaUpdates';
 import { useApp } from '@/lib/store';
@@ -69,19 +69,18 @@ export async function unlock(onVerified?: () => void): Promise<OpenResult> {
 /** One check of the open session against the policy (also run on returning to the app). */
 function checkSession() {
   const { session, locked } = useAuth.getState();
-  if (!session || locked) { if (useIdle.getState().warnUntil !== null) useIdle.setState({ warnUntil: null }); return; }
+  if (!session || locked) return;
   const now = Date.now();
   const { autoLockMinutes } = useApp.getState();
   // A screen the app opened (picker, prompt) is in front: the user hasn't gone anywhere.
   if (holdUntil() > now) { markActive(); return; }
+  // No warning window (warnMs 0): the session locks / ends when the idle limit is reached.
   const st = sessionState({
-    now, lastActive: lastActiveAt(), idleMs: phoneIdleMs(autoLockMinutes), warnMs: PHONE_WARN_MS,
+    now, lastActive: lastActiveAt(), idleMs: phoneIdleMs(autoLockMinutes), warnMs: 0,
     authAt: authTimeFromToken(session.access_token),
   });
-  if (st.state === 'expired') { useIdle.setState({ warnUntil: null }); endSession('expired').catch(() => {}); return; }
-  if (st.state === 'idle') { useIdle.setState({ warnUntil: null }); autoLock('idle').catch(() => {}); return; }
-  if (st.state === 'warn') { if (useIdle.getState().warnUntil === null) useIdle.setState({ warnUntil: now + st.msLeft }); return; }
-  if (useIdle.getState().warnUntil !== null) useIdle.setState({ warnUntil: null });
+  if (st.state === 'expired') { endSession('expired').catch(() => {}); return; }
+  if (st.state === 'idle') autoLock('idle').catch(() => {});
 }
 
 /** Remember when the app was last used (persisted), so a fresh start can tell a reload from a closed app. */

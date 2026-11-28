@@ -130,6 +130,9 @@ export async function signOut({ keepData = true, everywhere = false }: { keepDat
   if (!keepData) {
     await forgetCache();
     if (uid) useApp.getState().forgetUser(uid);
+    // The home-screen widget forgets the figures too (it keeps its settings).
+    await import('@/features/widget/storage').then((m) => m.clearData()).catch(() => {});
+    await import('@/features/widget/native').then((m) => m.refreshWidgets()).catch(() => {});
   }
   if (useApp.getState().biometricEnabled) {
     await disableBiometricKey().catch(() => {});

@@ -19,7 +19,6 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { LockScreen } from '@/features/session/LockScreen';
 import { SignInCurtain, useCurtain } from '@/features/session/SignInCurtain';
 import { useOtaUpdates } from '@/lib/otaUpdates';
-import { IdleWarning } from '@/features/session/IdleWarning';
 import { markActive, useSession } from '@/features/session/useSession';
 import { useAuth } from '@/lib/auth';
 import { isExpoGo } from '@/lib/env';
@@ -119,7 +118,6 @@ function Root({ fontsReady }: { fontsReady: boolean }) {
       {/* Sign-in → Home: the landing's loader until Home is ready, then an unlock-style reveal. */}
       <SignInCurtain />
       {/* "Still there?" before an idle lock / sign-out (useSession.ts). */}
-      <IdleWarning />
       {locked ? <View style={StyleSheet.absoluteFill}><LockScreen /></View> : null}
       <ToastHost />
     </View>
